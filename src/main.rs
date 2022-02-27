@@ -2,8 +2,8 @@ use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
-use dao_indexer_rs::db::connection::establish_connection;
-use dao_indexer_rs::db::models::NewContract;
+use dao_indexer::db::connection::establish_connection;
+use dao_indexer::db::models::{NewContract, NewCw20Balance};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
@@ -76,7 +76,7 @@ fn get_contract_address(events: &Option<BTreeMap<String, Vec<String>>>) -> Strin
 
 impl Index for MsgInstantiateContract {
     fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
-        use dao_indexer_rs::db::schema::contracts::dsl::*;
+        use dao_indexer::db::schema::contracts::dsl::*;
         let contract_addr = get_contract_address(events);
         let contract_model = NewContract {
             address: &contract_addr,
@@ -87,6 +87,12 @@ impl Index for MsgInstantiateContract {
             creation_time: "",
             height: 0,
         };
+
+        let cw20_balance = NewCw20Balance {
+            address: &contract_addr,
+            token: &"FOO",
+            amount: self.funds.amount,
+        }
 
         diesel::insert_into(contracts)
             .values(&contract_model)
