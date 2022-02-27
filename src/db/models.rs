@@ -1,5 +1,7 @@
 use super::schema::{contracts, cw20_balances};
 use diesel::sql_types::{Text, BigInt, Jsonb};
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
 #[derive(Insertable)]
 #[table_name="contracts"]
@@ -38,4 +40,29 @@ pub struct Cw20Balance {
     pub address: Text,
     pub token: Text,
     pub code_id: BigInt,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Cw20Msg {
+    pub symbol: String,
+    pub name: String,
+    pub decimals: i32
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Cw20 {
+    pub cw20_code_id: i64,
+    pub label: String,
+    pub msg: Cw20Msg,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GovToken {
+    pub instantiate_new_cw20: Cw20
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct NewDao {
+    pub description: String,
+    pub gov_token: GovToken
 }

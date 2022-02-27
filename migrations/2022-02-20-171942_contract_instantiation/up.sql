@@ -36,3 +36,31 @@ CREATE TABLE cw20_balances (
     token TEXT NOT NULL,
     balance BIGINT NOT NULL
 );
+
+CREATE TABLE coin (id SERIAL PRIMARY KEY);
+
+CREATE TABLE dao (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    image_url TEXT
+);
+
+-- pub struct InstantiateMsg {
+--     // The name of the DAO.
+--     pub name: String,
+--     // A description of the DAO.
+--     pub description: String,
+--     /// Set an existing governance token or launch a new one
+--     pub gov_token: GovTokenMsg,
+--     /// Voting params configuration
+--     pub threshold: Threshold,
+--     /// The amount of time a proposal can be voted on before expiring
+--     pub max_voting_period: Duration,
+--     /// Deposit required to make a proposal
+--     pub proposal_deposit_amount: Uint128,
+--     /// Refund a proposal if it is rejected
+--     pub refund_failed_proposals: Option<bool>,
+--     /// Optional Image URL that is used by the contract
+--     pub image_url: Option<String>,
+-- }

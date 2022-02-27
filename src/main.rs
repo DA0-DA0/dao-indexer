@@ -3,15 +3,16 @@ use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::models::{NewContract, NewCw20Balance};
+use dao_indexer::db::models::{NewContract};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
 use serde_json::Value;
 use std::collections::BTreeMap;
-use tendermint_rpc::event::{EventData};
+use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use cw3_dao::msg::InstantiateMsg;
 
 fn parse_message(msg: &Vec<u8>) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.clone()) {
@@ -77,6 +78,7 @@ fn get_contract_address(events: &Option<BTreeMap<String, Vec<String>>>) -> Strin
 impl Index for MsgInstantiateContract {
     fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
         use dao_indexer::db::schema::contracts::dsl::*;
+        use dao_indexer::db::schema::dao::dsl::*;
         let contract_addr = get_contract_address(events);
         let contract_model = NewContract {
             address: &contract_addr,
@@ -88,24 +90,50 @@ impl Index for MsgInstantiateContract {
             height: 0,
         };
 
-        let cw20_balance = NewCw20Balance {
-            address: &contract_addr,
-            token: &"FOO",
-            amount: self.funds.amount,
-        }
-
         diesel::insert_into(contracts)
             .values(&contract_model)
             .execute(db)
             .expect("Error saving new post");
 
-        index_message(
-            db,
-            &self.sender,
-            &contract_addr,
-            &self.funds,
-            Some(&self.msg),
-        )
+        let msg_str = String::from_utf8(self.msg.clone()).unwrap();
+        let instantiate_dao: InstantiateMsg = serde_json::from_str(&msg_str).unwrap();
+        diesel::insert_into(dao)
+        .values(&instantiate_dao)
+        .execute(db)
+        .expect("Error saving dao");
+        // if let Ok(parsed) = parse_message(&self.msg) {
+        //     if let Some(parsed) = parsed {
+        //         let description = parsed.get("description").unwrap();
+        //         let gov_token = parsed.get("gov_token").unwrap();
+        //         let cw20 = gov_token.get("instantiate_new_cw20").unwrap();
+        //         let code_id_value = cw20.get("cw20_code_id").unwrap();
+        //         let initial_dao_balance = cw20.get("initial_dao_balance").unwrap().as_str().unwrap();
+        //         let token_label = cw20.get("label").unwrap().as_str().unwrap();
+        //         let msg = cw20.get("msg").unwrap();
+        //         let token_symbol = msg.get("symbol").unwrap().as_str().unwrap();
+        //         let initial_dao_balances = msg.get("initial_balances").unwrap().as_array().unwrap();
+        //         println!("{} {}, {} {} {}", description, initial_dao_balance, token_label, token_symbol, code_id_value);
+        //         for balance in initial_dao_balances {
+        //             println!("balance: {:?}", balance);
+        //         }
+
+        //         //println!("description: {}, gov_token: {}, cw20: {}, code_id: {}", description, gov_token, cw20, code_id_value);
+        //         //println!("initial_dao_balance: {}, token_label: {}, token_symbol: {}, initial_dao_balances: {:?}", initial_dao_balance, token_label, token_symbol, initial_dao_balances);
+
+        //         // let dao = NewDao {
+        //         //     parsed.get("description");
+
+        //         // }
+        //     }
+        // }
+
+        // index_message(
+        //     db,
+        //     &self.sender,
+        //     &contract_addr,
+        //     &self.funds,
+        //     Some(&self.msg),
+        // )
     }
 }
 

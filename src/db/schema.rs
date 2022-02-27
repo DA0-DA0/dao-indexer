@@ -8,6 +8,12 @@ table! {
 }
 
 table! {
+    coin (id) {
+        id -> Int4,
+    }
+}
+
+table! {
     contracts (address) {
         address -> Text,
         code_id -> Int8,
@@ -30,6 +36,15 @@ table! {
 }
 
 table! {
+    dao (id) {
+        id -> Int4,
+        name -> Text,
+        description -> Text,
+        image_url -> Nullable<Text>,
+    }
+}
+
+table! {
     exec_msg (id) {
         id -> Int4,
         sender -> Text,
@@ -41,7 +56,9 @@ table! {
 
 allow_tables_to_appear_in_same_query!(
     codes,
+    coin,
     contracts,
     cw20_balances,
+    dao,
     exec_msg,
 );
