@@ -22,7 +22,6 @@ table! {
         label -> Text,
         creation_time -> Text,
         height -> Int8,
-        json -> Jsonb,
     }
 }
 
@@ -38,6 +37,7 @@ table! {
 table! {
     dao (id) {
         id -> Int4,
+        contract_address -> Text,
         name -> Text,
         description -> Text,
         token_name -> Text,
@@ -51,8 +51,35 @@ table! {
         id -> Int4,
         sender -> Text,
         address -> Text,
-        funds -> Nullable<Jsonb>,
-        json -> Nullable<Jsonb>,
+    }
+}
+
+table! {
+    gov_token (id) {
+        id -> Int4,
+        name -> Text,
+        symbol -> Text,
+        decimals -> Nullable<Int4>,
+        marketing_id -> Nullable<Int4>,
+    }
+}
+
+table! {
+    logo (id) {
+        id -> Int4,
+        url -> Nullable<Text>,
+        svg -> Nullable<Text>,
+        png -> Nullable<Bytea>,
+    }
+}
+
+table! {
+    marketing (id) {
+        id -> Int4,
+        project -> Nullable<Text>,
+        description -> Nullable<Text>,
+        marketing_text -> Nullable<Text>,
+        logo_id -> Nullable<Int4>,
     }
 }
 
@@ -63,4 +90,7 @@ allow_tables_to_appear_in_same_query!(
     cw20_balances,
     dao,
     exec_msg,
+    gov_token,
+    logo,
+    marketing,
 );

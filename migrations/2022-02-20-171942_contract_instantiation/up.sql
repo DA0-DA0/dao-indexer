@@ -14,8 +14,7 @@ CREATE TABLE contracts (
     admin TEXT NOT NULL DEFAULT '',
     label TEXT NOT NULL DEFAULT '',
     creation_time TEXT NOT NULL DEFAULT '',
-    height BIGINT NOT NULL,
-    json JSONB NOT NULL DEFAULT '{}'
+    height BIGINT NOT NULL
 );
 
 CREATE INDEX contracts_code_id_index ON contracts (code_id);
@@ -25,9 +24,7 @@ CREATE INDEX contracts_creator_index ON contracts (creator);
 CREATE TABLE exec_msg (
     id SERIAL PRIMARY KEY,
     sender TEXT NOT NULL,
-    address TEXT NOT NULL,
-    funds JSONB,
-    json JSONB
+    address TEXT NOT NULL
 );
 
 CREATE TABLE cw20_balances (
@@ -41,12 +38,60 @@ CREATE TABLE coin (id SERIAL PRIMARY KEY);
 
 CREATE TABLE dao (
     id SERIAL PRIMARY KEY,
+    contract_address TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     token_name TEXT NOT NULL,
     token_symbol TEXT NOT NULL,
     image_url TEXT
 );
+
+CREATE TABLE marketing (
+    id SERIAL PRIMARY KEY,
+    project TEXT,
+    description TEXT,
+    marketing_text TEXT,
+    logo_id INT
+);
+
+CREATE TABLE gov_token (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    decimals INT,
+    marketing_id INT
+);
+
+CREATE TABLE logo (
+    id SERIAL PRIMARY KEY,
+    url TEXT,
+    svg TEXT,
+    png BYTEA
+);
+
+-- pub struct InstantiateMarketingInfo {
+--     pub project: Option<String>,
+--     pub description: Option<String>,
+--     pub marketing: Option<String>,
+--     pub logo: Option<Logo>,
+-- }
+
+-- pub struct GovTokenInstantiateMsg {
+--     pub name: String,
+--     pub symbol: String,
+--     pub decimals: u8,
+--     pub initial_balances: Vec<Cw20Coin>,
+--     pub marketing: Option<InstantiateMarketingInfo>,
+-- }
+-- InstantiateNewCw20 {
+--     cw20_code_id: u64,
+--     stake_contract_code_id: u64,
+--     label: String,
+--     initial_dao_balance: Option<Uint128>,
+--     msg: GovTokenInstantiateMsg,
+--     unstaking_duration: Option<Duration>,
+-- },
+
 
 -- pub struct InstantiateMsg {
 --     // The name of the DAO.

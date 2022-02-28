@@ -83,33 +83,33 @@ fn insert_contract(db: &PgConnection, contract_model: &NewContract) {
     .expect("Error saving new post");
 }
 
-fn insert_dao(db: &PgConnection, instantiate_dao: &InstantiateMsg) {
+fn insert_dao(db: &PgConnection, instantiate_dao: &InstantiateMsg, contract_addr: &str) {
     use dao_indexer::db::schema::dao::dsl::*;
 
-    let dao_code_id;
+    let dao_cw20_code_id;
+    let dao_stake_contract_code_id;
     let dao_label;
-    let mut dao_addr = "NO_ADDR".to_string();
-    let mut symbol = "NO SYMBOL".to_string();
+    let mut symbol = "NO_SYMBOL".to_string();
     match &instantiate_dao.gov_token {
         GovTokenMsg::InstantiateNewCw20{cw20_code_id, stake_contract_code_id, label, msg, ..} => {
-            dao_code_id = cw20_code_id;
+            dao_cw20_code_id = cw20_code_id;
+            dao_stake_contract_code_id = stake_contract_code_id;
             dao_label = label;
             symbol = msg.symbol.to_string();
-            println!("stake_contract_code_id: {}", stake_contract_code_id);
-            // println!("new cw20 {:?}", instantiate_dao.gov_token.label);
+            println!("dao_cw20_code_id {}", dao_cw20_code_id);
         },
-        GovTokenMsg::UseExistingCw20{stake_contract_code_id, addr, label, ..} => {
-            // println!("existing cw20 {:?}", ..);
-            dao_code_id = stake_contract_code_id;
+        GovTokenMsg::UseExistingCw20{stake_contract_code_id, label, ..} => {
+            dao_stake_contract_code_id = stake_contract_code_id;
             dao_label = label;
-            dao_addr = addr.clone();
         }
     };
-    println!("dao_code_id: {}, dao_label: {}, dao_addr: {}", dao_code_id, dao_label, dao_addr);
+
+    print!("dao_stake_contract_code_id: {}", dao_stake_contract_code_id);
 
     diesel::insert_into(dao)
     .values((
         name.eq(&instantiate_dao.name),
+        contract_address.eq(&contract_addr),
         description.eq(&instantiate_dao.description),
         token_name.eq(&dao_label),
         token_symbol.eq(symbol)
@@ -120,8 +120,6 @@ fn insert_dao(db: &PgConnection, instantiate_dao: &InstantiateMsg) {
 
 impl Index for MsgInstantiateContract {
     fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
-        // use dao_indexer::db::schema::contracts::dsl::*;
-        // use dao_indexer::db::schema::dao::dsl::*;
         let contract_addr = get_contract_address(events);
         let contract_model = NewContract {
             address: &contract_addr,
@@ -133,15 +131,9 @@ impl Index for MsgInstantiateContract {
             height: 0,
         };
         insert_contract(db, &contract_model);
-
-        // diesel::insert_into(contracts)
-        //     .values(&contract_model)
-        //     .execute(db)
-        //     .expect("Error saving new post");
-
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         let instantiate_dao: InstantiateMsg = serde_json::from_str(&msg_str).unwrap();
-        insert_dao(db, &instantiate_dao);
+        insert_dao(db, &instantiate_dao, &contract_addr);
         // let code_id = match instantiate_dao.gov_token {
         //     GovTokenMsg::InstantiateNewCw20{cw20_code_id, ..} => {
         //         cw20_code_id as u64
@@ -221,8 +213,8 @@ async fn main() {
             EventData::Tx { tx_result, .. } => match Tx::from_bytes(&tx_result.tx) {
                 Ok(tx_parsed) => {
                     for msg in tx_parsed.body.messages {
-                        let type_url = msg.type_url.to_string();
-                        match type_url.as_str() {
+                        let type_url: &str = &msg.type_url;
+                        match type_url {
                             "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
                                 let msg_obj: MsgInstantiateContract =
                                     MsgProto::from_any(&msg).unwrap();
