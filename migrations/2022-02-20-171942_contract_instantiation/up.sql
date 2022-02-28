@@ -43,6 +43,8 @@ CREATE TABLE dao (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
+    token_name TEXT NOT NULL,
+    token_symbol TEXT NOT NULL,
     image_url TEXT
 );
 

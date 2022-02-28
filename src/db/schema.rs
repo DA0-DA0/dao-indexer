@@ -40,6 +40,8 @@ table! {
         id -> Int4,
         name -> Text,
         description -> Text,
+        token_name -> Text,
+        token_symbol -> Text,
         image_url -> Nullable<Text>,
     }
 }

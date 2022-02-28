@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use cw3_dao::msg::InstantiateMsg;
+use cw3_dao::msg::{InstantiateMsg, GovTokenMsg};
 
 fn parse_message(msg: &Vec<u8>) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.clone()) {
@@ -75,10 +75,53 @@ fn get_contract_address(events: &Option<BTreeMap<String, Vec<String>>>) -> Strin
     return contract_addr;
 }
 
+fn insert_contract(db: &PgConnection, contract_model: &NewContract) {
+    use dao_indexer::db::schema::contracts::dsl::*;
+    diesel::insert_into(contracts)
+    .values(contract_model)
+    .execute(db)
+    .expect("Error saving new post");
+}
+
+fn insert_dao(db: &PgConnection, instantiate_dao: &InstantiateMsg) {
+    use dao_indexer::db::schema::dao::dsl::*;
+
+    let dao_code_id;
+    let dao_label;
+    let mut dao_addr = "NO_ADDR".to_string();
+    let mut symbol = "NO SYMBOL".to_string();
+    match &instantiate_dao.gov_token {
+        GovTokenMsg::InstantiateNewCw20{cw20_code_id, stake_contract_code_id, label, msg, ..} => {
+            dao_code_id = cw20_code_id;
+            dao_label = label;
+            symbol = msg.symbol.to_string();
+            println!("stake_contract_code_id: {}", stake_contract_code_id);
+            // println!("new cw20 {:?}", instantiate_dao.gov_token.label);
+        },
+        GovTokenMsg::UseExistingCw20{stake_contract_code_id, addr, label, ..} => {
+            // println!("existing cw20 {:?}", ..);
+            dao_code_id = stake_contract_code_id;
+            dao_label = label;
+            dao_addr = addr.clone();
+        }
+    };
+    println!("dao_code_id: {}, dao_label: {}, dao_addr: {}", dao_code_id, dao_label, dao_addr);
+
+    diesel::insert_into(dao)
+    .values((
+        name.eq(&instantiate_dao.name),
+        description.eq(&instantiate_dao.description),
+        token_name.eq(&dao_label),
+        token_symbol.eq(symbol)
+    ))
+    .execute(db)
+    .expect("Error saving dao");
+}
+
 impl Index for MsgInstantiateContract {
     fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
-        use dao_indexer::db::schema::contracts::dsl::*;
-        use dao_indexer::db::schema::dao::dsl::*;
+        // use dao_indexer::db::schema::contracts::dsl::*;
+        // use dao_indexer::db::schema::dao::dsl::*;
         let contract_addr = get_contract_address(events);
         let contract_model = NewContract {
             address: &contract_addr,
@@ -89,18 +132,33 @@ impl Index for MsgInstantiateContract {
             creation_time: "",
             height: 0,
         };
+        insert_contract(db, &contract_model);
 
-        diesel::insert_into(contracts)
-            .values(&contract_model)
-            .execute(db)
-            .expect("Error saving new post");
+        // diesel::insert_into(contracts)
+        //     .values(&contract_model)
+        //     .execute(db)
+        //     .expect("Error saving new post");
 
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         let instantiate_dao: InstantiateMsg = serde_json::from_str(&msg_str).unwrap();
-        diesel::insert_into(dao)
-        .values(&instantiate_dao)
-        .execute(db)
-        .expect("Error saving dao");
+        insert_dao(db, &instantiate_dao);
+        // let code_id = match instantiate_dao.gov_token {
+        //     GovTokenMsg::InstantiateNewCw20{cw20_code_id, ..} => {
+        //         cw20_code_id as u64
+        //         // println!("new cw20 {:?}", instantiate_dao.gov_token.label);
+        //     },
+        //     GovTokenMsg::UseExistingCw20{stake_contract_code_id, ..} => {
+        //         // println!("existing cw20 {:?}", ..);
+        //         stake_contract_code_id
+        //     }
+        // };
+        // diesel::insert_into(dao)
+        // .values((
+        //     name.eq(&instantiate_dao.name),
+        //     description.eq(&instantiate_dao.description)
+        // ))
+        // .execute(db)
+        // .expect("Error saving dao");
         // if let Ok(parsed) = parse_message(&self.msg) {
         //     if let Some(parsed) = parsed {
         //         let description = parsed.get("description").unwrap();
