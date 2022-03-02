@@ -2,8 +2,9 @@ use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
+use cw3_dao::msg::{GovTokenMsg, InstantiateMsg};
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::models::{NewContract};
+use dao_indexer::db::models::NewContract;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
@@ -12,10 +13,9 @@ use std::collections::BTreeMap;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use cw3_dao::msg::{InstantiateMsg, GovTokenMsg};
 
-fn parse_message(msg: &Vec<u8>) -> serde_json::Result<Option<Value>> {
-    if let Ok(exec_msg_str) = String::from_utf8(msg.clone()) {
+fn parse_message(msg: &[u8]) -> serde_json::Result<Option<Value>> {
+    if let Ok(exec_msg_str) = String::from_utf8(msg.to_owned()) {
         if let Ok(parsed_json) = serde_json::from_str(&exec_msg_str) {
             return Ok(parsed_json);
         }
@@ -27,16 +27,14 @@ fn index_message(
     _db: &PgConnection,
     sender: &str,
     contract_addr: &str,
-    funds: &Vec<Coin>,
+    funds: &[Coin],
     msg: Option<&Vec<u8>>,
 ) {
     let mut json_dump: String = "".to_string();
     if let Some(msg) = msg {
-        if let Ok(parsed) = parse_message(msg) {
-            if let Some(parsed) = parsed {
-                let obj = parsed.as_object().clone();
-                json_dump = serde_json::to_string_pretty(&obj).unwrap();
-            }
+        if let Ok(Some(parsed)) = parse_message(msg) {
+            let obj = parsed.as_object();
+            json_dump = serde_json::to_string_pretty(&obj).unwrap();
         }
     }
     println!(
@@ -72,50 +70,53 @@ fn get_contract_address(events: &Option<BTreeMap<String, Vec<String>>>) -> Strin
             contract_addr = addr[0].clone();
         }
     }
-    return contract_addr;
+    contract_addr
 }
 
 fn insert_contract(db: &PgConnection, contract_model: &NewContract) {
     use dao_indexer::db::schema::contracts::dsl::*;
     diesel::insert_into(contracts)
-    .values(contract_model)
-    .execute(db)
-    .expect("Error saving new post");
+        .values(contract_model)
+        .execute(db)
+        .expect("Error saving new post");
+}
+
+fn insert_gov_token(db: &PgConnection, token_msg: &GovTokenMsg) -> QueryResult<i32> {
+    use dao_indexer::db::schema::gov_token::dsl::*;
+    let result: QueryResult<i32>;
+    match token_msg {
+        GovTokenMsg::InstantiateNewCw20{/*cw20_code_id, stake_contract_code_id, label,*/ msg, ..} => {
+            result = diesel::insert_into(gov_token)
+            .values((
+                name.eq(&msg.name),
+                symbol.eq(&msg.symbol),
+                decimals.eq(msg.decimals as i32),
+            ))
+            .returning(id)
+            .get_result(db);
+        },
+        GovTokenMsg::UseExistingCw20{/*stake_contract_code_id, label,*/ ..} => {
+            println!("TODO: Use existing cw20");
+            result = Ok(0);
+        }
+    };
+    result
 }
 
 fn insert_dao(db: &PgConnection, instantiate_dao: &InstantiateMsg, contract_addr: &str) {
     use dao_indexer::db::schema::dao::dsl::*;
 
-    let dao_cw20_code_id;
-    let dao_stake_contract_code_id;
-    let dao_label;
-    let mut symbol = "NO_SYMBOL".to_string();
-    match &instantiate_dao.gov_token {
-        GovTokenMsg::InstantiateNewCw20{cw20_code_id, stake_contract_code_id, label, msg, ..} => {
-            dao_cw20_code_id = cw20_code_id;
-            dao_stake_contract_code_id = stake_contract_code_id;
-            dao_label = label;
-            symbol = msg.symbol.to_string();
-            println!("dao_cw20_code_id {}", dao_cw20_code_id);
-        },
-        GovTokenMsg::UseExistingCw20{stake_contract_code_id, label, ..} => {
-            dao_stake_contract_code_id = stake_contract_code_id;
-            dao_label = label;
-        }
-    };
-
-    print!("dao_stake_contract_code_id: {}", dao_stake_contract_code_id);
+    let inserted_token_id: i32 = insert_gov_token(db, &instantiate_dao.gov_token).unwrap();
 
     diesel::insert_into(dao)
-    .values((
-        name.eq(&instantiate_dao.name),
-        contract_address.eq(&contract_addr),
-        description.eq(&instantiate_dao.description),
-        token_name.eq(&dao_label),
-        token_symbol.eq(symbol)
-    ))
-    .execute(db)
-    .expect("Error saving dao");
+        .values((
+            name.eq(&instantiate_dao.name),
+            contract_address.eq(&contract_addr),
+            description.eq(&instantiate_dao.description),
+            gov_token_id.eq(inserted_token_id)
+        ))
+        .execute(db)
+        .expect("Error saving dao");
 }
 
 impl Index for MsgInstantiateContract {

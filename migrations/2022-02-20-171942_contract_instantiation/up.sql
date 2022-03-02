@@ -41,9 +41,8 @@ CREATE TABLE dao (
     contract_address TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
-    token_name TEXT NOT NULL,
-    token_symbol TEXT NOT NULL,
-    image_url TEXT
+    image_url TEXT,
+    gov_token_id INT
 );
 
 CREATE TABLE marketing (

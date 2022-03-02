@@ -40,9 +40,8 @@ table! {
         contract_address -> Text,
         name -> Text,
         description -> Text,
-        token_name -> Text,
-        token_symbol -> Text,
         image_url -> Nullable<Text>,
+        gov_token_id -> Nullable<Int4>,
     }
 }
 
