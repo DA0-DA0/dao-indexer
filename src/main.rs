@@ -174,56 +174,6 @@ impl Index for MsgInstantiateContract {
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         let instantiate_dao: InstantiateMsg = serde_json::from_str(&msg_str).unwrap();
         insert_dao(db, &instantiate_dao, &contract_addr);
-        // let code_id = match instantiate_dao.gov_token {
-        //     GovTokenMsg::InstantiateNewCw20{cw20_code_id, ..} => {
-        //         cw20_code_id as u64
-        //         // println!("new cw20 {:?}", instantiate_dao.gov_token.label);
-        //     },
-        //     GovTokenMsg::UseExistingCw20{stake_contract_code_id, ..} => {
-        //         // println!("existing cw20 {:?}", ..);
-        //         stake_contract_code_id
-        //     }
-        // };
-        // diesel::insert_into(dao)
-        // .values((
-        //     name.eq(&instantiate_dao.name),
-        //     description.eq(&instantiate_dao.description)
-        // ))
-        // .execute(db)
-        // .expect("Error saving dao");
-        // if let Ok(parsed) = parse_message(&self.msg) {
-        //     if let Some(parsed) = parsed {
-        //         let description = parsed.get("description").unwrap();
-        //         let gov_token = parsed.get("gov_token").unwrap();
-        //         let cw20 = gov_token.get("instantiate_new_cw20").unwrap();
-        //         let code_id_value = cw20.get("cw20_code_id").unwrap();
-        //         let initial_dao_balance = cw20.get("initial_dao_balance").unwrap().as_str().unwrap();
-        //         let token_label = cw20.get("label").unwrap().as_str().unwrap();
-        //         let msg = cw20.get("msg").unwrap();
-        //         let token_symbol = msg.get("symbol").unwrap().as_str().unwrap();
-        //         let initial_dao_balances = msg.get("initial_balances").unwrap().as_array().unwrap();
-        //         println!("{} {}, {} {} {}", description, initial_dao_balance, token_label, token_symbol, code_id_value);
-        //         for balance in initial_dao_balances {
-        //             println!("balance: {:?}", balance);
-        //         }
-
-        //         //println!("description: {}, gov_token: {}, cw20: {}, code_id: {}", description, gov_token, cw20, code_id_value);
-        //         //println!("initial_dao_balance: {}, token_label: {}, token_symbol: {}, initial_dao_balances: {:?}", initial_dao_balance, token_label, token_symbol, initial_dao_balances);
-
-        //         // let dao = NewDao {
-        //         //     parsed.get("description");
-
-        //         // }
-        //     }
-        // }
-
-        // index_message(
-        //     db,
-        //     &self.sender,
-        //     &contract_addr,
-        //     &self.funds,
-        //     Some(&self.msg),
-        // )
     }
 }
 
