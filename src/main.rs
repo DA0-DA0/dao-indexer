@@ -2,6 +2,7 @@ use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
+use cw20_base::msg::InstantiateMarketingInfo;
 use cw3_dao::msg::{GovTokenMsg, InstantiateMsg};
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::db::models::NewContract;
@@ -13,8 +14,6 @@ use std::collections::BTreeMap;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use cw20_base::msg::InstantiateMarketingInfo;
-
 
 fn parse_message(msg: &[u8]) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.to_owned()) {
@@ -83,42 +82,53 @@ fn insert_contract(db: &PgConnection, contract_model: &NewContract) {
         .expect("Error saving new post");
 }
 
-fn insert_marketing_info(db: &PgConnection, marketing_info: &InstantiateMarketingInfo) -> QueryResult<i32> {
+fn insert_marketing_info(
+    db: &PgConnection,
+    marketing_info: &InstantiateMarketingInfo,
+) -> QueryResult<i32> {
     use dao_indexer::db::schema::marketing::dsl::*;
     diesel::insert_into(marketing)
-    .values((
-        project.eq(&marketing_info.project),
-        description.eq(&marketing_info.description),
-        marketing_text.eq(&marketing_info.marketing)
-    ))
-    .returning(id)
-    .get_result(db)
+        .values((
+            project.eq(&marketing_info.project),
+            description.eq(&marketing_info.description),
+            marketing_text.eq(&marketing_info.marketing),
+        ))
+        .returning(id)
+        .get_result(db)
 }
 
 fn insert_gov_token(db: &PgConnection, token_msg: &GovTokenMsg) -> QueryResult<i32> {
     use dao_indexer::db::schema::gov_token::dsl::*;
     let result: QueryResult<i32>;
     match token_msg {
-        GovTokenMsg::InstantiateNewCw20{/*cw20_code_id, stake_contract_code_id, label,*/ msg, ..} => {
+        GovTokenMsg::InstantiateNewCw20 {
+            /*cw20_code_id, stake_contract_code_id, label,*/ msg,
+            ..
+        } => {
             let mut marketing_record_id: Option<i32> = None;
             if let Some(marketing) = &msg.marketing {
                 marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
             }
             result = diesel::insert_into(gov_token)
-            .values((
-                name.eq(&msg.name),
-                symbol.eq(&msg.symbol),
-                decimals.eq(msg.decimals as i32),
-                marketing_id.eq(marketing_record_id)
-            ))
-            .returning(id)
-            .get_result(db);
+                .values((
+                    name.eq(&msg.name),
+                    symbol.eq(&msg.symbol),
+                    decimals.eq(msg.decimals as i32),
+                    marketing_id.eq(marketing_record_id),
+                ))
+                .returning(id)
+                .get_result(db);
             for balance in &msg.initial_balances {
                 println!("TODO: record balance {:?}", balance);
             }
-        },
-        GovTokenMsg::UseExistingCw20{/*stake_contract_code_id, label,*/ ..} => {
-            println!("TODO: Use existing cw20");
+        }
+        GovTokenMsg::UseExistingCw20 {
+            addr,
+            stake_contract_code_id,
+            label,
+            unstaking_duration,
+        } => {
+            println!("TODO: Use existing cw20 addr: {}, stake_contract_code_id: {}, label: {}, unstaking_duration: {:?}", addr, stake_contract_code_id, label, unstaking_duration);
             result = Ok(0);
         }
     };
@@ -135,7 +145,7 @@ fn insert_dao(db: &PgConnection, instantiate_dao: &InstantiateMsg, contract_addr
             name.eq(&instantiate_dao.name),
             contract_address.eq(&contract_addr),
             description.eq(&instantiate_dao.description),
-            gov_token_id.eq(inserted_token_id)
+            gov_token_id.eq(inserted_token_id),
         ))
         .execute(db)
         .expect("Error saving dao");
