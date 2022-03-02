@@ -20,6 +20,8 @@ use cosmos_sdk_proto::cosmwasm::wasm::v1::{
 use tonic::transport::channel::Channel;
 use cosmos_sdk_proto::cosmwasm::wasm::v1::MsgExecuteContract;
 use cosmos_sdk_proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+use cosmos_sdk_proto::cosmwasm::wasm::v1::QuerySmartContractStateRequest;
+
 
 fn parse_message(msg: &Vec<u8>) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.clone()) {
@@ -32,7 +34,6 @@ fn parse_message(msg: &Vec<u8>) -> serde_json::Result<Option<Value>> {
 
 fn index_message(
     _db: &PgConnection,
-    _grpc_client: &GrpcQueryClient<Channel>,
     sender: &str,
     contract_addr: &str,
     funds: &Vec<Coin>,
@@ -58,14 +59,13 @@ fn index_message(
 }
 
 trait Index {
-    fn index(&self, db: &PgConnection, grpc_client: &GrpcQueryClient<Channel>, events: &Option<BTreeMap<String, Vec<String>>>);
+    fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>);
 }
 
 impl Index for MsgExecuteContract {
-    fn index(&self, db: &PgConnection, grpc_client: &GrpcQueryClient<Channel>, _events: &Option<BTreeMap<String, Vec<String>>>) {
+    fn index(&self, db: &PgConnection, _events: &Option<BTreeMap<String, Vec<String>>>) {
         index_message(
             db,
-            grpc_client,
             &self.sender,
             &self.contract,
             &self.funds,
@@ -86,36 +86,9 @@ fn get_contract_address(events: &Option<BTreeMap<String, Vec<String>>>) -> Strin
 }
 
 impl Index for MsgInstantiateContract {
-    fn index(&self, db: &PgConnection, grpc_client: &GrpcQueryClient<Channel>, events: &Option<BTreeMap<String, Vec<String>>>) {
+    fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
         use dao_indexer_rs::db::schema::contracts::dsl::*;
         let contract_addr = get_contract_address(events);
-
-        // call_query_client(contract_addr.clone().as_ref())
-
-        // let x = call_query_client(contract_addr.clone().as_ref());
-        // let y = x.wait();
-        // let mut wasm_query_client = cosmos_sdk_proto::cosmwasm::wasm::v1::query_client::QueryClient::connect("http://localhost:9090/")
-        //     .context(format!(
-        //         "unable to connect to grpc query client at {}",
-        //         "http://localhost:9090/"
-        //     ))?;
-
-
-        //
-        // let smart_contract_query_state = QuerySmartContractStateRequest {
-        //     address: contract_addr.clone(),
-        //     query_data: vec![]
-        // };
-
-        // let response = grpc_client
-        //     .smart_contract_state(smart_contract_query_state)
-        //     .await?
-        //     .into_inner();
-        //
-        //
-        // let result = String::from_utf8(response.data)?;
-        //
-        // println!("{}", result);
 
         let contract_model = NewContract {
             address: &contract_addr,
@@ -134,7 +107,6 @@ impl Index for MsgInstantiateContract {
 
         index_message(
             db,
-            grpc_client,
             &self.sender,
             &contract_addr,
             &self.funds,
@@ -144,8 +116,8 @@ impl Index for MsgInstantiateContract {
 }
 
 impl Index for MsgSend {
-    fn index(&self, db: &PgConnection, grpc_client: &GrpcQueryClient<Channel>, _events: &Option<BTreeMap<String, Vec<String>>>) {
-        index_message(db, grpc_client, &self.from_address, &self.to_address, &self.amount, None);
+    fn index(&self, db: &PgConnection, _events: &Option<BTreeMap<String, Vec<String>>>) {
+        index_message(db, &self.from_address, &self.to_address, &self.amount, None);
     }
 }
 
@@ -179,15 +151,31 @@ async fn main() {
                             "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
                                 let msg_obj: MsgInstantiateContract =
                                     MsgProto::from_any(&msg).unwrap();
-                                msg_obj.index(&db, &grpc_client,&events);
+
+                                let contract_addr = get_contract_address(&events);
+                                let smart_contract_query_state = QuerySmartContractStateRequest {
+                                    address: contract_addr.clone(),
+                                    query_data: vec![],
+                                };
+
+                                let response = grpc_client
+                                    .smart_contract_state(smart_contract_query_state)
+                                    .await.unwrap()
+                                    .into_inner();
+
+                                let result = String::from_utf8(response.data).unwrap();
+
+                                println!("{}", result);
+
+                                msg_obj.index(&db, &events);
                             }
                             "/cosmwasm.wasm.v1.MsgExecuteContract" => {
                                 let msg_obj: MsgExecuteContract = MsgProto::from_any(&msg).unwrap();
-                                msg_obj.index(&db, &grpc_client, &events);
+                                msg_obj.index(&db, &events);
                             }
                             "/cosmos.bank.v1beta1.MsgSend" => {
                                 let msg_obj: MsgSend = MsgProto::from_any(&msg).unwrap();
-                                msg_obj.index(&db, &grpc_client, &events);
+                                msg_obj.index(&db, &events);
                             }
                             _ => {
                                 println!("No handler for {}", type_url);
