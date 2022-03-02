@@ -13,6 +13,8 @@ use std::collections::BTreeMap;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use cw20_base::msg::InstantiateMarketingInfo;
+
 
 fn parse_message(msg: &[u8]) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.to_owned()) {
@@ -81,19 +83,39 @@ fn insert_contract(db: &PgConnection, contract_model: &NewContract) {
         .expect("Error saving new post");
 }
 
+fn insert_marketing_info(db: &PgConnection, marketing_info: &InstantiateMarketingInfo) -> QueryResult<i32> {
+    use dao_indexer::db::schema::marketing::dsl::*;
+    diesel::insert_into(marketing)
+    .values((
+        project.eq(&marketing_info.project),
+        description.eq(&marketing_info.description),
+        marketing_text.eq(&marketing_info.marketing)
+    ))
+    .returning(id)
+    .get_result(db)
+}
+
 fn insert_gov_token(db: &PgConnection, token_msg: &GovTokenMsg) -> QueryResult<i32> {
     use dao_indexer::db::schema::gov_token::dsl::*;
     let result: QueryResult<i32>;
     match token_msg {
         GovTokenMsg::InstantiateNewCw20{/*cw20_code_id, stake_contract_code_id, label,*/ msg, ..} => {
+            let mut marketing_record_id: Option<i32> = None;
+            if let Some(marketing) = &msg.marketing {
+                marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
+            }
             result = diesel::insert_into(gov_token)
             .values((
                 name.eq(&msg.name),
                 symbol.eq(&msg.symbol),
                 decimals.eq(msg.decimals as i32),
+                marketing_id.eq(marketing_record_id)
             ))
             .returning(id)
             .get_result(db);
+            for balance in &msg.initial_balances {
+                println!("TODO: record balance {:?}", balance);
+            }
         },
         GovTokenMsg::UseExistingCw20{/*stake_contract_code_id, label,*/ ..} => {
             println!("TODO: Use existing cw20");
