@@ -3,6 +3,7 @@ use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
 use cw20_base::msg::InstantiateMarketingInfo;
+use cw20::Cw20Coin;
 use cw3_dao::msg::{GovTokenMsg, InstantiateMsg};
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::db::models::NewContract;
@@ -97,6 +98,10 @@ fn insert_marketing_info(
         .get_result(db)
 }
 
+fn update_balance(_db: &PgConnection, token_id: i32, balance: &Cw20Coin) {
+    println!("TODO: update balance {}, {} for token id {}", balance.address, balance.amount, token_id);
+}
+
 fn insert_gov_token(db: &PgConnection, token_msg: &GovTokenMsg) -> QueryResult<i32> {
     use dao_indexer::db::schema::gov_token::dsl::*;
     let result: QueryResult<i32>;
@@ -118,8 +123,10 @@ fn insert_gov_token(db: &PgConnection, token_msg: &GovTokenMsg) -> QueryResult<i
                 ))
                 .returning(id)
                 .get_result(db);
-            for balance in &msg.initial_balances {
-                println!("TODO: record balance {:?}", balance);
+            if let Ok(token_id) = result {
+                for balance in &msg.initial_balances {
+                    update_balance(db, token_id, balance);
+                }
             }
         }
         GovTokenMsg::UseExistingCw20 {

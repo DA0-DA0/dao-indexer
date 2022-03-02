@@ -20,3 +20,4 @@ diesel = { version = "1.4.4", features = ["postgres"] }
 dotenv = "0.15.0"
 cw3-dao = { path = "../dao-contracts/contracts/cw3-dao" }
 cw20-base = {  version = "0.11", features = ["library"] }
+cw20 = "0.11.1"
