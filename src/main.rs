@@ -11,7 +11,6 @@ use std::collections::BTreeMap;
 use tendermint_rpc::event::{EventData};
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use cosmrs::rpc::Client;
 use schemars::JsonSchema;
 use serde::{Serialize, Deserialize};
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
