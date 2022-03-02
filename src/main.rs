@@ -1,3 +1,5 @@
+mod models;
+
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use cosmrs::tx::{MsgProto, Tx};
@@ -156,6 +158,13 @@ async fn main() {
                                     address: contract_addr.clone(),
                                     query_data: vec![],
                                 };
+
+                                let JSONGetContractInfo = models::QueryMsg::ContractInfo {};
+                                // let y =  JSONGetContractInfo.serialize().unwrap();
+
+                                let y = serde_json::to_string(&JSONGetContractInfo).unwrap();
+
+                                println!("{}", y);
 
                                 let response = grpc_client
                                     .smart_contract_state(smart_contract_query_state)
