@@ -1,5 +1,3 @@
-mod models;
-
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use cosmrs::tx::{MsgProto, Tx};
