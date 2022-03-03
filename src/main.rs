@@ -13,15 +13,12 @@ use std::collections::BTreeMap;
 use tendermint_rpc::event::{EventData};
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use schemars::JsonSchema;
-use serde::{Serialize, Deserialize};
 use cosmos_sdk_proto::cosmwasm::wasm::v1::{
-    query_client::QueryClient as GrpcQueryClient
+    query_client::QueryClient as GrpcQueryClient,
+    MsgExecuteContract,
+    MsgInstantiateContract,
+    QuerySmartContractStateRequest
 };
-use tonic::transport::channel::Channel;
-use cosmos_sdk_proto::cosmwasm::wasm::v1::MsgExecuteContract;
-use cosmos_sdk_proto::cosmwasm::wasm::v1::MsgInstantiateContract;
-use cosmos_sdk_proto::cosmwasm::wasm::v1::QuerySmartContractStateRequest;
 
 
 fn parse_message(msg: &Vec<u8>) -> serde_json::Result<Option<Value>> {
@@ -129,7 +126,7 @@ async fn main() {
         .await
         .unwrap();
 
-    let mut grpc_client = cosmos_sdk_proto::cosmwasm::wasm::v1::query_client::QueryClient::connect("http://localhost:9090/")
+    let mut grpc_client = GrpcQueryClient::connect("http://localhost:9090/")
         .await
         .unwrap();
 
