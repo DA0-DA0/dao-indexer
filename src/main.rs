@@ -154,17 +154,12 @@ async fn main() {
                                     MsgProto::from_any(&msg).unwrap();
 
                                 let contract_addr = get_contract_address(&events);
+                                let get_contract_info = models::QueryMsg::ContractInfo {};
+                                let serialized_get_contract_info = serde_json::to_vec(&get_contract_info).unwrap();
                                 let smart_contract_query_state = QuerySmartContractStateRequest {
                                     address: contract_addr.clone(),
-                                    query_data: vec![],
+                                    query_data: serialized_get_contract_info,
                                 };
-
-                                let JSONGetContractInfo = models::QueryMsg::ContractInfo {};
-                                // let y =  JSONGetContractInfo.serialize().unwrap();
-
-                                let y = serde_json::to_string(&JSONGetContractInfo).unwrap();
-
-                                println!("{}", y);
 
                                 let response = grpc_client
                                     .smart_contract_state(smart_contract_query_state)
