@@ -267,6 +267,35 @@ impl Index for MsgExecuteContract {
             Ok(execute_contract) => {
                 dump_execute_contract(&execute_contract);
                 dump_events(events);
+                if let Some(event_map) = events {
+                    let tx_height = event_map.get("tx.height").unwrap();
+                    if let Some(wasm_actions) = event_map.get("wasm.action") {
+                        // TODO(gavin.doughtie): Handle propose, vote
+                        if wasm_actions.len() > 0 && wasm_actions[0] == "execute" {
+                            for (i, action_type) in (&wasm_actions[1..]).iter().enumerate() {
+                                match action_type.as_str() {
+                                    "transfer" => {
+                                        let amount = &event_map.get("wasm.amount").unwrap()[i];
+                                        let receiver = &event_map.get("wasm.to").unwrap()[i];
+                                        let sender = &event_map.get("wasm.sender").unwrap()[0];
+                                        let from = &event_map.get("wasm.from").unwrap()[0];
+                                        println!("handle transfer from: {:?}, to: {:?}, amount: {:?}, dao: {:?}, height: {:?}", from, receiver, amount, sender, tx_height);
+                                    }
+                                    "mint" => {
+                                        let amount = &event_map.get("wasm.amount").unwrap()[i];
+                                        let receiver = &event_map.get("wasm.to").unwrap()[i];
+                                        let sender = &event_map.get("wasm.sender").unwrap()[0];
+                                        let from = &event_map.get("wasm.from").unwrap()[0];
+                                        println!("handle mint from: {:?}, to: {:?}, amount: {:?}, dao: {:?}, height: {:?}", from, receiver, amount, sender, tx_height);
+                                    }
+                                    _ => {
+                                        eprintln!("Unhandled exec type {}", action_type);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             Err(e) => {
                 println!("Error: {:?}", e);
