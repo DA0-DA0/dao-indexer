@@ -296,7 +296,6 @@ async fn main() {
         let ev = res.unwrap();
         let result = ev.data;
         let events = ev.events;
-        print!("events: {:?}", events);
         match result {
             EventData::NewBlock { block, .. } => println!("{:?}", block.unwrap()),
             EventData::Tx { tx_result, .. } => match Tx::from_bytes(&tx_result.tx) {
