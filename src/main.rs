@@ -1,10 +1,16 @@
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
-use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
+// use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
+use cosmos_sdk_proto::cosmwasm::wasm::v1::{
+    // query_client::QueryClient as GrpcQueryClient,
+    MsgExecuteContract,
+    MsgInstantiateContract,
+    // QuerySmartContractStateRequest
+};
 use cosmrs::tx::{MsgProto, Tx};
 use cw20::Cw20Coin;
 use cw20_base::msg::InstantiateMarketingInfo;
-use cw3_dao::msg::{GovTokenMsg, InstantiateMsg};
+use cw3_dao::msg::{ExecuteMsg, GovTokenMsg, InstantiateMsg};
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::db::models::NewContract;
 use diesel::pg::PgConnection;
@@ -52,18 +58,6 @@ trait Index {
     fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>);
 }
 
-impl Index for MsgExecuteContract {
-    fn index(&self, db: &PgConnection, _events: &Option<BTreeMap<String, Vec<String>>>) {
-        index_message(
-            db,
-            &self.sender,
-            &self.contract,
-            &self.funds,
-            Some(&self.msg),
-        )
-    }
-}
-
 #[derive(Debug)]
 struct ContractAddresses {
     dao_address: Option<String>,
@@ -80,7 +74,6 @@ fn get_contract_addresses(events: &Option<BTreeMap<String, Vec<String>>>) -> Con
             // 0: DAO
             // 1: cw20
             // 2: staking contract
-            // This appears to be the correct address but why?
             // But if you use an existing token, you'll just get
             // DAO/staking contract
             dao_address = Some(addr[0].clone());
@@ -140,7 +133,7 @@ fn update_balance(
     // recipient_address TEXT NOT NULL,
     // amount BIGINT NOT NULL
 
-    diesel::insert_into(cw20_transactions)    
+    diesel::insert_into(cw20_transactions)
         .values((
             cw20_address.eq(token_addr),
             sender_address.eq(token_sender_address),
@@ -151,7 +144,11 @@ fn update_balance(
         .get_result(db)
 }
 
-fn insert_gov_token(db: &PgConnection, token_msg: &GovTokenMsg, contract_addresses: &ContractAddresses) -> QueryResult<i32> {
+fn insert_gov_token(
+    db: &PgConnection,
+    token_msg: &GovTokenMsg,
+    contract_addresses: &ContractAddresses,
+) -> QueryResult<i32> {
     use dao_indexer::db::schema::gov_token::dsl::*;
     let result: QueryResult<i32>;
     match token_msg {
@@ -163,16 +160,17 @@ fn insert_gov_token(db: &PgConnection, token_msg: &GovTokenMsg, contract_address
             if let Some(marketing) = &msg.marketing {
                 marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
             }
+            let cw20_address = contract_addresses.cw20_address.as_ref().unwrap();
             result = diesel::insert_into(gov_token)
                 .values((
                     name.eq(&msg.name),
+                    address.eq(cw20_address),
                     symbol.eq(&msg.symbol),
                     decimals.eq(msg.decimals as i32),
                     marketing_id.eq(marketing_record_id),
                 ))
                 .returning(id)
                 .get_result(db);
-            let cw20_address = contract_addresses.cw20_address.as_ref().unwrap();
             let dao_address = contract_addresses.dao_address.as_ref().unwrap();
             if let Ok(token_id) = result {
                 for balance in &msg.initial_balances {
@@ -200,7 +198,8 @@ fn insert_dao(
 ) {
     use dao_indexer::db::schema::dao::dsl::*;
 
-    let inserted_token_id: i32 = insert_gov_token(db, &instantiate_dao.gov_token, contract_addr).unwrap();
+    let inserted_token_id: i32 =
+        insert_gov_token(db, &instantiate_dao.gov_token, contract_addr).unwrap();
 
     diesel::insert_into(dao)
         .values((
@@ -236,8 +235,43 @@ impl Index for MsgInstantiateContract {
         };
         insert_contract(db, &contract_model);
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
-        let instantiate_dao: InstantiateMsg = serde_json::from_str(&msg_str).unwrap();
-        insert_dao(db, &instantiate_dao, &contract_addresses);
+        match serde_json::from_str::<InstantiateMsg>(&msg_str) {
+            Ok(instantiate_dao) => {
+                insert_dao(db, &instantiate_dao, &contract_addresses);
+            }
+            Err(e) => {
+                println!("Error: {:?}", e);
+            }
+        };
+    }
+}
+
+fn dump_execute_contract(execute_contract: &ExecuteMsg) {
+    println!("handle execute contract {:?}", execute_contract);
+}
+
+fn dump_events(events: &Option<BTreeMap<String, Vec<String>>>) {
+    if let Some(event_map) = events {
+        println!("************* vv Events ***********");
+        for (key, value) in event_map {
+            println!("{} / {:?}", key, value);
+        }
+        println!("************* ^^ Events ***********");
+    }
+}
+
+impl Index for MsgExecuteContract {
+    fn index(&self, _db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
+        let msg_str = String::from_utf8(self.msg.clone()).unwrap();
+        match serde_json::from_str::<ExecuteMsg>(&msg_str) {
+            Ok(execute_contract) => {
+                dump_execute_contract(&execute_contract);
+                dump_events(events);
+            }
+            Err(e) => {
+                println!("Error: {:?}", e);
+            }
+        };
     }
 }
 

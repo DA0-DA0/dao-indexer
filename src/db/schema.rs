@@ -66,6 +66,7 @@ table! {
 table! {
     gov_token (id) {
         id -> Int4,
+        address -> Text,
         name -> Text,
         symbol -> Text,
         decimals -> Nullable<Int4>,

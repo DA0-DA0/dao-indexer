@@ -65,6 +65,7 @@ CREATE TABLE marketing (
 
 CREATE TABLE gov_token (
     id SERIAL PRIMARY KEY,
+    address TEXT NOT NULL,
     name TEXT NOT NULL,
     symbol TEXT NOT NULL,
     decimals INT,
