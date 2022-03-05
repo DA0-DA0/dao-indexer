@@ -12,7 +12,7 @@ use cw20::Cw20Coin;
 use cw20_base::msg::InstantiateMarketingInfo;
 use cw3_dao::msg::{ExecuteMsg, GovTokenMsg, InstantiateMsg};
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::models::NewContract;
+use dao_indexer::db::models::{Cw20, NewContract};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
@@ -260,6 +260,8 @@ fn dump_events(events: &Option<BTreeMap<String, Vec<String>>>) {
     }
 }
 
+// juno1rn57e8ywd4t923v6ml0nka96jyermndvhwgd46 (local test 4)
+// juno1mudcxmlg5gxqkwuywuedql79wgy3m02rtqac8a (local test 3)
 impl Index for MsgExecuteContract {
     fn index(&self, _db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
@@ -278,15 +280,18 @@ impl Index for MsgExecuteContract {
                                         let amount = &event_map.get("wasm.amount").unwrap()[i];
                                         let receiver = &event_map.get("wasm.to").unwrap()[i];
                                         let sender = &event_map.get("wasm.sender").unwrap()[0];
-                                        let from = &event_map.get("wasm.from").unwrap()[0];
-                                        println!("handle transfer from: {:?}, to: {:?}, amount: {:?}, dao: {:?}, height: {:?}", from, receiver, amount, sender, tx_height);
+                                        let from = &event_map.get("wasm.from").unwrap()[0]; // DAO address 
+                                        // 1. Get the gov_token from the dao
+                                        //    a. let gov_token = get_gov_token(db, from); // Returns DB object with id
+                                        // update_balance(db, token_id: i32, token_addr: &str, token_sender_address: &str, balance_update: &Cw20Coin)
+                                        println!("handle transfer from: {:?}, to: {:?}, amount: {:?}, sender: {:?}, height: {:?}", from, receiver, amount, sender, tx_height);
                                     }
                                     "mint" => {
                                         let amount = &event_map.get("wasm.amount").unwrap()[i];
                                         let receiver = &event_map.get("wasm.to").unwrap()[i];
                                         let sender = &event_map.get("wasm.sender").unwrap()[0];
                                         let from = &event_map.get("wasm.from").unwrap()[0];
-                                        println!("handle mint from: {:?}, to: {:?}, amount: {:?}, dao: {:?}, height: {:?}", from, receiver, amount, sender, tx_height);
+                                        println!("handle mint from: {:?}, to: {:?}, amount: {:?}, sender: {:?}, height: {:?}", from, receiver, amount, sender, tx_height);
                                     }
                                     _ => {
                                         eprintln!("Unhandled exec type {}", action_type);

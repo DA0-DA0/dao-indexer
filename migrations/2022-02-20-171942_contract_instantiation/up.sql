@@ -55,6 +55,8 @@ CREATE TABLE dao (
     gov_token_id INT
 );
 
+CREATE INDEX dao_contract_address_index on dao (contract_address);
+
 CREATE TABLE marketing (
     id SERIAL PRIMARY KEY,
     project TEXT,
@@ -71,6 +73,8 @@ CREATE TABLE gov_token (
     decimals INT,
     marketing_id INT
 );
+
+CREATE INDEX gov_token_address_index on gov_token (address);
 
 CREATE TABLE logo (
     id SERIAL PRIMARY KEY,

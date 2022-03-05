@@ -54,11 +54,15 @@ pub struct Cw20Msg {
     pub decimals: i32
 }
 
+// Data from the gov_token table:
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cw20 {
-    pub cw20_code_id: i64,
-    pub label: String,
-    pub msg: Cw20Msg,
+    pub id: i32,
+    pub address: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: i32,
+    pub marketing_id: i32
 }
 
 #[derive(Serialize, Deserialize, Debug)]
