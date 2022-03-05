@@ -15,6 +15,11 @@ pub struct NewContract<'a> {
     pub height: i64,
 }
 
+// TODO(gavin.doughtie): These are out of date and we're just
+// using the diesel fields directly right now, but it's going
+// to be better to move to these structs in the long run so
+// leaving them here for reference.
+
 #[derive(Queryable)]
 pub struct Contract {
     pub address: Text,
