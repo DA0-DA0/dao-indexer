@@ -35,6 +35,16 @@ table! {
 }
 
 table! {
+    cw20_transactions (id) {
+        id -> Int4,
+        cw20_address -> Text,
+        sender_address -> Text,
+        recipient_address -> Text,
+        amount -> Int8,
+    }
+}
+
+table! {
     dao (id) {
         id -> Int4,
         contract_address -> Text,
@@ -87,6 +97,7 @@ allow_tables_to_appear_in_same_query!(
     coin,
     contracts,
     cw20_balances,
+    cw20_transactions,
     dao,
     exec_msg,
     gov_token,

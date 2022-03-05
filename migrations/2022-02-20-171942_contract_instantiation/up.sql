@@ -34,6 +34,16 @@ CREATE TABLE cw20_balances (
     balance BIGINT NOT NULL
 );
 
+CREATE TABLE cw20_transactions (
+    id SERIAL PRIMARY KEY,
+    cw20_address TEXT NOT NULL,
+    sender_address TEXT NOT NULL,
+    recipient_address TEXT NOT NULL,
+    amount BIGINT NOT NULL
+    -- height?
+    -- time?
+);
+
 CREATE TABLE coin (id SERIAL PRIMARY KEY);
 
 CREATE TABLE dao (
