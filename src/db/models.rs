@@ -12,7 +12,7 @@ pub struct NewContract<'a> {
     pub admin: &'a str,
     pub label: &'a str,
     pub creation_time: &'a str,
-    pub height: i64,
+    pub height: i64
 }
 
 // TODO(gavin.doughtie): These are out of date and we're just

@@ -41,6 +41,7 @@ table! {
         sender_address -> Text,
         recipient_address -> Text,
         amount -> Int8,
+        height -> Int8,
     }
 }
 

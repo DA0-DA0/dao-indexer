@@ -39,8 +39,8 @@ CREATE TABLE cw20_transactions (
     cw20_address TEXT NOT NULL,
     sender_address TEXT NOT NULL,
     recipient_address TEXT NOT NULL,
-    amount BIGINT NOT NULL
-    -- height?
+    amount BIGINT NOT NULL,
+    height BIGINT NOT NULL
     -- time?
 );
 
