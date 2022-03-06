@@ -1,18 +1,12 @@
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
-// use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
-use cosmos_sdk_proto::cosmwasm::wasm::v1::{
-    // query_client::QueryClient as GrpcQueryClient,
-    MsgExecuteContract,
-    MsgInstantiateContract,
-    // QuerySmartContractStateRequest
-};
+use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
 use cw20::Cw20Coin;
 use cw20_base::msg::InstantiateMarketingInfo;
 use cw3_dao::msg::{ExecuteMsg, GovTokenMsg, InstantiateMsg};
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::models::{Cw20, NewContract};
+use dao_indexer::db::models::{Cw20, Dao, NewContract};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
@@ -21,6 +15,8 @@ use std::collections::BTreeMap;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use cosmwasm_std::{Uint128};
+use std::str::FromStr;
 
 fn parse_message(msg: &[u8]) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.to_owned()) {
@@ -191,6 +187,17 @@ fn insert_gov_token(
     result
 }
 
+fn get_dao(db: &PgConnection, dao_address: &str) -> QueryResult<Dao> {
+    use dao_indexer::db::schema::dao::dsl::*;
+    dao.filter(contract_address.eq(dao_address)).first::<Dao>(db)
+}
+
+fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Cw20> {
+    use dao_indexer::db::schema::gov_token::dsl::*;
+    let dao = get_dao(db, dao_address).unwrap();
+    gov_token.filter(id.eq(dao.gov_token_id)).first(db)
+}
+
 fn insert_dao(
     db: &PgConnection,
     instantiate_dao: &InstantiateMsg,
@@ -263,7 +270,7 @@ fn dump_events(events: &Option<BTreeMap<String, Vec<String>>>) {
 // juno1rn57e8ywd4t923v6ml0nka96jyermndvhwgd46 (local test 4)
 // juno1mudcxmlg5gxqkwuywuedql79wgy3m02rtqac8a (local test 3)
 impl Index for MsgExecuteContract {
-    fn index(&self, _db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
+    fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         match serde_json::from_str::<ExecuteMsg>(&msg_str) {
             Ok(execute_contract) => {
@@ -280,7 +287,14 @@ impl Index for MsgExecuteContract {
                                         let amount = &event_map.get("wasm.amount").unwrap()[i];
                                         let receiver = &event_map.get("wasm.to").unwrap()[i];
                                         let sender = &event_map.get("wasm.sender").unwrap()[0];
-                                        let from = &event_map.get("wasm.from").unwrap()[0]; // DAO address 
+                                        let from = &event_map.get("wasm.from").unwrap()[0]; // DAO address
+                                        let gov_token = get_gov_token(db, from).unwrap();
+                                        let balance_update = Cw20Coin {
+                                            address: receiver.clone(),
+                                            amount: Uint128::from_str(&amount).unwrap()
+                                        };
+                                        let result = update_balance(db, gov_token.id, &gov_token.address, sender, &balance_update);
+                                        println!("update_balance result: {:?}", result);
                                         // 1. Get the gov_token from the dao
                                         //    a. let gov_token = get_gov_token(db, from); // Returns DB object with id
                                         // update_balance(db, token_id: i32, token_addr: &str, token_sender_address: &str, balance_update: &Cw20Coin)
@@ -291,6 +305,13 @@ impl Index for MsgExecuteContract {
                                         let receiver = &event_map.get("wasm.to").unwrap()[i];
                                         let sender = &event_map.get("wasm.sender").unwrap()[0];
                                         let from = &event_map.get("wasm.from").unwrap()[0];
+                                        let gov_token = get_gov_token(db, from).unwrap();
+                                        let balance_update = Cw20Coin {
+                                            address: receiver.clone(),
+                                            amount: Uint128::from_str(&amount).unwrap()
+                                        };
+                                        let result = update_balance(db, gov_token.id, &gov_token.address, sender, &balance_update);
+                                        println!("update_balance result: {:?}", result);
                                         println!("handle mint from: {:?}, to: {:?}, amount: {:?}, sender: {:?}, height: {:?}", from, receiver, amount, sender, tx_height);
                                     }
                                     _ => {

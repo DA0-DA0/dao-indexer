@@ -52,7 +52,7 @@ CREATE TABLE dao (
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     image_url TEXT,
-    gov_token_id INT
+    gov_token_id INT NOT NULL
 );
 
 CREATE INDEX dao_contract_address_index on dao (contract_address);

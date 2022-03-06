@@ -51,7 +51,7 @@ table! {
         name -> Text,
         description -> Text,
         image_url -> Nullable<Text>,
-        gov_token_id -> Nullable<Int4>,
+        gov_token_id -> Int4,
     }
 }
 

@@ -32,6 +32,16 @@ pub struct Contract {
     pub json: Jsonb
 }
 
+#[derive(Queryable, Serialize, Deserialize, Debug)]
+pub struct Dao {
+    pub id: i32,
+    pub contract_adress: String,
+    pub name: String,
+    pub description: String,
+    pub image_url: Option<String>,
+    pub gov_token_id: i32
+}
+
 #[derive(Insertable)]
 #[table_name="cw20_balances"]
 pub struct NewCw20Balance<'a> {
@@ -55,14 +65,14 @@ pub struct Cw20Msg {
 }
 
 // Data from the gov_token table:
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Queryable)]
 pub struct Cw20 {
     pub id: i32,
     pub address: String,
     pub name: String,
     pub symbol: String,
-    pub decimals: i32,
-    pub marketing_id: i32
+    pub decimals: Option<i32>,
+    pub marketing_id: Option<i32>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
