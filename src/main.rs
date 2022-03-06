@@ -1,23 +1,19 @@
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
-// use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
-use cosmos_sdk_proto::cosmwasm::wasm::v1::{
-    // query_client::QueryClient as GrpcQueryClient,
-    MsgExecuteContract,
-    MsgInstantiateContract,
-    // QuerySmartContractStateRequest
-};
+use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
+use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;
 use cw20_base::msg::InstantiateMarketingInfo;
 use cw3_dao::msg::{ExecuteMsg, GovTokenMsg, InstantiateMsg};
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::models::NewContract;
+use dao_indexer::db::models::{Cw20, Dao, NewContract};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::str::FromStr;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
@@ -113,41 +109,29 @@ fn insert_marketing_info(
 
 fn update_balance(
     db: &PgConnection,
-    token_id: i32,
+    tx_height: &Uint128,
     token_addr: &str,
     token_sender_address: &str,
     balance_update: &Cw20Coin,
-) -> QueryResult<i32> {
+) -> QueryResult<usize> {
     use dao_indexer::db::schema::cw20_transactions::dsl::*;
-    println!(
-        "TODO: update balance {}, {} for token id {}",
-        balance_update.address, balance_update.amount, token_id
-    );
-    // Find an existing record for balance_udpate.address AND the token (id?? Address?)
-    // If no existing record, insert one and we're done
-    // If there is an existing record:
-    //   deduct from the source
-    //   add the new balance to the row
-    // cw20_address TEXT NOT NULL,
-    // sender_address TEXT NOT NULL,
-    // recipient_address TEXT NOT NULL,
-    // amount BIGINT NOT NULL
-
+    let tx_height_number: i64 = tx_height.u128() as i64;
     diesel::insert_into(cw20_transactions)
         .values((
             cw20_address.eq(token_addr),
             sender_address.eq(token_sender_address),
             recipient_address.eq(&balance_update.address),
+            height.eq(tx_height_number),
             amount.eq(balance_update.amount.u128() as i64), // Bigger data type?
         ))
-        .returning(id)
-        .get_result(db)
+        .execute(db)
 }
 
 fn insert_gov_token(
     db: &PgConnection,
     token_msg: &GovTokenMsg,
     contract_addresses: &ContractAddresses,
+    height: &Uint128
 ) -> QueryResult<i32> {
     use dao_indexer::db::schema::gov_token::dsl::*;
     let result: QueryResult<i32>;
@@ -172,9 +156,9 @@ fn insert_gov_token(
                 .returning(id)
                 .get_result(db);
             let dao_address = contract_addresses.dao_address.as_ref().unwrap();
-            if let Ok(token_id) = result {
+            if let Ok(_token_id) = result {
                 for balance in &msg.initial_balances {
-                    let _ = update_balance(db, token_id, cw20_address, dao_address, balance);
+                    let _ = update_balance(db, height, cw20_address, dao_address, balance);
                 }
             }
         }
@@ -191,15 +175,28 @@ fn insert_gov_token(
     result
 }
 
+fn get_dao(db: &PgConnection, dao_address: &str) -> QueryResult<Dao> {
+    use dao_indexer::db::schema::dao::dsl::*;
+    dao.filter(contract_address.eq(dao_address))
+        .first::<Dao>(db)
+}
+
+fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Cw20> {
+    use dao_indexer::db::schema::gov_token::dsl::*;
+    let dao = get_dao(db, dao_address).unwrap();
+    gov_token.filter(id.eq(dao.gov_token_id)).first(db)
+}
+
 fn insert_dao(
     db: &PgConnection,
     instantiate_dao: &InstantiateMsg,
     contract_addr: &ContractAddresses,
+    height: &Uint128
 ) {
     use dao_indexer::db::schema::dao::dsl::*;
 
     let inserted_token_id: i32 =
-        insert_gov_token(db, &instantiate_dao.gov_token, contract_addr).unwrap();
+        insert_gov_token(db, &instantiate_dao.gov_token, contract_addr, height).unwrap();
 
     diesel::insert_into(dao)
         .values((
@@ -224,6 +221,12 @@ impl Index for MsgInstantiateContract {
                 .unwrap()
         );
         let dao_address = contract_addresses.dao_address.as_ref().unwrap();
+        let mut tx_height = Uint128::from_str("0").unwrap();
+        if let Some(event_map) = events {
+            let tx_height_strings = event_map.get("tx.height").unwrap();
+            let tx_height_str = &tx_height_strings[0];
+            tx_height = Uint128::from_str(tx_height_str).unwrap();            
+        }
         let contract_model = NewContract {
             address: dao_address,
             admin: &self.admin,
@@ -231,13 +234,13 @@ impl Index for MsgInstantiateContract {
             creator: &self.sender,
             label: &self.label,
             creation_time: "",
-            height: 0,
+            height: tx_height.u128() as i64
         };
         insert_contract(db, &contract_model);
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         match serde_json::from_str::<InstantiateMsg>(&msg_str) {
             Ok(instantiate_dao) => {
-                insert_dao(db, &instantiate_dao, &contract_addresses);
+                insert_dao(db, &instantiate_dao, &contract_addresses, &tx_height);
             }
             Err(e) => {
                 println!("Error: {:?}", e);
@@ -260,13 +263,56 @@ fn dump_events(events: &Option<BTreeMap<String, Vec<String>>>) {
     }
 }
 
+fn update_balance_from_events(db: &PgConnection, i: usize, event_map: &BTreeMap<String, Vec<String>>) -> QueryResult<usize> {
+    let tx_height_string = &event_map.get("tx.height").unwrap()[0];
+    let tx_height = Uint128::from_str(tx_height_string).unwrap();
+    let amount = &event_map.get("wasm.amount").unwrap()[i];
+    let receiver = &event_map.get("wasm.to").unwrap()[i];
+    let sender = &event_map.get("wasm.sender").unwrap()[0];
+    let from = &event_map.get("wasm.from").unwrap()[0]; // DAO address
+    let gov_token = get_gov_token(db, from).unwrap();
+    let balance_update = Cw20Coin {
+        address: receiver.clone(),
+        amount: Uint128::from_str(&amount).unwrap(),
+    };
+    update_balance(
+        db,
+        &tx_height,
+        &gov_token.address,
+        sender,
+        &balance_update,
+    )
+}
+
+// juno1rn57e8ywd4t923v6ml0nka96jyermndvhwgd46 (local test 4)
+// juno1mudcxmlg5gxqkwuywuedql79wgy3m02rtqac8a (local test 3)
 impl Index for MsgExecuteContract {
-    fn index(&self, _db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
+    fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         match serde_json::from_str::<ExecuteMsg>(&msg_str) {
             Ok(execute_contract) => {
                 dump_execute_contract(&execute_contract);
                 dump_events(events);
+                if let Some(event_map) = events {
+                    if let Some(wasm_actions) = event_map.get("wasm.action") {
+                        // TODO(gavin.doughtie): Handle propose, vote
+                        if wasm_actions.len() > 0 && wasm_actions[0] == "execute" {
+                            for (i, action_type) in (&wasm_actions[1..]).iter().enumerate() {
+                                match action_type.as_str() {
+                                    "transfer" => {
+                                        update_balance_from_events(db, i, &event_map).unwrap();
+                                    }
+                                    "mint" => {
+                                        update_balance_from_events(db, i, &event_map).unwrap();
+                                    }
+                                    _ => {
+                                        eprintln!("Unhandled exec type {}", action_type);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             Err(e) => {
                 println!("Error: {:?}", e);

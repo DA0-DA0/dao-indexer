@@ -41,6 +41,7 @@ table! {
         sender_address -> Text,
         recipient_address -> Text,
         amount -> Int8,
+        height -> Int8,
     }
 }
 
@@ -51,7 +52,7 @@ table! {
         name -> Text,
         description -> Text,
         image_url -> Nullable<Text>,
-        gov_token_id -> Nullable<Int4>,
+        gov_token_id -> Int4,
     }
 }
 

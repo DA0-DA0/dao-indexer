@@ -39,8 +39,8 @@ CREATE TABLE cw20_transactions (
     cw20_address TEXT NOT NULL,
     sender_address TEXT NOT NULL,
     recipient_address TEXT NOT NULL,
-    amount BIGINT NOT NULL
-    -- height?
+    amount BIGINT NOT NULL,
+    height BIGINT NOT NULL
     -- time?
 );
 
@@ -52,8 +52,10 @@ CREATE TABLE dao (
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     image_url TEXT,
-    gov_token_id INT
+    gov_token_id INT NOT NULL
 );
+
+CREATE INDEX dao_contract_address_index on dao (contract_address);
 
 CREATE TABLE marketing (
     id SERIAL PRIMARY KEY,
@@ -71,6 +73,8 @@ CREATE TABLE gov_token (
     decimals INT,
     marketing_id INT
 );
+
+CREATE INDEX gov_token_address_index on gov_token (address);
 
 CREATE TABLE logo (
     id SERIAL PRIMARY KEY,

@@ -12,7 +12,7 @@ pub struct NewContract<'a> {
     pub admin: &'a str,
     pub label: &'a str,
     pub creation_time: &'a str,
-    pub height: i64,
+    pub height: i64
 }
 
 // TODO(gavin.doughtie): These are out of date and we're just
@@ -30,6 +30,16 @@ pub struct Contract {
     pub creation_time: Text,
     pub height: BigInt,
     pub json: Jsonb
+}
+
+#[derive(Queryable, Serialize, Deserialize, Debug)]
+pub struct Dao {
+    pub id: i32,
+    pub contract_adress: String,
+    pub name: String,
+    pub description: String,
+    pub image_url: Option<String>,
+    pub gov_token_id: i32
 }
 
 #[derive(Insertable)]
@@ -54,11 +64,15 @@ pub struct Cw20Msg {
     pub decimals: i32
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+// Data from the gov_token table:
+#[derive(Serialize, Deserialize, Debug, Queryable)]
 pub struct Cw20 {
-    pub cw20_code_id: i64,
-    pub label: String,
-    pub msg: Cw20Msg,
+    pub id: i32,
+    pub address: String,
+    pub name: String,
+    pub symbol: String,
+    pub decimals: Option<i32>,
+    pub marketing_id: Option<i32>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
