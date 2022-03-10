@@ -1,7 +1,9 @@
 use super::schema::{contracts, cw20_balances};
-use diesel::sql_types::{Text, BigInt, Jsonb};
+use diesel::sql_types::{Text, BigInt, Jsonb, Numeric};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use bigdecimal::BigDecimal; // Has to match diesel's version!
+use cosmrs::proto::cosmwasm::wasm::v1::{MsgInstantiateContract};
 
 #[derive(Insertable)]
 #[table_name="contracts"]
@@ -12,7 +14,22 @@ pub struct NewContract<'a> {
     pub admin: &'a str,
     pub label: &'a str,
     pub creation_time: &'a str,
-    pub height: i64
+    pub height: &'a BigDecimal
+}
+
+impl<'a> NewContract<'a> {
+    pub fn from_msg(dao_address: &'a str, tx_height: &'a BigDecimal, msg: &'a MsgInstantiateContract) -> NewContract<'a> {
+        let code_id: i64 = msg.code_id as i64;
+        NewContract {
+            address: dao_address,
+            admin: &msg.admin,
+            code_id: code_id,
+            creator: &msg.sender,
+            label: &msg.label,
+            creation_time: "",
+            height: tx_height
+        }
+    }    
 }
 
 // TODO(gavin.doughtie): These are out of date and we're just
@@ -28,7 +45,7 @@ pub struct Contract {
     pub admin: Text,
     pub label: Text,
     pub creation_time: Text,
-    pub height: BigInt,
+    pub height: Numeric,
     pub json: Jsonb
 }
 

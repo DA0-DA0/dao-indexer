@@ -14,7 +14,7 @@ CREATE TABLE contracts (
     admin TEXT NOT NULL DEFAULT '',
     label TEXT NOT NULL DEFAULT '',
     creation_time TEXT NOT NULL DEFAULT '',
-    height BIGINT NOT NULL
+    height NUMERIC(78) NOT NULL
 );
 
 CREATE INDEX contracts_code_id_index ON contracts (code_id);
@@ -39,8 +39,8 @@ CREATE TABLE cw20_transactions (
     cw20_address TEXT NOT NULL,
     sender_address TEXT NOT NULL,
     recipient_address TEXT NOT NULL,
-    amount BIGINT NOT NULL,
-    height BIGINT NOT NULL
+    amount NUMERIC(78) NOT NULL,
+    height NUMERIC(78) NOT NULL
     -- time?
 );
 

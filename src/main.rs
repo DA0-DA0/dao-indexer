@@ -17,6 +17,7 @@ use std::str::FromStr;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use bigdecimal::BigDecimal;
 
 fn parse_message(msg: &[u8]) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.to_owned()) {
@@ -109,20 +110,20 @@ fn insert_marketing_info(
 
 fn update_balance(
     db: &PgConnection,
-    tx_height: &Uint128,
+    tx_height: &BigDecimal,
     token_addr: &str,
     token_sender_address: &str,
     balance_update: &Cw20Coin,
 ) -> QueryResult<usize> {
     use dao_indexer::db::schema::cw20_transactions::dsl::*;
-    let tx_height_number: i64 = tx_height.u128() as i64;
+    let amount_converted: BigDecimal = BigDecimal::from(balance_update.amount.u128() as i64);
     diesel::insert_into(cw20_transactions)
         .values((
             cw20_address.eq(token_addr),
             sender_address.eq(token_sender_address),
             recipient_address.eq(&balance_update.address),
-            height.eq(tx_height_number),
-            amount.eq(balance_update.amount.u128() as i64), // Bigger data type?
+            height.eq(tx_height),
+            amount.eq(amount_converted),
         ))
         .execute(db)
 }
@@ -131,7 +132,7 @@ fn insert_gov_token(
     db: &PgConnection,
     token_msg: &GovTokenMsg,
     contract_addresses: &ContractAddresses,
-    height: &Uint128
+    height: &BigDecimal
 ) -> QueryResult<i32> {
     use dao_indexer::db::schema::gov_token::dsl::*;
     let result: QueryResult<i32>;
@@ -191,7 +192,7 @@ fn insert_dao(
     db: &PgConnection,
     instantiate_dao: &InstantiateMsg,
     contract_addr: &ContractAddresses,
-    height: &Uint128
+    height: &BigDecimal
 ) {
     use dao_indexer::db::schema::dao::dsl::*;
 
@@ -221,21 +222,14 @@ impl Index for MsgInstantiateContract {
                 .unwrap()
         );
         let dao_address = contract_addresses.dao_address.as_ref().unwrap();
-        let mut tx_height = Uint128::from_str("0").unwrap();
+        let mut tx_height = BigDecimal::from_str("0").unwrap();
         if let Some(event_map) = events {
             let tx_height_strings = event_map.get("tx.height").unwrap();
             let tx_height_str = &tx_height_strings[0];
-            tx_height = Uint128::from_str(tx_height_str).unwrap();            
+            tx_height = BigDecimal::from_str(tx_height_str).unwrap();
         }
-        let contract_model = NewContract {
-            address: dao_address,
-            admin: &self.admin,
-            code_id: self.code_id as i64,
-            creator: &self.sender,
-            label: &self.label,
-            creation_time: "",
-            height: tx_height.u128() as i64
-        };
+
+        let contract_model = NewContract::from_msg(dao_address, &tx_height, self);
         insert_contract(db, &contract_model);
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         match serde_json::from_str::<InstantiateMsg>(&msg_str) {
@@ -265,7 +259,7 @@ fn dump_events(events: &Option<BTreeMap<String, Vec<String>>>) {
 
 fn update_balance_from_events(db: &PgConnection, i: usize, event_map: &BTreeMap<String, Vec<String>>) -> QueryResult<usize> {
     let tx_height_string = &event_map.get("tx.height").unwrap()[0];
-    let tx_height = Uint128::from_str(tx_height_string).unwrap();
+    let tx_height = BigDecimal::from_str(tx_height_string).unwrap();
     let amount = &event_map.get("wasm.amount").unwrap()[i];
     let receiver = &event_map.get("wasm.to").unwrap()[i];
     let sender = &event_map.get("wasm.sender").unwrap()[0];
