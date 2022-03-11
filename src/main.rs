@@ -207,6 +207,7 @@ fn insert_dao(
         .values((
             name.eq(&instantiate_dao.name),
             contract_address.eq(contract_addr.dao_address.as_ref().unwrap()),
+            staking_contract_address.eq(contract_addr.staking_contract_address.as_ref().unwrap()),
             description.eq(&instantiate_dao.description),
             gov_token_id.eq(inserted_token_id),
         ))
@@ -226,6 +227,7 @@ impl Index for MsgInstantiateContract {
                 .unwrap()
         );
         let dao_address = contract_addresses.dao_address.as_ref().unwrap();
+        let staking_contract_address = contract_addresses.staking_contract_address.as_ref().unwrap();
         let mut tx_height = BigDecimal::from_str("0").unwrap();
         if let Some(event_map) = events {
             let tx_height_strings = event_map.get("tx.height").unwrap();
@@ -233,7 +235,7 @@ impl Index for MsgInstantiateContract {
             tx_height = BigDecimal::from_str(tx_height_str).unwrap();
         }
 
-        let contract_model = NewContract::from_msg(dao_address, &tx_height, self);
+        let contract_model = NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
         insert_contract(db, &contract_model);
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
@@ -347,8 +349,7 @@ impl Index for Cw20ExecuteMsg {
                     let amounts = &event_map.get("wasm.amount").unwrap();
                     let senders = event_map.get("wasm.from").unwrap();
                     let sender_addr = &senders[0];
-                    let send_amount = &amounts[0];
-                    let action_amount = &amounts[1];
+                    let mut send_amount: &str = &amounts[0];
 
                     let receiving_contract_action: &str;
                     if wasm_actions.len() > 1 {
@@ -356,21 +357,10 @@ impl Index for Cw20ExecuteMsg {
                     } else {
                         receiving_contract_action = "";
                     }
-                    println!(
-                        "TODO: index send\n
-                    sender_addr: {}\n
-                    gov_token_address: {}\n
-                    staking_contract_address: {}\n
-                    send_amount: {}\n
-                    action_amount: {}\n
-                    receiving_contract_action: {}\n",
-                        sender_addr,
-                        gov_token_address,
-                        &staking_contract_addr,
-                        send_amount,
-                        action_amount,
-                        receiving_contract_action
-                    );
+                    let action_amount: &str = &amounts[1];
+                    if receiving_contract_action == "stake" {
+                        send_amount = action_amount;
+                    }
                     let balance_update: Cw20Coin = Cw20Coin {
                         address: staking_contract_addr,
                         amount: Uint128::from_str(send_amount).unwrap(),
@@ -388,8 +378,6 @@ impl Index for Cw20ExecuteMsg {
     }
 }
 
-// juno1rn57e8ywd4t923v6ml0nka96jyermndvhwgd46 (local test 4)
-// juno1mudcxmlg5gxqkwuywuedql79wgy3m02rtqac8a (local test 3)
 impl Index for MsgExecuteContract {
     fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();

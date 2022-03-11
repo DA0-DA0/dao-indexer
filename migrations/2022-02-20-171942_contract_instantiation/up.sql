@@ -9,6 +9,7 @@ CREATE INDEX codes_creator_index ON codes (creator);
 
 CREATE TABLE contracts (
     address TEXT NOT NULL UNIQUE PRIMARY KEY,
+    staking_contract_address TEXT NOT NULL,
     code_id BIGINT NOT NULL,
     creator TEXT NOT NULL DEFAULT '',
     admin TEXT NOT NULL DEFAULT '',
@@ -49,12 +50,14 @@ CREATE TABLE coin (id SERIAL PRIMARY KEY);
 CREATE TABLE dao (
     id SERIAL PRIMARY KEY,
     contract_address TEXT NOT NULL,
+    staking_contract_address TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     image_url TEXT,
     gov_token_id INT NOT NULL
 );
 
+CREATE INDEX dao_staking_address_index on dao (staking_contract_address);
 CREATE INDEX dao_contract_address_index on dao (contract_address);
 
 CREATE TABLE marketing (

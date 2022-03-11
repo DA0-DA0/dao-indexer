@@ -16,6 +16,7 @@ table! {
 table! {
     contracts (address) {
         address -> Text,
+        staking_contract_address -> Text,
         code_id -> Int8,
         creator -> Text,
         admin -> Text,
@@ -49,6 +50,7 @@ table! {
     dao (id) {
         id -> Int4,
         contract_address -> Text,
+        staking_contract_address -> Text,
         name -> Text,
         description -> Text,
         image_url -> Nullable<Text>,
