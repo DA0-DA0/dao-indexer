@@ -128,3 +128,20 @@ CREATE TABLE logo (
 --     /// Optional Image URL that is used by the contract
 --     pub image_url: Option<String>,
 -- }
+
+    
+CREATE OR REPLACE FUNCTION update_balance_totals() 
+   RETURNS TRIGGER 
+   LANGUAGE PLPGSQL
+AS $$
+BEGIN
+   -- trigger logic
+   INSERT INTO cw20_balances(address, token, balance) VALUES ('test_address', 'test_token', 9);
+   RETURN NEW;
+END;
+$$
+;
+
+CREATE TRIGGER transaction_trigger AFTER INSERT ON cw20_transactions FOR EACH STATEMENT EXECUTE FUNCTION update_balance_totals();
+
+INSERT INTO cw20_transactions(cw20_address, sender_address, recipient_address, amount, height) VALUES ('cw20_address', 'sender_address', 'recipient_address', 11, 12);
