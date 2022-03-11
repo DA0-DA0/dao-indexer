@@ -16,12 +16,13 @@ table! {
 table! {
     contracts (address) {
         address -> Text,
+        staking_contract_address -> Text,
         code_id -> Int8,
         creator -> Text,
         admin -> Text,
         label -> Text,
         creation_time -> Text,
-        height -> Int8,
+        height -> Numeric,
     }
 }
 
@@ -40,8 +41,8 @@ table! {
         cw20_address -> Text,
         sender_address -> Text,
         recipient_address -> Text,
-        amount -> Int8,
-        height -> Int8,
+        amount -> Numeric,
+        height -> Numeric,
     }
 }
 
@@ -49,6 +50,7 @@ table! {
     dao (id) {
         id -> Int4,
         contract_address -> Text,
+        staking_contract_address -> Text,
         name -> Text,
         description -> Text,
         image_url -> Nullable<Text>,
