@@ -28,9 +28,9 @@ impl<'a> NewContract<'a> {
         let code_id: i64 = msg.code_id as i64;
         NewContract {
             address: dao_address,
-            staking_contract_address: staking_contract_address,
+            staking_contract_address,
             admin: &msg.admin,
-            code_id: code_id,
+            code_id,
             creator: &msg.sender,
             label: &msg.label,
             creation_time: "",

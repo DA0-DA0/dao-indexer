@@ -277,44 +277,26 @@ fn update_balance_from_events(
     let gov_token = get_gov_token(db, from).unwrap();
     let balance_update = Cw20Coin {
         address: receiver.clone(),
-        amount: Uint128::from_str(&amount).unwrap(),
+        amount: Uint128::from_str(amount).unwrap(),
     };
     update_balance(db, &tx_height, &gov_token.address, sender, &balance_update)
 }
 
-// fn update_balance_from_cw20_execute_events(
-//     db: &PgConnection,
-//     i: usize,
-//     event_map: &BTreeMap<String, Vec<String>>,
-// ) -> QueryResult<usize> {
-//     let tx_height_string = &event_map.get("tx.height").unwrap()[0];
-//     let tx_height = BigDecimal::from_str(tx_height_string).unwrap();
-//     let amount = &event_map.get("wasm.amount").unwrap()[i];
-//     let receiver = &event_map.get("wasm.to").unwrap()[0];
-//     let sender = &event_map.get("wasm.from").unwrap()[i]; // user
-//     let gov_token_address = &event_map.get("wasm._contract_address").unwrap()[0];
-//     let balance_update = Cw20Coin {
-//         address: receiver.clone(),
-//         amount: Uint128::from_str(&amount).unwrap(),
-//     };
-//     update_balance(db, &tx_height, &gov_token_address, sender, &balance_update)
-// }
-
 impl Index for Cw3DaoExecuteMsg {
     fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
-        dump_execute_contract(&self);
+        dump_execute_contract(self);
         dump_events(events);
         if let Some(event_map) = events {
             if let Some(wasm_actions) = event_map.get("wasm.action") {
                 // TODO(gavin.doughtie): Handle propose, vote
-                if wasm_actions.len() > 0 && wasm_actions[0] == "execute" {
+                if !wasm_actions.is_empty() && wasm_actions[0] == "execute" {
                     for (i, action_type) in (&wasm_actions[1..]).iter().enumerate() {
                         match action_type.as_str() {
                             "transfer" => {
-                                update_balance_from_events(db, i, &event_map).unwrap();
+                                update_balance_from_events(db, i, event_map).unwrap();
                             }
                             "mint" => {
-                                update_balance_from_events(db, i, &event_map).unwrap();
+                                update_balance_from_events(db, i, event_map).unwrap();
                             }
                             _ => {
                                 eprintln!("Unhandled exec type {}", action_type);
@@ -339,7 +321,7 @@ impl Index for Cw20ExecuteMsg {
         dump_events(events);
         if let Some(event_map) = events {
             if let Some(wasm_actions) = event_map.get("wasm.action") {
-                if wasm_actions.len() > 0 && &wasm_actions[0] == "send" {
+                if !wasm_actions.is_empty() && &wasm_actions[0] == "send" {
                     let tx_height =
                         BigDecimal::from_str(&(event_map.get("tx.height").unwrap()[0])).unwrap();
                     let contract_addresses = event_map.get("wasm._contract_address").unwrap();
