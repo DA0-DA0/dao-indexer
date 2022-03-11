@@ -31,7 +31,7 @@ table! {
         id -> Int4,
         address -> Text,
         token -> Text,
-        balance -> Int8,
+        balance -> Numeric,
     }
 }
 
