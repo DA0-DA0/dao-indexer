@@ -114,19 +114,25 @@ fn insert_marketing_info(
 
 fn update_balance(
     db: &PgConnection,
-    tx_height: &BigDecimal,
+    tx_height: Option<&BigDecimal>,
     token_addr: &str,
     token_sender_address: &str,
     balance_update: &Cw20Coin,
 ) -> QueryResult<usize> {
     use dao_indexer::db::schema::cw20_transactions::dsl::*;
     let amount_converted: BigDecimal = BigDecimal::from(balance_update.amount.u128() as i64);
+    let transaction_height: BigDecimal;
+    if let Some(tx_height_value) = tx_height {
+        transaction_height = tx_height_value.clone();
+    } else {
+        transaction_height = BigDecimal::from_str("0").unwrap();
+    }
     diesel::insert_into(cw20_transactions)
         .values((
             cw20_address.eq(token_addr),
             sender_address.eq(token_sender_address),
             recipient_address.eq(&balance_update.address),
-            height.eq(tx_height),
+            height.eq(&transaction_height),
             amount.eq(amount_converted),
         ))
         .execute(db)
@@ -136,7 +142,7 @@ fn insert_gov_token(
     db: &PgConnection,
     token_msg: &GovTokenMsg,
     contract_addresses: &ContractAddresses,
-    height: &BigDecimal,
+    height: Option<&BigDecimal>,
 ) -> QueryResult<i32> {
     use dao_indexer::db::schema::gov_token::dsl::*;
     let result: QueryResult<i32>;
@@ -196,7 +202,7 @@ fn insert_dao(
     db: &PgConnection,
     instantiate_dao: &Cw3DaoInstantiateMsg,
     contract_addr: &ContractAddresses,
-    height: &BigDecimal,
+    height: Option<&BigDecimal>,
 ) {
     use dao_indexer::db::schema::dao::dsl::*;
 
@@ -218,32 +224,36 @@ fn insert_dao(
 impl Index for MsgInstantiateContract {
     fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
         let contract_addresses = get_contract_addresses(events);
-        println!(
-            "cw20 {}, staking {}",
-            contract_addresses.cw20_address.as_ref().unwrap(),
-            contract_addresses
-                .staking_contract_address
-                .as_ref()
-                .unwrap()
-        );
         let dao_address = contract_addresses.dao_address.as_ref().unwrap();
-        let staking_contract_address = contract_addresses.staking_contract_address.as_ref().unwrap();
-        let mut tx_height = BigDecimal::from_str("0").unwrap();
+        let staking_contract_address = contract_addresses
+            .staking_contract_address
+            .as_ref()
+            .unwrap();
+        let mut tx_height_opt = None;
         if let Some(event_map) = events {
             let tx_height_strings = event_map.get("tx.height").unwrap();
-            let tx_height_str = &tx_height_strings[0];
-            tx_height = BigDecimal::from_str(tx_height_str).unwrap();
+            if !tx_height_strings.is_empty() {
+                let tx_height_str = &tx_height_strings[0];
+                tx_height_opt = Some(BigDecimal::from_str(tx_height_str).unwrap());
+            }
+        }
+        let tx_height: BigDecimal;
+        if let Some(height) = tx_height_opt {
+            tx_height = height;
+        } else {
+            tx_height = BigDecimal::from_str("0").unwrap();
         }
 
-        let contract_model = NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
+        let contract_model =
+            NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
         insert_contract(db, &contract_model);
         let msg_str = String::from_utf8(self.msg.clone()).unwrap();
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
             Ok(instantiate_dao) => {
-                insert_dao(db, &instantiate_dao, &contract_addresses, &tx_height);
+                insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height));
             }
             Err(e) => {
-                println!("Error: {:?}", e);
+                eprintln!("Error: {:?}", e);
             }
         };
     }
@@ -279,7 +289,13 @@ fn update_balance_from_events(
         address: receiver.clone(),
         amount: Uint128::from_str(amount).unwrap(),
     };
-    update_balance(db, &tx_height, &gov_token.address, sender, &balance_update)
+    update_balance(
+        db,
+        Some(&tx_height),
+        &gov_token.address,
+        sender,
+        &balance_update,
+    )
 }
 
 impl Index for Cw3DaoExecuteMsg {
@@ -349,7 +365,7 @@ impl Index for Cw20ExecuteMsg {
                     };
                     let _ = update_balance(
                         db,
-                        &tx_height,
+                        Some(&tx_height),
                         gov_token_address,
                         sender_addr,
                         &balance_update,
@@ -388,7 +404,7 @@ impl Index for MsgExecuteContract {
                 errors.push(e);
             }
         }
-        println!("could not interpret execute msg, got errors:\n{:?}", errors);
+        eprintln!("could not interpret execute msg, got errors:\n{:?}", errors);
     }
 }
 
@@ -419,7 +435,6 @@ async fn main() {
                 Ok(tx_parsed) => {
                     for msg in tx_parsed.body.messages {
                         let type_url: &str = &msg.type_url;
-                        println!("instantiate msg: {}", type_url);
                         match type_url {
                             "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
                                 let msg_obj: MsgInstantiateContract =
@@ -435,21 +450,21 @@ async fn main() {
                                 msg_obj.index(&db, &events);
                             }
                             _ => {
-                                println!("No handler for {}", type_url);
+                                eprintln!("No handler for {}", type_url);
                             }
                         }
                     }
                 }
-                Err(err) => println!("ERROR: {:?}", err),
+                Err(err) => eprintln!("{:?}", err),
             },
-            _ => println!("unexpected result"),
+            _ => eprintln!("unexpected result"),
         }
     }
 
     // Signal to the driver to terminate.
     match client.close() {
         Ok(val) => println!("closed {:?}", val),
-        Err(e) => println!("Error closing client {:?}", e),
+        Err(e) => eprintln!("Error closing client {:?}", e),
     }
     // Await the driver's termination to ensure proper connection closure.
     let _ = driver_handle.await.unwrap();
