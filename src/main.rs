@@ -1,22 +1,28 @@
+use std::collections::BTreeMap;
+
+use cosmos_sdk_proto::cosmos::tx::v1beta1::service_client::ServiceClient;
+use cosmos_sdk_proto::cosmwasm::wasm::v1::{
+    MsgExecuteContract,
+    MsgInstantiateContract,
+    query_client::QueryClient as GrpcQueryClient,
+    QuerySmartContractStateRequest
+};
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use cosmrs::tx::{MsgProto, Tx};
-use dao_indexer_rs::db::connection::establish_connection;
-use dao_indexer_rs::db::models::NewContract;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
 use serde_json::Value;
-use std::collections::BTreeMap;
-use tendermint_rpc::event::{EventData};
+use tendermint::hash::Hash;
+use tendermint_rpc::{HttpClient as TendermintClient, SubscriptionClient, WebSocketClient};
+use tendermint_rpc::Client;
+use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
-use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use cosmos_sdk_proto::cosmwasm::wasm::v1::{
-    query_client::QueryClient as GrpcQueryClient,
-    MsgExecuteContract,
-    MsgInstantiateContract,
-    QuerySmartContractStateRequest
-};
+use tonic::transport::Channel;
+use dao_indexer_rs::db::connection::establish_connection;
+use dao_indexer_rs::db::models::NewContract;
+use dao_indexer_rs::db::models::NewBlock;
 
 
 fn parse_message(msg: &Vec<u8>) -> serde_json::Result<Option<Value>> {
@@ -117,16 +123,70 @@ impl Index for MsgSend {
     }
 }
 
+/*
+create a table for blocks
+- each block has a pkey, monotonically increasing
+- each block has a height
+- each block has a hash stored as string
+- timestamp of the confirmed block
+- num of txs
+*/
+
+/*
+create a table of transactions...
+TODO add information relevant.
+How do we transform into comswasm messages?
+*/
+
+/*
+Simple algorithm. Get first node, at the start.
+Go each block, look at each transaction. store it in memory, perform some action per transaction.
+for each tx then we can implement our own logic/custom code. this includes querying and indexing async for node information.
+there is a retry sequence we want to do and also the batch sizes for each individual set of blocks.
+*/
+
+
+// fn create_new_blocK()
+
 #[tokio::main]
 async fn main() {
     let db: PgConnection = establish_connection();
     let (client, driver) = WebSocketClient::new("ws://127.0.0.1:26657/websocket")
         .await
         .unwrap();
+    let tendermint_client = TendermintClient::new("http://127.0.0.1:26657").unwrap();
+    for block_height in 1..10 {
+        let response = tendermint_client.block( block_height as u32).await.unwrap();
+        println!("{}", response.block_id.hash);
 
-    let mut grpc_client = GrpcQueryClient::connect("http://localhost:9090/")
-        .await
-        .unwrap();
+        let new_block = NewBlock {
+            height: response.block.header.height.value() as i64,
+            hash: &response.block_id.hash.to_string(),
+            num_txs: response.block.data.iter().len() as i64,
+        };
+        use dao_indexer_rs::db::schema::block::dsl::*;
+
+        diesel::insert_into(block)
+            .values(&new_block)
+            .execute(&db)
+            .expect("Error saving new Block");
+
+
+        for tx in response.block.data.iter() {
+            let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
+            for tx_message in unmarshalled_tx.body.messages {
+                match tx_message.type_url.to_string().as_str() {
+                    // String { .. } => {}
+                    "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
+                        println!("we found an instnatiate contract, p0g")
+                    }
+                    _ => {
+                        println!("No handler for {}", tx_message.type_url.to_string().as_str());
+                    }
+                }
+            }
+        }
+    }
 
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
@@ -149,21 +209,25 @@ async fn main() {
                                     MsgProto::from_any(&msg).unwrap();
 
                                 let contract_addr = get_contract_address(&events);
-                                let get_contract_info = models::QueryMsg::ContractInfo {};
-                                let serialized_get_contract_info = serde_json::to_vec(&get_contract_info).unwrap();
-                                let smart_contract_query_state = QuerySmartContractStateRequest {
-                                    address: contract_addr.clone(),
-                                    query_data: serialized_get_contract_info,
-                                };
 
-                                let response = grpc_client
-                                    .smart_contract_state(smart_contract_query_state)
-                                    .await.unwrap()
-                                    .into_inner();
-
-                                let result = String::from_utf8(response.data).unwrap();
-
-                                println!("{}", result);
+                                // let get_contract_info = models::QueryMsg::ContractInfo {};
+                                // let serialized_get_contract_info = serde_json::to_vec(&get_contract_info).unwrap();
+                                // let smart_contract_query_state = QuerySmartContractStateRequest {
+                                //     address: contract_addr.clone(),
+                                //     query_data: serialized_get_contract_info,
+                                // };
+                                //
+                                // grpc_client
+                                //     .contract_info()
+                                //
+                                // let response = grpc_client
+                                //     .smart_contract_state(smart_contract_query_state)
+                                //     .await.unwrap()
+                                //     .into_inner();
+                                //
+                                // let result = String::from_utf8(response.data).unwrap();
+                                //
+                                // println!("{}", result);
 
                                 msg_obj.index(&db, &events);
                             }

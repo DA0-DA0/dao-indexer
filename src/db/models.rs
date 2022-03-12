@@ -1,4 +1,5 @@
 use super::schema::contracts;
+use super::schema::block;
 use diesel::sql_types::{Text, BigInt, Jsonb};
 
 #[derive(Insertable)]
@@ -23,4 +24,23 @@ pub struct Contract {
     pub creation_time: Text,
     pub height: BigInt,
     pub json: Jsonb
+}
+
+#[derive(Insertable)]
+#[table_name="block"]
+pub struct NewBlock<'a> {
+    pub height: i64,
+    pub hash: &'a str,
+    pub num_txs: i64,
+    // pub total_gas: i64,
+    // pub proposer_address: &'a str,
+}
+
+#[derive(Queryable)]
+pub struct Block {
+    pub height: BigInt,
+    pub hash: Text,
+    pub num_txs: BigInt,
+    // pub total_gas: BigInt,
+    // pub proposer_address: Text
 }

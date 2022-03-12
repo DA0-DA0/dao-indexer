@@ -2,5 +2,5 @@
 extern crate diesel;
 extern crate dotenv;
 
-pub mod db;
 mod models;
+pub mod db;
