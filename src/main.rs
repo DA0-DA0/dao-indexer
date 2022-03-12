@@ -148,9 +148,11 @@ fn insert_gov_token(
     let result: QueryResult<i32>;
     match token_msg {
         GovTokenMsg::InstantiateNewCw20 {
-            /*cw20_code_id, stake_contract_code_id, label,*/ msg,
+            /*cw20_code_id, stake_contract_code_id, label,*/ msg, label,
+            initial_dao_balance,
             ..
         } => {
+            println!("label for GovTokenMsg::InstantiateNewCw20 is {}", label);
             let mut marketing_record_id: Option<i32> = None;
             if let Some(marketing) = &msg.marketing {
                 marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
@@ -167,9 +169,49 @@ fn insert_gov_token(
                 .returning(id)
                 .get_result(db);
             let dao_address = contract_addresses.dao_address.as_ref().unwrap();
+            let amount;
+            if let Some(balance) = initial_dao_balance {
+                amount = *balance;
+            } else {
+                amount = Uint128::from(0u128);
+            }
+            let balance_update = Cw20Coin {
+                address: dao_address.to_string(),
+                amount,
+            };
+            let initial_update_result = update_balance(
+                db,
+                height,
+                cw20_address,
+                dao_address, // As the minter the DAO is also the sender for its own initial balance (???)
+                &balance_update,
+            );
+            match initial_update_result {
+                Ok(rows) => {
+                    println!(
+                        "updated {} rows to update dao {} balance {} of token {}",
+                        rows, dao_address, amount, cw20_address
+                    );
+                }
+                Err(e) => {
+                    eprintln!("error updating initial balance {}", e);
+                }
+            }
+
             if let Ok(_token_id) = result {
+                // This handles the initial token distributions but not the treasury.
                 for balance in &msg.initial_balances {
-                    let _ = update_balance(db, height, cw20_address, dao_address, balance);
+                    match update_balance(db, height, &cw20_address, dao_address, balance) {
+                        Ok(rows) => {
+                            println!(
+                                "updated {} rows to update dao {} balance {} of token {}",
+                                rows, dao_address, balance, cw20_address
+                            );
+                        }
+                        Err(e) => {
+                            eprintln!("{}", e);
+                        }
+                    }
                 }
             }
         }
@@ -206,13 +248,16 @@ fn insert_dao(
 ) {
     use dao_indexer::db::schema::dao::dsl::*;
 
+    let dao_address = contract_addr.dao_address.as_ref().unwrap();
+
+    // TODO: update balance for: instantiate_dao.gov_token.initial_dao_balance
     let inserted_token_id: i32 =
         insert_gov_token(db, &instantiate_dao.gov_token, contract_addr, height).unwrap();
 
     diesel::insert_into(dao)
         .values((
             name.eq(&instantiate_dao.name),
-            contract_address.eq(contract_addr.dao_address.as_ref().unwrap()),
+            contract_address.eq(dao_address),
             staking_contract_address.eq(contract_addr.staking_contract_address.as_ref().unwrap()),
             description.eq(&instantiate_dao.description),
             gov_token_id.eq(inserted_token_id),
