@@ -127,6 +127,9 @@ CREATE TABLE logo (
 -- }
 CREATE
 OR REPLACE FUNCTION update_balance_totals() RETURNS TRIGGER AS $balance_update$
+DECLARE
+sender_balance RECORD;
+recipient_balance RECORD;
 BEGIN
     -- update the sender balance:
     SELECT * INTO sender_balance FROM cw20_balances WHERE address = NEW.sender_address AND token = NEW.cw20_address;
@@ -135,7 +138,7 @@ BEGIN
     ELSE
         -- if sender address, token exists
         --   then subtract amount from existing record
-        UPDATE cw20_balances set balance = sender_balance.balance - NEW.amount WHERE id = sender_balance.id;
+        UPDATE cw20_balances SET balance = sender_balance.balance - NEW.amount WHERE id = sender_balance.id;
     END IF;
     SELECT * INTO recipient_balance FROM cw20_balances WHERE address = NEW.recipient_address AND token = NEW.cw20_address;
     IF NOT FOUND THEN
@@ -143,11 +146,11 @@ BEGIN
         INSERT INTO
             cw20_balances(address, token, balance)
         VALUES
-            (NEW.sender_address, NEW.cw20_address, NEW.amount);
+            (NEW.recipient_address, NEW.cw20_address, NEW.amount);
     ELSE
         -- if recipient address, token texists
         --    then add amount to existing record
-        UPDATE cw20_balances set balance = recipient_balance.balance + NEW.amount WHERE id = recipient_balance.id;
+        UPDATE cw20_balances SET balance = recipient_balance.balance + NEW.amount WHERE id = recipient_balance.id;
     END IF;
 
     RETURN NEW;
