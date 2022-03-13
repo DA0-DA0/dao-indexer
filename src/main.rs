@@ -180,31 +180,15 @@ fn insert_gov_token(
                 dao_address, // As the minter the DAO is also the sender for its own initial balance (???)
                 &balance_update,
             );
-            match initial_update_result {
-                Ok(rows) => {
-                    println!(
-                        "updated {} rows to update dao {} balance {} of token {}",
-                        rows, dao_address, amount, cw20_address
-                    );
-                }
-                Err(e) => {
-                    eprintln!("error updating initial balance {}", e);
-                }
+            if let Err(e) = initial_update_result {
+                eprintln!("error updating initial balance {}", e);
             }
 
             if let Ok(_token_id) = result {
                 // This handles the initial token distributions but not the treasury.
                 for balance in &msg.initial_balances {
-                    match update_balance(db, height, cw20_address, dao_address, balance) {
-                        Ok(rows) => {
-                            println!(
-                                "updated {} rows to update dao {} balance {} of token {}",
-                                rows, dao_address, balance, cw20_address
-                            );
-                        }
-                        Err(e) => {
-                            eprintln!("{}", e);
-                        }
+                    if let Err(e) = update_balance(db, height, cw20_address, dao_address, balance) {
+                        eprintln!("{}", e);
                     }
                 }
             }
