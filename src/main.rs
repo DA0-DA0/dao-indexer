@@ -11,7 +11,7 @@ use cw3_dao::msg::{
     ExecuteMsg as Cw3DaoExecuteMsg, GovTokenMsg, InstantiateMsg as Cw3DaoInstantiateMsg,
 };
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::models::{Cw20, Dao, NewContract, NewGovToken};
+use dao_indexer::db::models::{Cw20, Dao, NewContract, NewDao, NewGovToken};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
@@ -153,7 +153,10 @@ fn insert_gov_token(
             initial_dao_balance,
             ..
         } => {
-            println!("label for GovTokenMsg::InstantiateNewCw20 is {}", label);
+            println!(
+                "label for GovTokenMsg::InstantiateNewCw20 is {}, name is: {}",
+                label, &msg.name
+            );
             let mut marketing_record_id: Option<i32> = None;
             if let Some(marketing) = &msg.marketing {
                 marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
@@ -246,18 +249,18 @@ fn insert_dao(
 
     let dao_address = contract_addr.dao_address.as_ref().unwrap();
 
-    // TODO: update balance for: instantiate_dao.gov_token.initial_dao_balance
     let inserted_token_id: i32 =
         insert_gov_token(db, &instantiate_dao.gov_token, contract_addr, height).unwrap();
 
+    let dao_model = NewDao::from_msg(
+        dao_address,
+        contract_addr.staking_contract_address.as_ref().unwrap(),
+        inserted_token_id,
+        instantiate_dao,
+    );
+
     diesel::insert_into(dao)
-        .values((
-            name.eq(&instantiate_dao.name),
-            contract_address.eq(dao_address),
-            staking_contract_address.eq(contract_addr.staking_contract_address.as_ref().unwrap()),
-            description.eq(&instantiate_dao.description),
-            gov_token_id.eq(inserted_token_id),
-        ))
+        .values(dao_model)
         .execute(db)
         .expect("Error saving dao");
 }
