@@ -32,7 +32,7 @@ CREATE TABLE cw20_balances (
     id SERIAL PRIMARY KEY,
     address TEXT NOT NULL,
     token TEXT NOT NULL,
-    balance BIGINT NOT NULL
+    balance NUMERIC(78) NOT NULL
 );
 
 CREATE TABLE cw20_transactions (
@@ -41,8 +41,7 @@ CREATE TABLE cw20_transactions (
     sender_address TEXT NOT NULL,
     recipient_address TEXT NOT NULL,
     amount NUMERIC(78) NOT NULL,
-    height NUMERIC(78) NOT NULL
-    -- time?
+    height NUMERIC(78) NOT NULL -- time?
 );
 
 CREATE TABLE coin (id SERIAL PRIMARY KEY);
@@ -58,6 +57,7 @@ CREATE TABLE dao (
 );
 
 CREATE INDEX dao_staking_address_index on dao (staking_contract_address);
+
 CREATE INDEX dao_contract_address_index on dao (contract_address);
 
 CREATE TABLE marketing (
@@ -92,7 +92,6 @@ CREATE TABLE logo (
 --     pub marketing: Option<String>,
 --     pub logo: Option<Logo>,
 -- }
-
 -- pub struct GovTokenInstantiateMsg {
 --     pub name: String,
 --     pub symbol: String,
@@ -108,8 +107,6 @@ CREATE TABLE logo (
 --     msg: GovTokenInstantiateMsg,
 --     unstaking_duration: Option<Duration>,
 -- },
-
-
 -- pub struct InstantiateMsg {
 --     // The name of the DAO.
 --     pub name: String,
@@ -128,3 +125,43 @@ CREATE TABLE logo (
 --     /// Optional Image URL that is used by the contract
 --     pub image_url: Option<String>,
 -- }
+CREATE
+OR REPLACE FUNCTION update_balance_totals() RETURNS TRIGGER AS $balance_update$
+DECLARE
+sender_balance RECORD;
+recipient_balance RECORD;
+BEGIN
+    -- update the sender balance:
+    SELECT * INTO sender_balance FROM cw20_balances WHERE address = NEW.sender_address AND token = NEW.cw20_address;
+    IF NOT FOUND THEN
+        -- do nothing?
+    ELSE
+        -- if sender address, token exists
+        --   then subtract amount from existing record
+        UPDATE cw20_balances SET balance = sender_balance.balance - NEW.amount WHERE id = sender_balance.id;
+    END IF;
+    SELECT * INTO recipient_balance FROM cw20_balances WHERE address = NEW.recipient_address AND token = NEW.cw20_address;
+    IF NOT FOUND THEN
+        --    create new record for recipient address, amount
+        INSERT INTO
+            cw20_balances(address, token, balance)
+        VALUES
+            (NEW.recipient_address, NEW.cw20_address, NEW.amount);
+    ELSE
+        -- if recipient address, token texists
+        --    then add amount to existing record
+        UPDATE cw20_balances SET balance = recipient_balance.balance + NEW.amount WHERE id = recipient_balance.id;
+    END IF;
+
+    RETURN NEW;
+END;
+
+$balance_update$ LANGUAGE plpgsql;
+
+CREATE
+OR REPLACE TRIGGER transaction_trigger
+AFTER
+INSERT
+    ON cw20_transactions FOR EACH ROW EXECUTE FUNCTION update_balance_totals();
+
+-- INSERT INTO cw20_transactions(cw20_address, sender_address, recipient_address, amount, height) VALUES ('cw20_address', 'sender_address', 'recipient_address', 11, 12);
