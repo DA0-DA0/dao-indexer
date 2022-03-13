@@ -5,3 +5,4 @@ CREATE TABLE block
     hash             TEXT                        NOT NULL UNIQUE,
     num_txs          BIGINT DEFAULT 0
 );
+

@@ -12,6 +12,7 @@ use cw3_dao::msg::{
 };
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::db::models::{Cw20, Dao, NewContract};
+use dao_indexer::historical_parser::blocker;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
@@ -22,6 +23,8 @@ use std::str::FromStr;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use dotenv::dotenv;
+use std::env;
 
 fn parse_message(msg: &[u8]) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.to_owned()) {
@@ -422,6 +425,17 @@ async fn main() {
         .unwrap();
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
+
+    dotenv().ok();
+
+    let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or("false".to_string());
+
+    if enable_indexer_env == "true" {
+        blocker(&db).await;
+    } else {
+        println!("Not indexing");
+    }
+    
     // Subscribe to transactions (can also add blocks but just Tx for now)
     let mut subs = client.subscribe(EventType::Tx.into()).await.unwrap();
 
