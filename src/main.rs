@@ -148,15 +148,10 @@ fn insert_gov_token(
     let result: QueryResult<i32>;
     match token_msg {
         GovTokenMsg::InstantiateNewCw20 {
-            /*cw20_code_id, stake_contract_code_id, label,*/ msg,
-            label,
+            msg,
             initial_dao_balance,
             ..
         } => {
-            println!(
-                "label for GovTokenMsg::InstantiateNewCw20 is {}, name is: {}",
-                label, &msg.name
-            );
             let mut marketing_record_id: Option<i32> = None;
             if let Some(marketing) = &msg.marketing {
                 marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
