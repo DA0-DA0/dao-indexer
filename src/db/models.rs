@@ -4,6 +4,7 @@ use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
+use super::schema::block;
 
 #[derive(Insertable)]
 #[table_name = "contracts"]
@@ -110,4 +111,23 @@ pub struct GovToken {
 pub struct NewDao {
     pub description: String,
     pub gov_token: GovToken,
+}
+
+#[derive(Insertable)]
+#[table_name="block"]
+pub struct NewBlock<'a> {
+    pub height: i64,
+    pub hash: &'a str,
+    pub num_txs: i64,
+    // pub total_gas: i64,
+    // pub proposer_address: &'a str,
+}
+
+#[derive(Queryable)]
+pub struct Block {
+    pub height: BigInt,
+    pub hash: Text,
+    pub num_txs: BigInt,
+    // pub total_gas: BigInt,
+    // pub proposer_address: Text
 }

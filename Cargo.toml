@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.16.1", features = ["rt-multi-thread", "macros"] }
 tendermint = "0.23.3"
-tendermint-rpc = {version = "0.23.3", features = ["websocket-client"] }
+tendermint-rpc = {version = "0.23.3", features = ["websocket-client", "http-client"] }
 futures = "0.3.21"
 base64 = "0.13.0"
 cosmrs = {version = "0.4.1", features = ["cosmwasm"] }
