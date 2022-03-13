@@ -1,7 +1,7 @@
 use crate::db::models::NewBlock;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-
+use tendermint_rpc::Client;
 use tendermint_rpc::{HttpClient as TendermintClient};
 use crate::db::schema::block::dsl::*;
 // use dao_indexer_rs::db::schema::block::dsl::*;
@@ -25,7 +25,7 @@ pub async fn blocker(db: &PgConnection) {
 
         diesel::insert_into(block)
             .values(&new_block)
-            .execute(&db)
+            .execute(&*db)
             .expect("Error saving new Block");
     }
 
