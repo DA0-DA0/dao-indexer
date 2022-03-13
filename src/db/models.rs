@@ -1,6 +1,7 @@
-use super::schema::{contracts, cw20_balances};
+use super::schema::{contracts, cw20_balances, gov_token};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+use cw3_dao::msg::GovTokenInstantiateMsg;
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -99,6 +100,32 @@ pub struct Cw20 {
     pub symbol: String,
     pub decimals: Option<i32>,
     pub marketing_id: Option<i32>,
+}
+
+#[derive(Insertable)]
+#[table_name = "gov_token"]
+pub struct NewGovToken<'a> {
+    pub name: &'a str,
+    pub address: &'a str,
+    pub symbol: &'a str,
+    pub decimals: i32,
+    pub marketing_id: Option<i32>,
+}
+
+impl<'a> NewGovToken<'a> {
+    pub fn from_msg(
+        cw20_address: &'a str,
+        marketing_id: Option<i32>,
+        msg: &'a GovTokenInstantiateMsg,
+    ) -> NewGovToken<'a> {
+        NewGovToken {
+            name: &msg.name,
+            address: cw20_address,
+            symbol: &msg.symbol,
+            decimals: msg.decimals as i32,
+            marketing_id,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

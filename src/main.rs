@@ -11,7 +11,7 @@ use cw3_dao::msg::{
     ExecuteMsg as Cw3DaoExecuteMsg, GovTokenMsg, InstantiateMsg as Cw3DaoInstantiateMsg,
 };
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::models::{Cw20, Dao, NewContract};
+use dao_indexer::db::models::{Cw20, Dao, NewContract, NewGovToken};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
@@ -148,7 +148,8 @@ fn insert_gov_token(
     let result: QueryResult<i32>;
     match token_msg {
         GovTokenMsg::InstantiateNewCw20 {
-            /*cw20_code_id, stake_contract_code_id, label,*/ msg, label,
+            /*cw20_code_id, stake_contract_code_id, label,*/ msg,
+            label,
             initial_dao_balance,
             ..
         } => {
@@ -158,14 +159,9 @@ fn insert_gov_token(
                 marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
             }
             let cw20_address = contract_addresses.cw20_address.as_ref().unwrap();
+            let token_model = NewGovToken::from_msg(cw20_address, marketing_record_id, msg);
             result = diesel::insert_into(gov_token)
-                .values((
-                    name.eq(&msg.name),
-                    address.eq(cw20_address),
-                    symbol.eq(&msg.symbol),
-                    decimals.eq(msg.decimals as i32),
-                    marketing_id.eq(marketing_record_id),
-                ))
+                .values(token_model)
                 .returning(id)
                 .get_result(db);
             let dao_address = contract_addresses.dao_address.as_ref().unwrap();
@@ -201,7 +197,7 @@ fn insert_gov_token(
             if let Ok(_token_id) = result {
                 // This handles the initial token distributions but not the treasury.
                 for balance in &msg.initial_balances {
-                    match update_balance(db, height, &cw20_address, dao_address, balance) {
+                    match update_balance(db, height, cw20_address, dao_address, balance) {
                         Ok(rows) => {
                             println!(
                                 "updated {} rows to update dao {} balance {} of token {}",
