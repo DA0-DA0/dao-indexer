@@ -1,6 +1,7 @@
-use super::schema::{contracts, cw20_balances};
+use super::schema::{contracts, cw20_balances, dao, gov_token};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+use cw3_dao::msg::{InstantiateMsg as Cw3DaoInstantiateMsg, GovTokenInstantiateMsg};
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -21,14 +22,14 @@ pub struct NewContract<'a> {
 
 impl<'a> NewContract<'a> {
     pub fn from_msg(
-        dao_address: &'a str,
+        address: &'a str,
         staking_contract_address: &'a str,
         tx_height: &'a BigDecimal,
         msg: &'a MsgInstantiateContract,
     ) -> NewContract<'a> {
         let code_id: i64 = msg.code_id as i64;
         NewContract {
-            address: dao_address,
+            address,
             staking_contract_address,
             admin: &msg.admin,
             code_id,
@@ -70,11 +71,42 @@ pub struct Dao {
 }
 
 #[derive(Insertable)]
+#[table_name = "dao"]
+pub struct NewDao<'a> {
+    pub contract_address: &'a str,
+    pub staking_contract_address: &'a str,
+    pub name: &'a str,
+    pub description: &'a str,
+    pub image_url: Option<&'a String>,
+    pub gov_token_id: i32
+}
+
+impl<'a> NewDao<'a> {
+    pub fn from_msg(
+        contract_address: &'a str,
+        staking_contract_address: &'a str,
+        gov_token_id: i32,
+        msg: &'a Cw3DaoInstantiateMsg,
+    ) -> NewDao<'a> {
+        NewDao {
+            name: &msg.name,
+            contract_address,
+            staking_contract_address,
+            description: &msg.description,
+            image_url: msg.image_url.as_ref(),
+            gov_token_id,
+
+        }
+    }
+}
+
+
+#[derive(Insertable)]
 #[table_name = "cw20_balances"]
 pub struct NewCw20Balance<'a> {
     pub address: &'a str,
     pub token: &'a str,
-    pub balance: i64,
+    pub balance: &'a BigDecimal,
 }
 
 #[derive(Queryable)]
@@ -102,15 +134,30 @@ pub struct Cw20 {
     pub marketing_id: Option<i32>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GovToken {
-    pub instantiate_new_cw20: Cw20,
+#[derive(Insertable)]
+#[table_name = "gov_token"]
+pub struct NewGovToken<'a> {
+    pub name: &'a str,
+    pub address: &'a str,
+    pub symbol: &'a str,
+    pub decimals: i32,
+    pub marketing_id: Option<i32>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct NewDao {
-    pub description: String,
-    pub gov_token: GovToken,
+impl<'a> NewGovToken<'a> {
+    pub fn from_msg(
+        cw20_address: &'a str,
+        marketing_id: Option<i32>,
+        msg: &'a GovTokenInstantiateMsg,
+    ) -> NewGovToken<'a> {
+        NewGovToken {
+            name: &msg.name,
+            address: cw20_address,
+            symbol: &msg.symbol,
+            decimals: msg.decimals as i32,
+            marketing_id,
+        }
+    }
 }
 
 #[derive(Insertable)]

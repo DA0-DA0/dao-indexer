@@ -1,3 +1,5 @@
+DROP TRIGGER transaction_trigger on cw20_transactions;
+
 DROP TABLE codes;
 DROP TABLE contracts;
 DROP TABLE exec_msg;
