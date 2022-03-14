@@ -127,7 +127,7 @@ pub struct NewBlock<'a> {
 pub struct Block {
     pub height: BigInt,
     pub hash: Text,
-    pub num_txs: BigInt,
+    pub num_txs: Option<BigInt>,
     // pub total_gas: BigInt,
     // pub proposer_address: Text
 }
