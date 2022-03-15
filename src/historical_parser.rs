@@ -38,7 +38,7 @@ pub async fn block_synchronizer(db: &PgConnection) {
             for tx in response.block.data.iter() {
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
                 for tx_message in unmarshalled_tx.body.messages {
-                    // TODO(James): Attach here gavins code to index based on the type of transaction
+                    // TODO(jamesortega): Attach here gavins code to index based on the type of transaction
                     classify_transaction(tx_message)
                 }
             }
