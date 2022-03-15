@@ -172,9 +172,9 @@ pub struct NewBlock<'a> {
 
 #[derive(Queryable)]
 pub struct Block {
-    pub height: BigInt,
-    pub hash: Text,
-    pub num_txs: Option<BigInt>,
+    pub height: i64,
+    pub hash: String,
+    pub num_txs: Option<i64>,
     // pub total_gas: BigInt,
     // pub proposer_address: Text
 }
