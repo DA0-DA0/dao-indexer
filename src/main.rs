@@ -12,7 +12,7 @@ use cw3_dao::msg::{
 };
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::db::models::{Cw20, Dao, NewContract, NewDao, NewGovToken};
-use dao_indexer::historical_parser::blocker;
+use dao_indexer::historical_parser::block_synchronizer;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use futures::StreamExt;
@@ -454,7 +454,7 @@ async fn main() {
     let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or("false".to_string());
 
     if enable_indexer_env == "true" {
-        blocker(&db).await;
+        block_synchronizer(&db).await;
     } else {
         println!("Not indexing");
     }

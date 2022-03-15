@@ -7,10 +7,8 @@ use crate::db::models::{NewBlock, Block};
 use crate::db::schema::block::dsl::*;
 use std::collections::HashSet;
 
-// Instantiate tendermint client
-// begin reading database for completed chunks, and find the missing chunks    
-// going to need async, the main things we'll need are the link to the database and 
-pub async fn blocker(db: &PgConnection) {
+pub async fn block_synchronizer(db: &PgConnection) {
+    // TODO(gavindoughtie): Get URL from env
     let tendermint_client = TendermintClient::new("http://127.0.0.1:26657").unwrap();
 
     let latest_block_response = tendermint_client.latest_block_results().await.unwrap();
@@ -37,13 +35,13 @@ pub async fn blocker(db: &PgConnection) {
     
             diesel::insert_into(block)
                 .values(&new_block)
-                .execute(&*db)
+                .execute(db)
                 .expect("Error saving new Block");
     
             for tx in response.block.data.iter() {
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
                 for tx_message in unmarshalled_tx.body.messages {
-                    // TODO, attach here gavins code to index based on the type of transaction
+                    // TODO(James): Attach here gavins code to index based on the type of transaction
                     classify_transaction(tx_message)
                 }
             }
