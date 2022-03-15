@@ -27,11 +27,8 @@ pub async fn block_synchronizer(db: &PgConnection) {
             println!("Adding block: {}", block_height);
 
             let response = tendermint_client.block(block_height as u32).await.unwrap();
-            let new_block = NewBlock {
-                height: response.block.header.height.value() as i64,
-                hash: &response.block_id.hash.to_string(),
-                num_txs: response.block.data.iter().len() as i64,
-            };
+            let block_hash = response.block_id.hash.to_string();
+            let new_block = NewBlock::from_block_response(&block_hash, &response.block);
     
             diesel::insert_into(block)
                 .values(&new_block)

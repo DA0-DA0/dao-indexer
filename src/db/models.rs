@@ -170,6 +170,19 @@ pub struct NewBlock<'a> {
     // pub proposer_address: &'a str,
 }
 
+impl<'a> NewBlock<'a> {
+    pub fn from_block_response(
+        hash: &'a str,
+        block: &'a tendermint::block::Block
+    ) -> NewBlock<'a> {
+        NewBlock {
+            height: block.header.height.value() as i64,
+            hash: hash,
+            num_txs: block.data.iter().len() as i64,
+        }
+    }
+}
+
 #[derive(Queryable)]
 pub struct Block {
     pub height: i64,
