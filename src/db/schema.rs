@@ -39,7 +39,7 @@ table! {
         id -> Int4,
         address -> Text,
         token -> Text,
-        balance -> Numeric,
+        balance -> Int8,
     }
 }
 
