@@ -441,7 +441,7 @@ impl Index for MsgSend {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db: PgConnection = establish_connection();
     let (client, driver) = WebSocketClient::new("ws://127.0.0.1:26657/websocket")
         .await
@@ -460,7 +460,7 @@ async fn main() {
     }
     
     // Subscribe to transactions (can also add blocks but just Tx for now)
-    let mut subs = client.subscribe(EventType::Tx.into()).await.unwrap();
+    let mut subs = client.subscribe(EventType::Tx.into()).await?;
 
     while let Some(res) = subs.next().await {
         let ev = res.unwrap();
@@ -505,4 +505,6 @@ async fn main() {
     }
     // Await the driver's termination to ensure proper connection closure.
     let _ = driver_handle.await.unwrap();
+
+    Ok(())
 }
