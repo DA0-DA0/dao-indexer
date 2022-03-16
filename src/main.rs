@@ -1,6 +1,7 @@
 pub use cw20::Cw20ExecuteMsg;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::block_synchronizer;
+use dao_indexer::indexer::tx::process_tx_info;
 use diesel::pg::PgConnection;
 use dotenv::dotenv;
 use futures::StreamExt;
@@ -8,22 +9,23 @@ use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use dao_indexer::indexer::tx::process_tx_info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let db: PgConnection = establish_connection();
-    let (client, driver) = WebSocketClient::new("ws://127.0.0.1:26657/websocket")
-        .await
-        .unwrap();
-    let driver_handle = tokio::spawn(async move { driver.run().await });
-
     dotenv().ok();
 
     let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or("false".to_string());
+    let tendermint_websocket_url: &str = &env::var("TENDERMINT_WEBSOCKET_URL")
+        .unwrap_or("ws://127.0.0.1:26657/websocket".to_string());
+    let tendermint_rpc_url: &str =
+        &env::var("TENDERMINT_RPC_URL").unwrap_or("http://127.0.0.1:26657".to_string());
+    let db: PgConnection = establish_connection();
+    let (client, driver) = WebSocketClient::new(tendermint_websocket_url)
+        .await?;
+    let driver_handle = tokio::spawn(async move { driver.run().await });
 
     if enable_indexer_env == "true" {
-        block_synchronizer(&db).await;
+        block_synchronizer(&db, tendermint_rpc_url).await;
     } else {
         println!("Not indexing");
     }
