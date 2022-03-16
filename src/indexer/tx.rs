@@ -6,26 +6,25 @@ use diesel::pg::PgConnection;
 use std::collections::BTreeMap;
 use tendermint_rpc::event::TxInfo;
 
-pub fn process_tx_info(
+pub fn process_parsed(
   db: &PgConnection,
-  tx_info: TxInfo,
+  tx_parsed: &Tx,
   events: &Option<BTreeMap<String, Vec<String>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-  let tx_parsed = Tx::from_bytes(&tx_info.tx)?;
-  for msg in tx_parsed.body.messages {
+  for msg in tx_parsed.body.messages.iter() {
     let type_url: &str = &msg.type_url;
     match type_url {
       "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
         let msg_obj: MsgInstantiateContract = MsgProto::from_any(&msg)?;
-        return msg_obj.index(&db, &events);
+        return msg_obj.index(&db, events);
       }
       "/cosmwasm.wasm.v1.MsgExecuteContract" => {
         let msg_obj: MsgExecuteContract = MsgProto::from_any(&msg)?;
-        return msg_obj.index(&db, &events);
+        return msg_obj.index(&db, events);
       }
       "/cosmos.bank.v1beta1.MsgSend" => {
         let msg_obj: MsgSend = MsgProto::from_any(&msg)?;
-        return msg_obj.index(&db, &events);
+        return msg_obj.index(&db, events);
       }
       _ => {
         return Err(Box::from(format!("No handler for {}", type_url)));
@@ -33,4 +32,13 @@ pub fn process_tx_info(
     }
   }
   Ok(())
+}
+
+pub fn process_tx_info(
+  db: &PgConnection,
+  tx_info: TxInfo,
+  events: &Option<BTreeMap<String, Vec<String>>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+  let tx_parsed = Tx::from_bytes(&tx_info.tx)?;
+  process_parsed(db, &tx_parsed, events)
 }

@@ -5,7 +5,7 @@ use tendermint_rpc::Client;
 use tendermint_rpc::{HttpClient as TendermintClient};
 use crate::db::models::{NewBlock, Block};
 use std::collections::HashSet;
-// use crate::indexer::tx::process_tx_info;
+use crate::indexer::tx::process_parsed;
 
 pub async fn block_synchronizer(db: &PgConnection, tendermint_rpc_url: &str) {
     use crate::db::schema::block::dsl::*;
@@ -39,6 +39,7 @@ pub async fn block_synchronizer(db: &PgConnection, tendermint_rpc_url: &str) {
     
             for tx in response.block.data.iter() {
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
+                let _ = process_parsed(db, &unmarshalled_tx, &None);
                 //process_tx_info(db, &unmarshalled_tx.tx_info, events);
                 for tx_message in unmarshalled_tx.body.messages {
                     // TODO(jamesortega): Attach here gavins code to index based on the type of transaction
