@@ -58,63 +58,6 @@ fn index_message(
     );
 }
 
-trait Index {
-    fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>);
-}
-
-#[derive(Debug)]
-struct ContractAddresses {
-    dao_address: Option<String>,
-    cw20_address: Option<String>,
-    staking_contract_address: Option<String>,
-}
-
-fn get_contract_addresses(events: &Option<BTreeMap<String, Vec<String>>>) -> ContractAddresses {
-    let mut dao_address = None;
-    let mut cw20_address = None;
-    let mut staking_contract_address = None;
-    if let Some(transaction_events) = events {
-        if let Some(addr) = transaction_events.get("instantiate._contract_address") {
-            // 0: DAO
-            // 1: cw20
-            // 2: staking contract
-            // But if you use an existing token, you'll just get
-            // DAO/staking contract
-            dao_address = Some(addr[0].clone());
-            cw20_address = Some(addr[1].clone());
-            staking_contract_address = Some(addr[2].clone());
-        }
-    }
-    ContractAddresses {
-        dao_address,
-        cw20_address,
-        staking_contract_address,
-    }
-}
-
-fn insert_contract(db: &PgConnection, contract_model: &NewContract) {
-    use dao_indexer::db::schema::contracts::dsl::*;
-    diesel::insert_into(contracts)
-        .values(contract_model)
-        .execute(db)
-        .expect("Error saving new post");
-}
-
-fn insert_marketing_info(
-    db: &PgConnection,
-    marketing_info: &InstantiateMarketingInfo,
-) -> QueryResult<i32> {
-    use dao_indexer::db::schema::marketing::dsl::*;
-    diesel::insert_into(marketing)
-        .values((
-            project.eq(&marketing_info.project),
-            description.eq(&marketing_info.description),
-            marketing_text.eq(&marketing_info.marketing),
-        ))
-        .returning(id)
-        .get_result(db)
-}
-
 fn update_balance(
     db: &PgConnection,
     tx_height: Option<&BigDecimal>,
@@ -141,74 +84,6 @@ fn update_balance(
         .execute(db)
 }
 
-fn insert_gov_token(
-    db: &PgConnection,
-    token_msg: &GovTokenMsg,
-    contract_addresses: &ContractAddresses,
-    height: Option<&BigDecimal>,
-) -> QueryResult<i32> {
-    use dao_indexer::db::schema::gov_token::dsl::*;
-    let result: QueryResult<i32>;
-    match token_msg {
-        GovTokenMsg::InstantiateNewCw20 {
-            msg,
-            initial_dao_balance,
-            ..
-        } => {
-            let mut marketing_record_id: Option<i32> = None;
-            if let Some(marketing) = &msg.marketing {
-                marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
-            }
-            let cw20_address = contract_addresses.cw20_address.as_ref().unwrap();
-            let token_model = NewGovToken::from_msg(cw20_address, marketing_record_id, msg);
-            result = diesel::insert_into(gov_token)
-                .values(token_model)
-                .returning(id)
-                .get_result(db);
-            let dao_address = contract_addresses.dao_address.as_ref().unwrap();
-            let amount;
-            if let Some(balance) = initial_dao_balance {
-                amount = *balance;
-            } else {
-                amount = Uint128::from(0u128);
-            }
-            let balance_update = Cw20Coin {
-                address: dao_address.to_string(),
-                amount,
-            };
-            let initial_update_result = update_balance(
-                db,
-                height,
-                cw20_address,
-                dao_address, // As the minter the DAO is also the sender for its own initial balance (???)
-                &balance_update,
-            );
-            if let Err(e) = initial_update_result {
-                eprintln!("error updating initial balance {}", e);
-            }
-
-            if let Ok(_token_id) = result {
-                // This handles the initial token distributions but not the treasury.
-                for balance in &msg.initial_balances {
-                    if let Err(e) = update_balance(db, height, cw20_address, dao_address, balance) {
-                        eprintln!("{}", e);
-                    }
-                }
-            }
-        }
-        GovTokenMsg::UseExistingCw20 {
-            addr,
-            stake_contract_code_id,
-            label,
-            unstaking_duration,
-        } => {
-            println!("TODO: Use existing cw20 addr: {}, stake_contract_code_id: {}, label: {}, unstaking_duration: {:?}", addr, stake_contract_code_id, label, unstaking_duration);
-            result = Ok(0);
-        }
-    };
-    result
-}
-
 fn get_dao(db: &PgConnection, dao_address: &str) -> QueryResult<Dao> {
     use dao_indexer::db::schema::dao::dsl::*;
     dao.filter(contract_address.eq(dao_address))
@@ -219,70 +94,6 @@ fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Cw
     use dao_indexer::db::schema::gov_token::dsl::*;
     let dao = get_dao(db, dao_address).unwrap();
     gov_token.filter(id.eq(dao.gov_token_id)).first(db)
-}
-
-fn insert_dao(
-    db: &PgConnection,
-    instantiate_dao: &Cw3DaoInstantiateMsg,
-    contract_addr: &ContractAddresses,
-    height: Option<&BigDecimal>,
-) {
-    use dao_indexer::db::schema::dao::dsl::*;
-
-    let dao_address = contract_addr.dao_address.as_ref().unwrap();
-
-    let inserted_token_id: i32 =
-        insert_gov_token(db, &instantiate_dao.gov_token, contract_addr, height).unwrap();
-
-    let dao_model = NewDao::from_msg(
-        dao_address,
-        contract_addr.staking_contract_address.as_ref().unwrap(),
-        inserted_token_id,
-        instantiate_dao,
-    );
-
-    diesel::insert_into(dao)
-        .values(dao_model)
-        .execute(db)
-        .expect("Error saving dao");
-}
-
-impl Index for MsgInstantiateContract {
-    fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
-        let contract_addresses = get_contract_addresses(events);
-        let dao_address = contract_addresses.dao_address.as_ref().unwrap();
-        let staking_contract_address = contract_addresses
-            .staking_contract_address
-            .as_ref()
-            .unwrap();
-        let mut tx_height_opt = None;
-        if let Some(event_map) = events {
-            let tx_height_strings = event_map.get("tx.height").unwrap();
-            if !tx_height_strings.is_empty() {
-                let tx_height_str = &tx_height_strings[0];
-                tx_height_opt = Some(BigDecimal::from_str(tx_height_str).unwrap());
-            }
-        }
-        let tx_height: BigDecimal;
-        if let Some(height) = tx_height_opt {
-            tx_height = height;
-        } else {
-            tx_height = BigDecimal::from_str("0").unwrap();
-        }
-
-        let contract_model =
-            NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
-        insert_contract(db, &contract_model);
-        let msg_str = String::from_utf8(self.msg.clone()).unwrap();
-        match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
-            Ok(instantiate_dao) => {
-                insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height));
-            }
-            Err(e) => {
-                eprintln!("Error: {:?}", e);
-            }
-        };
-    }
 }
 
 fn dump_execute_contract(execute_contract: &Cw3DaoExecuteMsg) {
