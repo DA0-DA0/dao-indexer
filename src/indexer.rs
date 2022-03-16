@@ -7,4 +7,4 @@ pub mod msg_instantiate_contract;
 pub mod msg_send;
 pub mod msg_stake_cw20_execute;
 pub mod parse;
-pub mod tx_info;
+pub mod tx;

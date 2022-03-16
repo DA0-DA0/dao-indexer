@@ -2,13 +2,13 @@ pub use cw20::Cw20ExecuteMsg;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::block_synchronizer;
 use diesel::pg::PgConnection;
+use dotenv::dotenv;
 use futures::StreamExt;
+use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use dotenv::dotenv;
-use std::env;
-use dao_indexer::indexer::tx_info::process_tx_info;
+use dao_indexer::indexer::tx::process_tx_info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,7 +17,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await
         .unwrap();
     let driver_handle = tokio::spawn(async move { driver.run().await });
-
 
     dotenv().ok();
 
@@ -28,7 +27,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("Not indexing");
     }
-    
     // Subscribe to transactions (can also add blocks but just Tx for now)
     let mut subs = client.subscribe(EventType::Tx.into()).await?;
 
@@ -38,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let events = ev.events;
         match result {
             EventData::NewBlock { block, .. } => println!("{:?}", block.unwrap()),
-            EventData::Tx { tx_result, .. } => process_tx_info(&db, tx_result, events),
+            EventData::Tx { tx_result, .. } => process_tx_info(&db, tx_result, &events)?,
             _ => eprintln!("unexpected result"),
         }
     }

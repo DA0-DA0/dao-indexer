@@ -38,6 +38,6 @@ impl Index for MsgExecuteContract {
         errors.push(e);
       }
     }
-    Err(format!("could not interpret execute msg, got errors:\n{:?}", errors))
+    Err(Box::from(format!("could not interpret execute msg, got errors:\n{:?}", errors)))
   }
 }
