@@ -1,32 +1,14 @@
-use bigdecimal::BigDecimal;
-use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
-use cosmrs::proto::cosmos::base::v1beta1::Coin;
-use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
-use cosmrs::tx::{MsgProto, Tx};
-use cosmwasm_std::Uint128;
-use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
-use cw20_base::msg::InstantiateMarketingInfo;
-use cw3_dao::msg::{
-    ExecuteMsg as Cw3DaoExecuteMsg, GovTokenMsg, InstantiateMsg as Cw3DaoInstantiateMsg,
-};
-use crate::db::connection::establish_connection;
-use crate::db::models::{Cw20, Dao, NewContract, NewDao, NewGovToken};
-use crate::historical_parser::block_synchronizer;
+use bigdecimal::BigDecimal;
+use cosmwasm_std::Uint128;
+use crate::db::models::NewGovToken;
+use cw20::Cw20Coin;
+use cw3_dao::msg::GovTokenMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use futures::StreamExt;
-use serde_json::Value;
-use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
-use std::collections::BTreeMap;
-use std::str::FromStr;
-use tendermint_rpc::event::EventData;
-use tendermint_rpc::query::EventType;
-use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use dotenv::dotenv;
-use std::env;
 use super::contract_util::ContractAddresses;
 use super::insert_marketing_info::insert_marketing_info;
+use super::update_balance::update_balance;
 
 pub fn insert_gov_token(
   db: &PgConnection,
