@@ -19,13 +19,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or("ws://127.0.0.1:26657/websocket".to_string());
     let tendermint_rpc_url: &str =
         &env::var("TENDERMINT_RPC_URL").unwrap_or("http://127.0.0.1:26657".to_string());
+    let tendermint_initial_block = env::var("TENDERMINT_INITIAL_BLOCK_HEIGHT")
+        .unwrap_or("1".to_string())
+        .parse::<u64>()?;
+    let tendermint_save_all_blocks = env::var("TENDERMINT_SAVE_ALL_BLOCKS")
+        .unwrap_or("false".to_string())
+        .parse::<bool>()?;
     let db: PgConnection = establish_connection();
-    let (client, driver) = WebSocketClient::new(tendermint_websocket_url)
-        .await?;
+    let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
     if enable_indexer_env == "true" {
-        block_synchronizer(&db, tendermint_rpc_url).await;
+        block_synchronizer(
+            &db,
+            tendermint_rpc_url,
+            tendermint_initial_block,
+            tendermint_save_all_blocks,
+        )
+        .await;
     } else {
         println!("Not indexing");
     }

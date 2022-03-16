@@ -1,13 +1,18 @@
+use crate::db::models::{Block, NewBlock};
+use crate::indexer::tx::process_parsed;
 use cosmrs::tx::Tx;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use tendermint_rpc::Client;
-use tendermint_rpc::{HttpClient as TendermintClient};
-use crate::db::models::{NewBlock, Block};
 use std::collections::HashSet;
-use crate::indexer::tx::process_parsed;
+use tendermint_rpc::Client;
+use tendermint_rpc::HttpClient as TendermintClient;
 
-pub async fn block_synchronizer(db: &PgConnection, tendermint_rpc_url: &str) {
+pub async fn block_synchronizer(
+    db: &PgConnection,
+    tendermint_rpc_url: &str,
+    initial_block_height: u64,
+    save_all_blocks: bool,
+) {
     use crate::db::schema::block::dsl::*;
     let tendermint_client = TendermintClient::new(tendermint_rpc_url).unwrap();
 
@@ -21,8 +26,7 @@ pub async fn block_synchronizer(db: &PgConnection, tendermint_rpc_url: &str) {
     for db_block in blocks_from_db {
         set_of_already_indexed_blocks.insert(db_block.height);
     }
-    
-    for block_height in 1..latest_block_height {
+    for block_height in initial_block_height..latest_block_height {
         if !set_of_already_indexed_blocks.contains(&(block_height as i64)) {
             if block_height % 1000 == 0 {
                 println!("Added another 1000 blocks, height: {}", block_height);
@@ -30,13 +34,14 @@ pub async fn block_synchronizer(db: &PgConnection, tendermint_rpc_url: &str) {
 
             let response = tendermint_client.block(block_height as u32).await.unwrap();
             let block_hash = response.block_id.hash.to_string();
-            let new_block = NewBlock::from_block_response(&block_hash, &response.block);
-    
-            diesel::insert_into(block)
-                .values(&new_block)
-                .execute(db)
-                .expect("Error saving new Block");
-    
+            if save_all_blocks {
+                let new_block = NewBlock::from_block_response(&block_hash, &response.block);
+
+                diesel::insert_into(block)
+                    .values(&new_block)
+                    .execute(db)
+                    .expect("Error saving new Block");
+            }
             for tx in response.block.data.iter() {
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
                 let _ = process_parsed(db, &unmarshalled_tx, &None);
@@ -46,8 +51,7 @@ pub async fn block_synchronizer(db: &PgConnection, tendermint_rpc_url: &str) {
                     classify_transaction(tx_message)
                 }
             }
-        } 
-
+        }
     }
 }
 
