@@ -14,11 +14,7 @@ pub async fn block_synchronizer(db: &PgConnection) {
     let latest_block_height = latest_block_response.height.value();
     
     for block_height in 1..latest_block_height {
-        // Instead check the block that is being tracked, query the database and if it doesn't exist index it instead of using the database.
-        // dont forget to add an index for the current height
-
-        // indexing on height therefore no need index on it
-
+        
         let db_block_opt: Option<Block> = block
             .find(block_height as i64)
             .get_result::<Block>(db).optional().unwrap();
