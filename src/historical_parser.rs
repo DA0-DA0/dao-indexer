@@ -23,9 +23,11 @@ pub async fn block_synchronizer(
 
     let mut set_of_already_indexed_blocks = HashSet::new();
 
+    // TODO(gavindoughtie): This is inefficient. We should just hit the DB for this.
     for db_block in blocks_from_db {
         set_of_already_indexed_blocks.insert(db_block.height);
     }
+
     for block_height in initial_block_height..latest_block_height {
         if !set_of_already_indexed_blocks.contains(&(block_height as i64)) {
             if block_height % 1000 == 0 {
@@ -42,6 +44,7 @@ pub async fn block_synchronizer(
                     .execute(db)
                     .expect("Error saving new Block");
             }
+            // TODO(gavindoughtie): get the events map here
             for tx in response.block.data.iter() {
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
                 let _ = process_parsed(db, &unmarshalled_tx, &None);
