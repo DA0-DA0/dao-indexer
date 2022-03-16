@@ -1,7 +1,7 @@
 pub use cw20::Cw20ExecuteMsg;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
-use crate::db::models::NewGovToken;
+use crate::db::models::{Cw20, NewGovToken};
 use cw20::Cw20Coin;
 use cw3_dao::msg::GovTokenMsg;
 use diesel::pg::PgConnection;
@@ -9,6 +9,7 @@ use diesel::prelude::*;
 use super::contract_util::ContractAddresses;
 use super::insert_marketing_info::insert_marketing_info;
 use super::update_balance::update_balance;
+use super::dao::get_dao;
 
 pub fn insert_gov_token(
   db: &PgConnection,
@@ -78,3 +79,8 @@ pub fn insert_gov_token(
   result
 }
 
+pub fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Cw20> {
+  use crate::db::schema::gov_token::dsl::*;
+  let dao = get_dao(db, dao_address).unwrap();
+  gov_token.filter(id.eq(dao.gov_token_id)).first(db)
+}

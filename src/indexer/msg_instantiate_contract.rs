@@ -7,7 +7,7 @@ use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use diesel::pg::PgConnection;
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use crate::util::insert_dao::insert_dao;
+use crate::util::dao::insert_dao;
 
 impl Index for MsgInstantiateContract {
   fn index(

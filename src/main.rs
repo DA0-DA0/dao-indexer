@@ -25,6 +25,7 @@ use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 use dotenv::dotenv;
 use std::env;
+use dao_indexer::indexer::index::Index;
 
 fn parse_message(msg: &[u8]) -> serde_json::Result<Option<Value>> {
     if let Ok(exec_msg_str) = String::from_utf8(msg.to_owned()) {
@@ -58,83 +59,35 @@ fn index_message(
     );
 }
 
-fn get_dao(db: &PgConnection, dao_address: &str) -> QueryResult<Dao> {
-    use dao_indexer::db::schema::dao::dsl::*;
-    dao.filter(contract_address.eq(dao_address))
-        .first::<Dao>(db)
-}
+// fn get_dao(db: &PgConnection, dao_address: &str) -> QueryResult<Dao> {
+//     use dao_indexer::db::schema::dao::dsl::*;
+//     dao.filter(contract_address.eq(dao_address))
+//         .first::<Dao>(db)
+// }
 
-fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Cw20> {
-    use dao_indexer::db::schema::gov_token::dsl::*;
-    let dao = get_dao(db, dao_address).unwrap();
-    gov_token.filter(id.eq(dao.gov_token_id)).first(db)
-}
+// fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Cw20> {
+//     use dao_indexer::db::schema::gov_token::dsl::*;
+//     let dao = get_dao(db, dao_address).unwrap();
+//     gov_token.filter(id.eq(dao.gov_token_id)).first(db)
+// }
 
-fn dump_execute_contract(execute_contract: &Cw3DaoExecuteMsg) {
-    println!("handle execute contract {:?}", execute_contract);
-}
+// fn dump_execute_contract(execute_contract: &Cw3DaoExecuteMsg) {
+//     println!("handle execute contract {:?}", execute_contract);
+// }
 
-fn dump_events(events: &Option<BTreeMap<String, Vec<String>>>) {
-    if let Some(event_map) = events {
-        println!("************* vv Events ***********");
-        for (key, value) in event_map {
-            println!("{} / {:?}", key, value);
-        }
-        println!("************* ^^ Events ***********");
-    }
-}
+// fn dump_events(events: &Option<BTreeMap<String, Vec<String>>>) {
+//     if let Some(event_map) = events {
+//         println!("************* vv Events ***********");
+//         for (key, value) in event_map {
+//             println!("{} / {:?}", key, value);
+//         }
+//         println!("************* ^^ Events ***********");
+//     }
+// }
 
-fn update_balance_from_events(
-    db: &PgConnection,
-    i: usize,
-    event_map: &BTreeMap<String, Vec<String>>,
-) -> QueryResult<usize> {
-    let tx_height_string = &event_map.get("tx.height").unwrap()[0];
-    let tx_height = BigDecimal::from_str(tx_height_string).unwrap();
-    let amount = &event_map.get("wasm.amount").unwrap()[i];
-    let receiver = &event_map.get("wasm.to").unwrap()[i];
-    let sender = &event_map.get("wasm.sender").unwrap()[0];
-    let from = &event_map.get("wasm.from").unwrap()[0]; // DAO address
-    let gov_token = get_gov_token(db, from).unwrap();
-    let balance_update = Cw20Coin {
-        address: receiver.clone(),
-        amount: Uint128::from_str(amount).unwrap(),
-    };
-    update_balance(
-        db,
-        Some(&tx_height),
-        &gov_token.address,
-        sender,
-        &balance_update,
-    )
-}
 
-impl Index for Cw3DaoExecuteMsg {
-    fn index(&self, db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
-        dump_execute_contract(self);
-        dump_events(events);
-        if let Some(event_map) = events {
-            if let Some(wasm_actions) = event_map.get("wasm.action") {
-                // TODO(gavin.doughtie): Handle propose, vote
-                if !wasm_actions.is_empty() && wasm_actions[0] == "execute" {
-                    for (i, action_type) in (&wasm_actions[1..]).iter().enumerate() {
-                        match action_type.as_str() {
-                            "transfer" => {
-                                update_balance_from_events(db, i, event_map).unwrap();
-                            }
-                            "mint" => {
-                                update_balance_from_events(db, i, event_map).unwrap();
-                            }
-                            _ => {
-                                eprintln!("Unhandled exec type {}", action_type);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+
+
 
 impl Index for StakeCw20ExecuteMsg {
     fn index(&self, _db: &PgConnection, events: &Option<BTreeMap<String, Vec<String>>>) {
