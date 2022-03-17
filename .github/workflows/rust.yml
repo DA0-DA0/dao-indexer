@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Test
+    - run: git clone https://github.com/DA0-DA0/dao-contracts/tree/799b6aac36236b30a0dcbdfbce08b8883f259abf ../
     - name: Build
       run: cargo build --verbose
     - name: Run tests
