@@ -10,18 +10,22 @@ use tendermint::abci::responses::Event;
 use std::collections::BTreeMap;
 
 fn map_from_events(events: &Vec<Event>) -> BTreeMap::<String, Vec<String>> {
-    let mut event_map = BTreeMap::<String, Vec<String>>::default();
+    let mut attribute_map = BTreeMap::<String, Vec<String>>::default();
     for event in events {
-        let mut event_strings = vec!();
         for attribute in &event.attributes {
-            println!("discarding event attribute key {}", attribute.key.to_string());
-            event_strings.push(attribute.value.to_string())
+            let attributes;
+            let attribute_key: &str = &attribute.key.to_string();
+            if let Some(existing_attributes) = attribute_map.get_mut(attribute_key) {
+                attributes = existing_attributes;
+            } else {
+                attribute_map.insert(attribute.key.to_string(), vec![]);
+                attributes = attribute_map.get_mut(attribute_key).unwrap();
+            }
+            attributes.push(attribute.value.to_string());          
         }
-        event_map.insert(event.type_str.clone(), event_strings);
     }
-    event_map
+    attribute_map
 }
-
 
 pub async fn block_synchronizer(
     db: &PgConnection,
@@ -60,44 +64,25 @@ pub async fn block_synchronizer(
                     .execute(db)
                     .expect("Error saving new Block");
             }
+            // Look at the transactions:
+            for tx in response.block.data.iter() {
+                let cosm_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
+                for msg in cosm_tx.body.messages {
+                    println!("cosm_msg: {:?}", msg);
+                }
+            }
+            
             let results = tendermint_client.block_results(block_height as u32).await.unwrap();
             if let Some(txs_results) = results.txs_results {
                 for tx in txs_results {
-                    println!("tx {:?} events: {:?}", tx, tx.events);
                     let events = map_from_events(&tx.events);
-                    let unmarshalled_tx = Tx::from_bytes(tx.data.value()).unwrap();
-                    println!("unmarshalled_tx: {:?}", unmarshalled_tx);
-                    // let msg = tx.data;
                     if !events.is_empty() {
                         println!("Processed into event map: {:?}", events);
                         let messages = vec!();
                         let _ = process_messages(db, &messages, &Some(events));
                     }
-                    // match Tx::from_bytes(tx.data.value()) {
-                    //     Ok(unmarshalled_tx) => {
-                    //         let _ = process_parsed(db, &unmarshalled_tx, &None);
-                    //         // //process_tx_info(db, &unmarshalled_tx.tx_info, events);
-                    //         // for tx_message in unmarshalled_tx.body.messages {
-                    //         //     // TODO(jamesortega): Attach here gavins code to index based on the type of transaction
-                    //         //     classify_transaction(tx_message)
-                    //         // }        
-                    //     },
-                    //     Err(e) => {
-                    //         eprintln!("Error from_bytes: {:?}", e);
-                    //     }
-                    // }
                 }
             }
-            // TODO(gavindoughtie): get the events map here
-            // for tx in response.block.data.iter() {
-            //     let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-            //     let _ = process_parsed(db, &unmarshalled_tx, &None);
-            //     //process_tx_info(db, &unmarshalled_tx.tx_info, events);
-            //     for tx_message in unmarshalled_tx.body.messages {
-            //         // TODO(jamesortega): Attach here gavins code to index based on the type of transaction
-            //         classify_transaction(tx_message)
-            //     }
-            // }
         }
     }
 }
