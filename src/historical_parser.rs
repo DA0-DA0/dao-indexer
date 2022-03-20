@@ -9,22 +9,23 @@ use tendermint_rpc::HttpClient as TendermintClient;
 use tendermint::abci::responses::Event;
 use std::collections::BTreeMap;
 
-fn map_from_events(events: &Vec<Event>) -> BTreeMap::<String, Vec<String>> {
-    let mut attribute_map = BTreeMap::<String, Vec<String>>::default();
+fn map_from_events(events: &Vec<Event>, event_map: &mut BTreeMap::<String, Vec<String>>) -> Result<(), Box<dyn std::error::Error>> {
     for event in events {
+        let event_name = &event.type_str;
         for attribute in &event.attributes {
             let attributes;
             let attribute_key: &str = &attribute.key.to_string();
-            if let Some(existing_attributes) = attribute_map.get_mut(attribute_key) {
+            let event_key = format!("{}.{}", event_name, attribute_key);
+            if let Some(existing_attributes) = event_map.get_mut(&event_key) {
                 attributes = existing_attributes;
             } else {
-                attribute_map.insert(attribute.key.to_string(), vec![]);
-                attributes = attribute_map.get_mut(attribute_key).unwrap();
+                event_map.insert(event_key.clone(), vec![]);
+                attributes = event_map.get_mut(&event_key).ok_or(format!("no attribute {} found", event_key))?;
             }
             attributes.push(attribute.value.to_string());          
         }
     }
-    attribute_map
+    Ok(())
 }
 
 pub async fn block_synchronizer(
@@ -53,6 +54,14 @@ pub async fn block_synchronizer(
             if block_height % 1000 == 0 {
                 println!("Added another 1000 blocks, height: {}", block_height);
             }
+            let results = tendermint_client.block_results(block_height as u32).await.unwrap();
+            let mut all_events = BTreeMap::<String, Vec<String>>::default();
+            all_events.insert("tx.height".to_string(), vec![format!("{}", block_height)]);
+            if let Some(txs_results) = results.txs_results {                
+                for tx in txs_results {
+                    map_from_events(&tx.events, &mut all_events).unwrap();
+                }
+            }
 
             let response = tendermint_client.block(block_height as u32).await.unwrap();
             let block_hash = response.block_id.hash.to_string();
@@ -65,24 +74,35 @@ pub async fn block_synchronizer(
                     .expect("Error saving new Block");
             }
             // Look at the transactions:
+            let events = &Some(all_events);
             for tx in response.block.data.iter() {
                 let cosm_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-                for msg in cosm_tx.body.messages {
-                    println!("cosm_msg: {:?}", msg);
+                if let Err(e) = process_messages(db, &cosm_tx.body.messages, events) {
+                    eprintln!("ignoring error {:?}", e);
                 }
+                // for msg in cosm_tx.body.messages {
+                //     let type_url: &str = &msg.type_url;
+                //     println!("cosm_msg: {}", type_url);
+                //     match type_url {
+                //         "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
+                //           let msg_obj: MsgInstantiateContract = MsgProto::from_any(&msg).unwrap();
+                //           println!("msg_obj: {:?}", msg_obj);
+                //         }
+                //         "/cosmwasm.wasm.v1.MsgExecuteContract" => {
+                //           let msg_obj: MsgExecuteContract = MsgProto::from_any(&msg).unwrap();
+                //           println!("msg_obj: {:?}", msg_obj);
+                //         }
+                //         "/cosmos.bank.v1beta1.MsgSend" => {
+                //           let msg_obj: MsgSend = MsgProto::from_any(&msg).unwrap();
+                //           println!("msg_obj: {:?}", msg_obj);
+                //         }
+                //         _ => {
+                //           eprintln!("No handler for {}", type_url);
+                //         }
+                //       }
+                // }
             }
             
-            let results = tendermint_client.block_results(block_height as u32).await.unwrap();
-            if let Some(txs_results) = results.txs_results {
-                for tx in txs_results {
-                    let events = map_from_events(&tx.events);
-                    if !events.is_empty() {
-                        println!("Processed into event map: {:?}", events);
-                        let messages = vec!();
-                        let _ = process_messages(db, &messages, &Some(events));
-                    }
-                }
-            }
         }
     }
 }

@@ -19,6 +19,7 @@ impl Index for MsgInstantiateContract {
       // TODO(gavindoughtie): Definitely NOT ok!
       return Ok(());
     }
+    println!("Indexing MsgInstantiateContract, events: {:?}", events);
     let contract_addresses = get_contract_addresses(events);
     let dao_address = contract_addresses.dao_address.as_ref().unwrap();
     let staking_contract_address = contract_addresses
