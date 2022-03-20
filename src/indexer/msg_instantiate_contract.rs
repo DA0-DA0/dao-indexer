@@ -43,7 +43,7 @@ impl Index for MsgInstantiateContract {
 
     let contract_model =
       NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
-    insert_contract(db, &contract_model);
+    insert_contract(db, &contract_model)?;
     let msg_str = String::from_utf8(self.msg.clone())?;
     let instantiate_dao = serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str)?;
     insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))

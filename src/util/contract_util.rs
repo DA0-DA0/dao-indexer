@@ -40,10 +40,16 @@ pub fn get_contract_addresses(events: &Option<BTreeMap<String, Vec<String>>>) ->
     }
 }
 
-pub fn insert_contract(db: &PgConnection, contract_model: &NewContract) {
+pub fn insert_contract(db: &PgConnection, contract_model: &NewContract) -> Result<(), Box<dyn std::error::Error>> {
     use crate::db::schema::contracts::dsl::*;
-    diesel::insert_into(contracts)
+    match diesel::insert_into(contracts)
         .values(contract_model)
-        .execute(db)
-        .expect("Error saving new post");
+        .execute(db) {
+          Ok(_rows) => {
+            return Ok(())
+          },
+          Err(e) => {
+            Err(Box::from(format!("Error: {:?}", e)))
+          }
+        }
 }
