@@ -1,8 +1,6 @@
 use crate::db::models::{Block, NewBlock};
 use crate::indexer::tx::process_parsed;
-use cosmos_sdk_proto::cosmos::tx::v1beta1::TxRaw;
 use cosmrs::tx::Tx;
-// use cosmrs::tx::Tx;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use std::collections::HashSet;
@@ -10,8 +8,13 @@ use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
 use tendermint::abci::responses::Event;
 use std::collections::BTreeMap;
-use serde_json::{Result, Value};
-use cosmos_sdk_proto::COSMOS_SDK_VERSION;
+use cosmrs::tx::{Raw};
+use sha2::{Sha256, Digest};
+use cosmrs::proto;
+use prost;
+
+pub const HASH_SIZE: usize = 32;
+
 
 fn map_from_events(events: &Vec<Event>) -> BTreeMap::<String, Vec<String>> {
     let mut event_map = BTreeMap::<String, Vec<String>>::default();
@@ -53,10 +56,8 @@ pub async fn block_synchronizer(
                 println!("Added another 1000 blocks, height: {}", block_height);
             }
 
-            // TODO(entrancedjames): This should be a join instead of done in series.
             let response = tendermint_client.block(block_height as u32).await.unwrap();
-            let abci_response = tendermint_client.block_results(block_height as u32).await.unwrap();
-
+    
             let block_hash = response.block_id.hash.to_string();
             if save_all_blocks {
                 let new_block = NewBlock::from_block_response(&block_hash, &response.block);
@@ -65,54 +66,25 @@ pub async fn block_synchronizer(
                     .execute(db)
                     .expect("Error saving new Block");
             }
-            use cosmrs::tx::Raw;
-            use sha2::{Sha256, Digest};
-
+           
             for tx in response.block.data.iter() {
-                let z = Raw::from_bytes(tx.as_bytes()).unwrap();
-                let kappa = z.to_bytes().unwrap();
-                let omega = Sha256::digest(&kappa);
+                let rust_raw = Raw::from_bytes(tx.as_bytes()).unwrap();
+                let tx_raw = proto::cosmos::tx::v1beta1::TxRaw::from(rust_raw);
+
+                let mut tx_bytes = Vec::new();
+                prost::Message::encode(&tx_raw, &mut tx_bytes).unwrap();
+                let digest = Sha256::digest(&tx_bytes);
+                let mut hash_bytes = [0u8; HASH_SIZE];
+                hash_bytes.copy_from_slice(&digest);
+            
+                let tendermint_tx_hsah = tendermint::abci::transaction::Hash::new(hash_bytes);
+
+                let tx_response = tendermint_client.tx(tendermint_tx_hsah, false).await.unwrap();
+                let events = map_from_events(&tx_response.tx_result.events);
+                let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
+                let _ = process_parsed(db, &unmarshalled_tx, &Some(events));
+ 
             }
-
-            // if (response.block.data.iter().count() != abci_response.txs_results.unwrap_or_default().len()) {
-            //     println!("Not equal!");
-            // }
-
-            // println!("Block TX Size: {}", response.block.data.iter().count());
-            // println!("ABCI TX Size :{}", abci_response.txs_results.unwrap_or_default().len());
-            // serde_json::
-            // let tx_events = abci_response.txs_results.unwrap_or_default(); // default to empty sequence
-            // // println("Event Size Txs and ")
-            // for tx_with_events in tx_events {
-            //     // println!("{}",)
-            //     // tx_with_events.data
-            //     let zeta = Tx::from_bytes(tx_with_events.data.value()).unwrap();
-
-            //     TxRaw::from(zeta);
-            //     // zeta.to_raw();
-            //     // let msg_str = String::from(&tx_with_events.data.value()).unwrap();
-            //     // base64::deco
-            //     // println!("Data {}", tx_with_events.data);
-            //     // println!("Decoded string: {}", msg_str);
-            //     println!("Log {}", tx_with_events.log);
-
-            //     let parsed_json: Value = serde_json::from_str(&tx_with_events.log.value()).unwrap();
-            //     let contract_method_type = &parsed_json[0]["events"][0]["attributes"][0]["value"];
-
-            //     let events = map_from_events(&tx_with_events.events);
-            //     // let _ = process_messages(db, &messages, &Some(events));
-            // }
-        }
-    }
-}
-
-fn classify_transaction(tx: cosmrs::Any) {
-    match tx.type_url.to_string().as_str() {
-        "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
-            println!("we found an instnatiate contract, p0g")
-        }
-        _ => {
-            println!("No handler for {}", tx.type_url.to_string().as_str());
         }
     }
 }
