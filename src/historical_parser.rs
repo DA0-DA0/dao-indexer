@@ -1,5 +1,6 @@
 use crate::db::models::{Block, NewBlock};
 use crate::indexer::tx::process_parsed;
+use crate::util::history_util::tx_to_hash;
 use cosmrs::tx::Tx;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
@@ -8,12 +9,6 @@ use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
 use tendermint::abci::responses::Event;
 use std::collections::BTreeMap;
-use cosmrs::tx::{Raw};
-use sha2::{Sha256, Digest};
-use cosmrs::proto;
-use prost;
-
-pub const HASH_SIZE: usize = 32;
 
 
 fn map_from_events(events: &Vec<Event>) -> BTreeMap::<String, Vec<String>> {
@@ -68,22 +63,11 @@ pub async fn block_synchronizer(
             }
            
             for tx in response.block.data.iter() {
-                let rust_raw = Raw::from_bytes(tx.as_bytes()).unwrap();
-                let tx_raw = proto::cosmos::tx::v1beta1::TxRaw::from(rust_raw);
-
-                let mut tx_bytes = Vec::new();
-                prost::Message::encode(&tx_raw, &mut tx_bytes).unwrap();
-                let digest = Sha256::digest(&tx_bytes);
-                let mut hash_bytes = [0u8; HASH_SIZE];
-                hash_bytes.copy_from_slice(&digest);
-            
-                let tendermint_tx_hsah = tendermint::abci::transaction::Hash::new(hash_bytes);
-
-                let tx_response = tendermint_client.tx(tendermint_tx_hsah, false).await.unwrap();
+                let tx_hash = tx_to_hash(tx);
+                let tx_response = tendermint_client.tx(tx_hash, false).await.unwrap();
                 let events = map_from_events(&tx_response.tx_result.events);
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
                 let _ = process_parsed(db, &unmarshalled_tx, &Some(events));
- 
             }
         }
     }
