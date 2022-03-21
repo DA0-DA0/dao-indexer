@@ -15,32 +15,46 @@ impl Index for MsgInstantiateContract {
     db: &PgConnection,
     events: &Option<BTreeMap<String, Vec<String>>>,
   ) -> Result<(), Box<dyn std::error::Error>> {
+    if events.is_none() {
+      // TODO(gavindoughtie): Definitely NOT ok!
+      return Ok(());
+    }
+    println!("Indexing MsgInstantiateContract, events: {:?}", events);
     let contract_addresses = get_contract_addresses(events);
-    let dao_address = contract_addresses.dao_address.as_ref().unwrap();
+    let dao_address = contract_addresses.dao_address.as_ref().ok_or("no dao_address")?;
     let staking_contract_address = contract_addresses
       .staking_contract_address
       .as_ref()
-      .unwrap();
+      .ok_or("no staking_contract_address")?;
     let mut tx_height_opt = None;
     if let Some(event_map) = events {
-      let tx_height_strings = event_map.get("tx.height").unwrap();
+      let tx_height_strings = event_map.get("tx.height").ok_or("No tx.height supplied")?;
       if !tx_height_strings.is_empty() {
         let tx_height_str = &tx_height_strings[0];
-        tx_height_opt = Some(BigDecimal::from_str(tx_height_str).unwrap());
+        tx_height_opt = Some(BigDecimal::from_str(tx_height_str)?);
       }
     }
     let tx_height: BigDecimal;
     if let Some(height) = tx_height_opt {
       tx_height = height;
     } else {
-      tx_height = BigDecimal::from_str("0").unwrap();
+      tx_height = BigDecimal::from_str("0")?;
     }
 
     let contract_model =
       NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
-    insert_contract(db, &contract_model);
-    let msg_str = String::from_utf8(self.msg.clone()).unwrap();
-    let instantiate_dao = serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str)?;
-    insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
+    if let Err(e) = insert_contract(db, &contract_model) {
+      eprintln!("Error inserting contract {:?}\n{:?}", &contract_model, e);
+    }
+    let msg_str = String::from_utf8(self.msg.clone())?;
+    match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
+      Ok(instantiate_dao) => {
+        insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
+      },
+      Err(e) => {
+        eprintln!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
+        Ok(())
+      }
+    }
   }
 }

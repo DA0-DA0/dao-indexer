@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use super::schema::block;
 
-#[derive(Insertable)]
+#[derive(Insertable, Debug)]
 #[table_name = "contracts"]
 pub struct NewContract<'a> {
     pub address: &'a str,
@@ -177,7 +177,7 @@ impl<'a> NewBlock<'a> {
     ) -> NewBlock<'a> {
         NewBlock {
             height: block.header.height.value() as i64,
-            hash: hash,
+            hash,
             num_txs: block.data.iter().len() as i64,
         }
     }

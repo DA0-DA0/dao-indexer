@@ -14,16 +14,16 @@ use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
-    let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or("false".to_string());
+    let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or_else(|_| "false".to_string());
     let tendermint_websocket_url: &str = &env::var("TENDERMINT_WEBSOCKET_URL")
-        .unwrap_or("ws://127.0.0.1:26657/websocket".to_string());
+        .unwrap_or_else(|_| "ws://127.0.0.1:26657/websocket".to_string());
     let tendermint_rpc_url: &str =
-        &env::var("TENDERMINT_RPC_URL").unwrap_or("http://127.0.0.1:26657".to_string());
+        &env::var("TENDERMINT_RPC_URL").unwrap_or_else(|_| "http://127.0.0.1:26657".to_string());
     let tendermint_initial_block = env::var("TENDERMINT_INITIAL_BLOCK_HEIGHT")
-        .unwrap_or("1".to_string())
+        .unwrap_or_else(|_| "1".to_string())
         .parse::<u64>()?;
     let tendermint_save_all_blocks = env::var("TENDERMINT_SAVE_ALL_BLOCKS")
-        .unwrap_or("false".to_string())
+        .unwrap_or_else(|_| "false".to_string())
         .parse::<bool>()?;
     let db: PgConnection = establish_connection();
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;

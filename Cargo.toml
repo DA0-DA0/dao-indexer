@@ -26,3 +26,4 @@ cosmos-sdk-proto = "0.9.0"
 diesel = { version = "1.4.4", features = ["postgres", "numeric"] }
 sha2 = "0.9.1"
 prost = "0.9.0"
+prost-types = "0.9"
