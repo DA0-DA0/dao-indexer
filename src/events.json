@@ -1,0 +1,35 @@
+{
+  "coin_received.amount": ["59789ujunox"],
+  "coin_received.receiver": ["juno17xpfvakm2amg962yls6f84z3kell8c5lxtqmvp"],
+  "coin_spent.amount": ["59789ujunox"],
+  "coin_spent.spender": ["juno1zpxwpr2mmrd206cvql0zsmx556wlr7yqf43hmz"],
+  "instantiate._contract_address": [
+    "juno1n8zk28ycq7s5epdknwytvvpt8848954yfuz0vcf6l3yz73g4sd2sc383j2",
+    "juno1hw7hhql6f25n49u9ju5vxhae3l9t9ck57xrnur24zxg0rvuky9mq9hfexa",
+    "juno1g080k42f2drprpc5hrvavv8w44eqk8rg4v8ejaqpyf50g7v20cnsatc2gs"
+  ],
+  "instantiate.code_id": ["2", "1", "5"],
+  "message.action": ["/cosmwasm.wasm.v1.MsgInstantiateContract"],
+  "message.module": ["wasm"],
+  "message.sender": [
+    "juno1zpxwpr2mmrd206cvql0zsmx556wlr7yqf43hmz",
+    "juno1zpxwpr2mmrd206cvql0zsmx556wlr7yqf43hmz"
+  ],
+  "reply._contract_address": [
+    "juno1n8zk28ycq7s5epdknwytvvpt8848954yfuz0vcf6l3yz73g4sd2sc383j2",
+    "juno1n8zk28ycq7s5epdknwytvvpt8848954yfuz0vcf6l3yz73g4sd2sc383j2"
+  ],
+  "tm.event": ["Tx"],
+  "transfer.amount": ["59789ujunox"],
+  "transfer.recipient": ["juno17xpfvakm2amg962yls6f84z3kell8c5lxtqmvp"],
+  "transfer.sender": ["juno1zpxwpr2mmrd206cvql0zsmx556wlr7yqf43hmz"],
+  "tx.acc_seq": ["juno1zpxwpr2mmrd206cvql0zsmx556wlr7yqf43hmz/14"],
+  "tx.fee": ["59789ujunox"],
+  "tx.hash": [
+    "A5A2CA19AD4322EFA365999BE2BA16191707A28062F22AE18C8090FE3BA84F71"
+  ],
+  "tx.height": ["30784"],
+  "tx.signature": [
+    "p5LfdMTy+2Q+7wBbm7I7Rgc2S6GtGvcLccMfrmtgdLRlES2aJXaDJtMep46iA7zbegZ+LcMe7lA7KUcQlN4mjw=="
+  ]
+}
