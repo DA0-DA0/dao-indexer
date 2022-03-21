@@ -4,24 +4,34 @@ use crate::util::history_util::tx_to_hash;
 use cosmrs::tx::Tx;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
+use std::collections::BTreeMap;
 use std::collections::HashSet;
+use tendermint::abci::responses::Event;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
-use tendermint::abci::responses::Event;
-use std::collections::BTreeMap;
 
-
-fn map_from_events(events: &Vec<Event>) -> BTreeMap::<String, Vec<String>> {
-    let mut event_map = BTreeMap::<String, Vec<String>>::default();
+fn map_from_events(
+    events: &Vec<Event>,
+    event_map: &mut BTreeMap<String, Vec<String>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     for event in events {
-        let mut event_strings = vec!();
+        let event_name = &event.type_str;
         for attribute in &event.attributes {
-            println!("discarding event attribute key {}", attribute.key.to_string());
-            event_strings.push(attribute.value.to_string())
+            let attributes;
+            let attribute_key: &str = &attribute.key.to_string();
+            let event_key = format!("{}.{}", event_name, attribute_key);
+            if let Some(existing_attributes) = event_map.get_mut(&event_key) {
+                attributes = existing_attributes;
+            } else {
+                event_map.insert(event_key.clone(), vec![]);
+                attributes = event_map
+                    .get_mut(&event_key)
+                    .ok_or(format!("no attribute {} found", event_key))?;
+            }
+            attributes.push(attribute.value.to_string());
         }
-        event_map.insert(event.type_str.clone(), event_strings);
     }
-    event_map
+    Ok(())
 }
 
 pub async fn block_synchronizer(
@@ -50,6 +60,17 @@ pub async fn block_synchronizer(
             if block_height % 1000 == 0 {
                 println!("Added another 1000 blocks, height: {}", block_height);
             }
+            let results = tendermint_client
+                .block_results(block_height as u32)
+                .await
+                .unwrap();
+            let mut all_events = BTreeMap::<String, Vec<String>>::default();
+            all_events.insert("tx.height".to_string(), vec![format!("{}", block_height)]);
+            if let Some(txs_results) = results.txs_results {
+                for tx in txs_results {
+                    map_from_events(&tx.events, &mut all_events).unwrap();
+                }
+            }
 
             let response = tendermint_client.block(block_height as u32).await.unwrap();
     
@@ -61,14 +82,26 @@ pub async fn block_synchronizer(
                     .execute(db)
                     .expect("Error saving new Block");
             }
-           
+            // Look at the transactions:
             for tx in response.block.data.iter() {
                 let tx_hash = tx_to_hash(tx);
                 let tx_response = tendermint_client.tx(tx_hash, false).await.unwrap();
-                let events = map_from_events(&tx_response.tx_result.events);
+                let mut events = BTreeMap::<String, Vec<String>>::default();
+                let _ = map_from_events(&tx_response.tx_result.events, &mut events);
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
                 let _ = process_parsed(db, &unmarshalled_tx, &Some(events));
             }
+        }
+    }
+}
+
+pub fn classify_transaction(tx: cosmrs::Any) {
+    match tx.type_url.to_string().as_str() {
+        "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
+            println!("we found an instnatiate contract, p0g")
+        }
+        _ => {
+            println!("No handler for {}", tx.type_url.to_string().as_str());
         }
     }
 }
