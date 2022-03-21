@@ -46,7 +46,7 @@ pub fn insert_contract(db: &PgConnection, contract_model: &NewContract) -> Resul
         .values(contract_model)
         .execute(db) {
           Ok(_rows) => {
-            return Ok(())
+            Ok(())
           },
           Err(e) => {
             Err(Box::from(format!("Error: {:?}", e)))

@@ -21,11 +21,11 @@ impl Index for MsgInstantiateContract {
     }
     println!("Indexing MsgInstantiateContract, events: {:?}", events);
     let contract_addresses = get_contract_addresses(events);
-    let dao_address = contract_addresses.dao_address.as_ref().unwrap();
+    let dao_address = contract_addresses.dao_address.as_ref().ok_or("no dao_address")?;
     let staking_contract_address = contract_addresses
       .staking_contract_address
       .as_ref()
-      .unwrap();
+      .ok_or("no staking_contract_address")?;
     let mut tx_height_opt = None;
     if let Some(event_map) = events {
       let tx_height_strings = event_map.get("tx.height").ok_or("No tx.height supplied")?;
@@ -43,9 +43,18 @@ impl Index for MsgInstantiateContract {
 
     let contract_model =
       NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
-    insert_contract(db, &contract_model)?;
+    if let Err(e) = insert_contract(db, &contract_model) {
+      eprintln!("Error inserting contract {:?}\n{:?}", &contract_model, e);
+    }
     let msg_str = String::from_utf8(self.msg.clone())?;
-    let instantiate_dao = serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str)?;
-    insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
+    match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
+      Ok(instantiate_dao) => {
+        insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
+      },
+      Err(e) => {
+        eprintln!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
+        Ok(())
+      }
+    }
   }
 }

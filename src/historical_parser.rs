@@ -11,7 +11,7 @@ use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
 
 fn map_from_events(
-    events: &Vec<Event>,
+    events: &[Event],
     event_map: &mut BTreeMap<String, Vec<String>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for event in events {
@@ -60,17 +60,6 @@ pub async fn block_synchronizer(
             if block_height % 1000 == 0 {
                 println!("Added another 1000 blocks, height: {}", block_height);
             }
-            let results = tendermint_client
-                .block_results(block_height as u32)
-                .await
-                .unwrap();
-            let mut all_events = BTreeMap::<String, Vec<String>>::default();
-            all_events.insert("tx.height".to_string(), vec![format!("{}", block_height)]);
-            if let Some(txs_results) = results.txs_results {
-                for tx in txs_results {
-                    map_from_events(&tx.events, &mut all_events).unwrap();
-                }
-            }
 
             let response = tendermint_client.block(block_height as u32).await.unwrap();
     
@@ -97,12 +86,12 @@ pub async fn block_synchronizer(
 }
 
 pub fn classify_transaction(tx: cosmrs::Any) {
-    match tx.type_url.to_string().as_str() {
+    match tx.type_url.as_str() {
         "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
             println!("we found an instnatiate contract, p0g")
         }
         _ => {
-            println!("No handler for {}", tx.type_url.to_string().as_str());
+            println!("No handler for {}", tx.type_url.as_str());
         }
     }
 }

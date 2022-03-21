@@ -18,7 +18,7 @@ pub fn process_parsed(
 
 pub fn process_messages(
   db: &PgConnection,
-  messages: &Vec<Any>,
+  messages: &[Any],
   events: &Option<BTreeMap<String, Vec<String>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
 
@@ -26,19 +26,19 @@ pub fn process_messages(
     let type_url: &str = &msg.type_url;
     match type_url {
       "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
-        let msg_obj: MsgInstantiateContract = MsgProto::from_any(&msg)?;
-        return msg_obj.index(&db, events);
+        let msg_obj: MsgInstantiateContract = MsgProto::from_any(msg)?;
+        return msg_obj.index(db, events);
       }
       "/cosmwasm.wasm.v1.MsgExecuteContract" => {
-        let msg_obj: MsgExecuteContract = MsgProto::from_any(&msg)?;
-        return msg_obj.index(&db, events);
+        let msg_obj: MsgExecuteContract = MsgProto::from_any(msg)?;
+        return msg_obj.index(db, events);
       }
       "/cosmos.bank.v1beta1.MsgSend" => {
-        let msg_obj: MsgSend = MsgProto::from_any(&msg)?;
-        return msg_obj.index(&db, events);
+        let msg_obj: MsgSend = MsgProto::from_any(msg)?;
+        return msg_obj.index(db, events);
       }
       _ => {
-        return Err(Box::from(format!("No handler for {}", type_url)));
+        eprintln!("No handler for {}", type_url);
       }
     }
   }
