@@ -87,6 +87,7 @@ pub async fn block_synchronizer(
                 let tx_hash = tx_to_hash(tx);
                 let tx_response = tendermint_client.tx(tx_hash, false).await.unwrap();
                 let mut events = BTreeMap::<String, Vec<String>>::default();
+                events.insert("tx.height".to_string(), vec![block_height.to_string()]);
                 let _ = map_from_events(&tx_response.tx_result.events, &mut events);
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
                 let _ = process_parsed(db, &unmarshalled_tx, &Some(events));

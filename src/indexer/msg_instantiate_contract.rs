@@ -28,7 +28,7 @@ impl Index for MsgInstantiateContract {
       .unwrap();
     let mut tx_height_opt = None;
     if let Some(event_map) = events {
-      let tx_height_strings = event_map.get("tx.height").unwrap();
+      let tx_height_strings = event_map.get("tx.height").ok_or("No tx.height supplied")?;
       if !tx_height_strings.is_empty() {
         let tx_height_str = &tx_height_strings[0];
         tx_height_opt = Some(BigDecimal::from_str(tx_height_str)?);
