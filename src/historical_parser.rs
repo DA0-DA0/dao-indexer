@@ -1,11 +1,28 @@
 use crate::db::models::{Block, NewBlock};
 use crate::indexer::tx::process_parsed;
+use crate::util::history_util::tx_to_hash;
 use cosmrs::tx::Tx;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use std::collections::HashSet;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
+use tendermint::abci::responses::Event;
+use std::collections::BTreeMap;
+
+
+fn map_from_events(events: &Vec<Event>) -> BTreeMap::<String, Vec<String>> {
+    let mut event_map = BTreeMap::<String, Vec<String>>::default();
+    for event in events {
+        let mut event_strings = vec!();
+        for attribute in &event.attributes {
+            println!("discarding event attribute key {}", attribute.key.to_string());
+            event_strings.push(attribute.value.to_string())
+        }
+        event_map.insert(event.type_str.clone(), event_strings);
+    }
+    event_map
+}
 
 pub async fn block_synchronizer(
     db: &PgConnection,
@@ -35,36 +52,23 @@ pub async fn block_synchronizer(
             }
 
             let response = tendermint_client.block(block_height as u32).await.unwrap();
+    
             let block_hash = response.block_id.hash.to_string();
             if save_all_blocks {
                 let new_block = NewBlock::from_block_response(&block_hash, &response.block);
-
                 diesel::insert_into(block)
                     .values(&new_block)
                     .execute(db)
                     .expect("Error saving new Block");
             }
-            // TODO(gavindoughtie): get the events map here
+           
             for tx in response.block.data.iter() {
+                let tx_hash = tx_to_hash(tx);
+                let tx_response = tendermint_client.tx(tx_hash, false).await.unwrap();
+                let events = map_from_events(&tx_response.tx_result.events);
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-                let _ = process_parsed(db, &unmarshalled_tx, &None);
-                //process_tx_info(db, &unmarshalled_tx.tx_info, events);
-                for tx_message in unmarshalled_tx.body.messages {
-                    // TODO(jamesortega): Attach here gavins code to index based on the type of transaction
-                    classify_transaction(tx_message)
-                }
+                let _ = process_parsed(db, &unmarshalled_tx, &Some(events));
             }
-        }
-    }
-}
-
-fn classify_transaction(tx: cosmrs::Any) {
-    match tx.type_url.to_string().as_str() {
-        "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
-            println!("we found an instnatiate contract, p0g")
-        }
-        _ => {
-            println!("No handler for {}", tx.type_url.to_string().as_str());
         }
     }
 }
