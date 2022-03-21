@@ -1,15 +1,18 @@
 use crate::db::models::{Block, NewBlock};
-use crate::indexer::tx::{process_messages};
+use crate::indexer::tx::process_messages;
 use cosmrs::tx::Tx;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
+use std::collections::BTreeMap;
 use std::collections::HashSet;
+use tendermint::abci::responses::Event;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
-use tendermint::abci::responses::Event;
-use std::collections::BTreeMap;
 
-fn map_from_events(events: &Vec<Event>, event_map: &mut BTreeMap::<String, Vec<String>>) -> Result<(), Box<dyn std::error::Error>> {
+fn map_from_events(
+    events: &Vec<Event>,
+    event_map: &mut BTreeMap<String, Vec<String>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     for event in events {
         let event_name = &event.type_str;
         for attribute in &event.attributes {
@@ -20,9 +23,11 @@ fn map_from_events(events: &Vec<Event>, event_map: &mut BTreeMap::<String, Vec<S
                 attributes = existing_attributes;
             } else {
                 event_map.insert(event_key.clone(), vec![]);
-                attributes = event_map.get_mut(&event_key).ok_or(format!("no attribute {} found", event_key))?;
+                attributes = event_map
+                    .get_mut(&event_key)
+                    .ok_or(format!("no attribute {} found", event_key))?;
             }
-            attributes.push(attribute.value.to_string());          
+            attributes.push(attribute.value.to_string());
         }
     }
     Ok(())
@@ -54,10 +59,13 @@ pub async fn block_synchronizer(
             if block_height % 1000 == 0 {
                 println!("Added another 1000 blocks, height: {}", block_height);
             }
-            let results = tendermint_client.block_results(block_height as u32).await.unwrap();
+            let results = tendermint_client
+                .block_results(block_height as u32)
+                .await
+                .unwrap();
             let mut all_events = BTreeMap::<String, Vec<String>>::default();
             all_events.insert("tx.height".to_string(), vec![format!("{}", block_height)]);
-            if let Some(txs_results) = results.txs_results {                
+            if let Some(txs_results) = results.txs_results {
                 for tx in txs_results {
                     map_from_events(&tx.events, &mut all_events).unwrap();
                 }
@@ -102,7 +110,6 @@ pub async fn block_synchronizer(
                 //       }
                 // }
             }
-            
         }
     }
 }
