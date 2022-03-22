@@ -1,54 +1,80 @@
+use crate::db::models::{Block, NewBlock};
+use crate::indexer::tx::process_parsed;
+use crate::util::history_util::tx_to_hash;
 use cosmrs::tx::Tx;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use tendermint_rpc::Client;
-use tendermint_rpc::{HttpClient as TendermintClient};
-use crate::db::models::{NewBlock, Block};
 use crate::db::schema::block::dsl::*;
+use std::collections::BTreeMap;
+use tendermint::abci::responses::Event;
+use tendermint_rpc::HttpClient as TendermintClient;
 
-pub async fn block_synchronizer(db: &PgConnection) {
-    // TODO(gavindoughtie): Get URL from env
-    let tendermint_client = TendermintClient::new("http://127.0.0.1:26657").unwrap();
+fn map_from_events(
+    events: &[Event],
+    event_map: &mut BTreeMap<String, Vec<String>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for event in events {
+        let event_name = &event.type_str;
+        for attribute in &event.attributes {
+            let attributes;
+            let attribute_key: &str = &attribute.key.to_string();
+            let event_key = format!("{}.{}", event_name, attribute_key);
+            if let Some(existing_attributes) = event_map.get_mut(&event_key) {
+                attributes = existing_attributes;
+            } else {
+                event_map.insert(event_key.clone(), vec![]);
+                attributes = event_map
+                    .get_mut(&event_key)
+                    .ok_or(format!("no attribute {} found", event_key))?;
+            }
+            attributes.push(attribute.value.to_string());
+        }
+    }
+    Ok(())
+}
+
+pub async fn block_synchronizer(
+    db: &PgConnection,
+    tendermint_rpc_url: &str,
+    initial_block_height: u64,
+    save_all_blocks: bool,
+) {
+    let tendermint_client = TendermintClient::new(tendermint_rpc_url).unwrap();
 
     let latest_block_response = tendermint_client.latest_block_results().await.unwrap();
     let latest_block_height = latest_block_response.height.value();
     
-    for block_height in 1..latest_block_height {
-        
+    for block_height in initial_block_height..latest_block_height {
         let db_block_opt: Option<Block> = block
             .find(block_height as i64)
             .get_result::<Block>(db).optional().unwrap();
 
-        if let Some(db_block) = db_block_opt {
-            println!("Already stored block at height: {}", db_block.height);
-        } else {
-            println!("Indexing block at block height: {}", block_height);
+        if db_block_opt.is_none() {
+            if block_height % 1000 == 0 {
+                println!("Added another 1000 blocks, height: {}", block_height);
+            }
+
             let response = tendermint_client.block(block_height as u32).await.unwrap();
             let block_hash = response.block_id.hash.to_string();
-            let new_block = NewBlock::from_block_response(&block_hash, &response.block);
-            diesel::insert_into(block)
-                .values(&new_block)
-                .execute(db)
-                .expect("Error saving new Block");
-            
-            for tx in response.block.data.iter() {
-                let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-                for tx_message in unmarshalled_tx.body.messages {
-                    // TODO(entrancedjames): Attach here gavins code to index based on the type of transaction
-                    classify_transaction(tx_message)
-                }
+            if save_all_blocks {
+                let new_block = NewBlock::from_block_response(&block_hash, &response.block);
+                diesel::insert_into(block)
+                    .values(&new_block)
+                    .execute(db)
+                    .expect("Error saving new Block");
             }
-        }
-    }
-}
-
-fn classify_transaction(tx: cosmrs::Any) {
-    match tx.type_url.to_string().as_str() {
-        "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
-            println!("we found an instnatiate contract, p0g")
-        }
-        _ => {
-            println!("No handler for {}", tx.type_url.to_string().as_str());
+            
+            // Look at the transactions:
+            for tx in response.block.data.iter() {
+                let tx_hash = tx_to_hash(tx);
+                let tx_response = tendermint_client.tx(tx_hash, false).await.unwrap();
+                let mut events = BTreeMap::<String, Vec<String>>::default();
+                events.insert("tx.height".to_string(), vec![block_height.to_string()]);
+                let _ = map_from_events(&tx_response.tx_result.events, &mut events);
+                let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
+                let _ = process_parsed(db, &unmarshalled_tx, &Some(events));
+            }
         }
     }
 }
