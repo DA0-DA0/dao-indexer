@@ -5,6 +5,7 @@ use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use diesel::pg::PgConnection;
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 use std::collections::BTreeMap;
+use serde_json::Value;
 
 impl Index for MsgExecuteContract {
   fn index(
@@ -13,6 +14,7 @@ impl Index for MsgExecuteContract {
     events: &Option<BTreeMap<String, Vec<String>>>,
   ) -> Result<(), Box<dyn std::error::Error>> {
     let msg_str = String::from_utf8(self.msg.clone())?;
+    let msg_val: Value = serde_json::from_str(&msg_str)?;
     let mut errors = vec![];
     match serde_json::from_str::<Cw3DaoExecuteMsg>(&msg_str) {
       Ok(execute_contract) => {
