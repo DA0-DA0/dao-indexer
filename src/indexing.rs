@@ -8,5 +8,5 @@ pub mod msg_send;
 pub mod msg_stake_cw20_execute;
 pub mod parse;
 pub mod tx;
-pub mod wasm_indexer;
-pub mod wasm_indexer_registry;
+pub mod indexer;
+pub mod indexer_registry;

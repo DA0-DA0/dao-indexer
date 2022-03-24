@@ -1,7 +1,7 @@
 pub use cw20::Cw20ExecuteMsg;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::block_synchronizer;
-use dao_indexer::indexer::tx::process_tx_info;
+use dao_indexer::indexing::tx::process_tx_info;
 use diesel::pg::PgConnection;
 use dotenv::dotenv;
 use futures::StreamExt;

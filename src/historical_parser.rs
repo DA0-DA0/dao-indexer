@@ -1,5 +1,5 @@
 use crate::db::models::{Block, NewBlock};
-use crate::indexer::tx::process_parsed;
+use crate::indexing::tx::process_parsed;
 use crate::util::history_util::tx_to_hash;
 use cosmrs::tx::Tx;
 use diesel::pg::PgConnection;

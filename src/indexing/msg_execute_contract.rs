@@ -15,6 +15,7 @@ impl Index for MsgExecuteContract {
   ) -> Result<(), Box<dyn std::error::Error>> {
     let msg_str = String::from_utf8(self.msg.clone())?;
     let msg_val: Value = serde_json::from_str(&msg_str)?;
+    println!("msg_val: {}", msg_val);
     let mut errors = vec![];
     match serde_json::from_str::<Cw3DaoExecuteMsg>(&msg_str) {
       Ok(execute_contract) => {

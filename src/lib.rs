@@ -4,5 +4,5 @@ extern crate dotenv;
 
 pub mod db;
 pub mod historical_parser;
-pub mod indexer;
+pub mod indexing;
 pub mod util;
