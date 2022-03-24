@@ -13,6 +13,7 @@ pub struct IndexerRegistry {
     /// Maps string key values to ids of indexers
     handlers: HashMap<String, Vec<usize>>,
     indexers: Vec<Box<dyn Indexer>>,
+    indexer_registry_keys: Vec<String>
 }
 
 impl<'a> IndexerRegistry {
@@ -48,6 +49,23 @@ impl<'a> Register for IndexerRegistry {
             self.register_for_key(registry_key, id);
         }
         self.indexers.push(indexer);
+    }
+}
+
+impl Indexer for IndexerRegistry {
+    fn id(&self) -> String {
+        "IndexerRegistry".to_string()
+    }
+    fn index(
+        &self,
+        _db: &PgConnection,
+        _msg_dictionary: &Value,
+        _msg_str: &str
+      ) -> Result<(), Box<dyn std::error::Error>> {
+          Ok(())
+      }    
+    fn registry_keys(&self) -> Iter<String> {
+        self.indexer_registry_keys.iter()
     }
 }
 
