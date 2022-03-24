@@ -1,22 +1,57 @@
 use super::indexer::Indexer;
+use diesel::Connection;
 use diesel::pg::PgConnection;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::slice::Iter;
+use std::collections::BTreeMap;
 
 pub trait Register {
     fn register(&mut self, indexer: Box<dyn Indexer>, registry_key: Option<&str>);
 }
 
-#[derive(Default)]
 pub struct IndexerRegistry {
+    db: PgConnection,
     /// Maps string key values to ids of indexers
     handlers: HashMap<String, Vec<usize>>,
     indexers: Vec<Box<dyn Indexer>>,
-    indexer_registry_keys: Vec<String>
+}
+
+impl Default for IndexerRegistry {
+    fn default() -> Self {
+        IndexerRegistry {
+            db: PgConnection::establish("").unwrap(),
+        handlers: HashMap::default(),
+        indexers: vec!()
+        }
+    }
 }
 
 impl<'a> IndexerRegistry {
+    // This method gets handed the decoded cosmwasm message
+    // and asks its registered indexers to index it if they can.
+    pub fn index(
+        &self,
+        events: &Option<BTreeMap<String, Vec<String>>>,
+        msg_dictionary: &Value,
+        msg_str: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let message_key = "";
+        if let Some(handlers) = self.indexers_for_key(message_key) {
+            for handler_id in handlers {
+                if let Some(indexer) = self.indexers.get(*handler_id) {
+                    indexer.index(
+                        &self.db,
+                        events,
+                        msg_dictionary,
+                        msg_str
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn register_for_key(&mut self, registry_key: &'a str, indexer_id: usize) {
         if let Some(existing_handlers) = self.handlers.get_mut(registry_key) {
             existing_handlers.push(indexer_id);
@@ -52,23 +87,6 @@ impl<'a> Register for IndexerRegistry {
     }
 }
 
-impl Indexer for IndexerRegistry {
-    fn id(&self) -> String {
-        "IndexerRegistry".to_string()
-    }
-    fn index(
-        &self,
-        _db: &PgConnection,
-        _msg_dictionary: &Value,
-        _msg_str: &str
-      ) -> Result<(), Box<dyn std::error::Error>> {
-          Ok(())
-      }    
-    fn registry_keys(&self) -> Iter<String> {
-        self.indexer_registry_keys.iter()
-    }
-}
-
 struct TestIndexer {
     pub name: String,
     my_registry_keys: Vec<String>,
@@ -82,6 +100,7 @@ impl<'a> Indexer for TestIndexer {
     fn index(
         &self,
         _db: &PgConnection,
+        _events: &Option<BTreeMap<String, Vec<String>>>,
         _msg_dictionary: &Value,
         _msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
