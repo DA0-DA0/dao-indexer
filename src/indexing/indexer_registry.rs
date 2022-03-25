@@ -1,17 +1,17 @@
 use super::indexer::Indexer;
-use diesel::Connection;
 use diesel::pg::PgConnection;
+use diesel::Connection;
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::slice::Iter;
-use std::collections::BTreeMap;
 
 pub trait Register {
     fn register(&mut self, indexer: Box<dyn Indexer>, registry_key: Option<&str>);
 }
 
 pub struct IndexerRegistry {
-    db: PgConnection,
+    pub db: PgConnection,
     /// Maps string key values to ids of indexers
     handlers: HashMap<String, Vec<usize>>,
     indexers: Vec<Box<dyn Indexer>>,
@@ -19,15 +19,18 @@ pub struct IndexerRegistry {
 
 impl Default for IndexerRegistry {
     fn default() -> Self {
-        IndexerRegistry {
-            db: PgConnection::establish("").unwrap(),
-        handlers: HashMap::default(),
-        indexers: vec!()
-        }
+        IndexerRegistry::new(PgConnection::establish("").unwrap())
     }
 }
 
 impl<'a> IndexerRegistry {
+    pub fn new(db: PgConnection) -> Self {
+        IndexerRegistry {
+            db,
+            handlers: HashMap::default(),
+            indexers: vec![],
+        }
+    }
     // This method gets handed the decoded cosmwasm message
     // and asks its registered indexers to index it if they can.
     pub fn index(
@@ -36,20 +39,27 @@ impl<'a> IndexerRegistry {
         msg_dictionary: &Value,
         msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let message_key = "";
+        let message_key = &self.extract_message_key(msg_dictionary, msg_str);
+        println!("Indexing: {:?}", msg_dictionary);
         if let Some(handlers) = self.indexers_for_key(message_key) {
             for handler_id in handlers {
                 if let Some(indexer) = self.indexers.get(*handler_id) {
-                    indexer.index(
-                        &self.db,
-                        events,
-                        msg_dictionary,
-                        msg_str
-                    )?;
+                    indexer.index(&self.db, events, msg_dictionary, msg_str)?;
                 }
             }
         }
         Ok(())
+    }
+
+    fn extract_message_key(
+        &self,
+        msg_dictionary: &Value,
+        _msg_str: &str
+    ) -> String {
+        if msg_dictionary.get("stake").is_some() {
+            return "stake".to_string();
+        }
+        "".to_string()
     }
 
     pub fn register_for_key(&mut self, registry_key: &'a str, indexer_id: usize) {

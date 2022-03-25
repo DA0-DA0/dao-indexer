@@ -2,15 +2,16 @@ use super::index::Index;
 use crate::util::debug::{dump_events, dump_execute_contract};
 use crate::util::update_balance::update_balance_from_events;
 use cw3_dao::msg::ExecuteMsg;
-use diesel::pg::PgConnection;
 use std::collections::BTreeMap;
+use super::indexer_registry::IndexerRegistry;
 
 impl Index for ExecuteMsg {
   fn index(
     &self,
-    db: &PgConnection,
+    registry: &IndexerRegistry,
     events: &Option<BTreeMap<String, Vec<String>>>,
   ) -> Result<(), Box<dyn std::error::Error>> {
+    let db = &registry.db;
     dump_execute_contract(self);
     dump_events(events);
     if let Some(event_map) = events {

@@ -1,10 +1,11 @@
-use diesel::pg::PgConnection;
 use std::collections::BTreeMap;
+
+use super::indexer_registry::IndexerRegistry;
 
 pub trait Index {
   fn index(
     &self,
-    db: &PgConnection,
+    registry: &IndexerRegistry,
     events: &Option<BTreeMap<String, Vec<String>>>,
   ) -> Result<(), Box<dyn std::error::Error>>; // TODO(gavindoughtie): anyhow::Result<()>
 }

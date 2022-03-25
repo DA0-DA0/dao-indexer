@@ -1,18 +1,18 @@
 use super::index::Index;
+use super::indexer_registry::IndexerRegistry;
 use crate::util::debug::dump_events;
 use crate::util::update_balance::update_balance;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
-use diesel::pg::PgConnection;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
 impl Index for Cw20ExecuteMsg {
   fn index(
     &self,
-    db: &PgConnection,
+    registry: &IndexerRegistry,
     events: &Option<BTreeMap<String, Vec<String>>>,
   ) -> Result<(), Box<dyn std::error::Error>> {
     dump_events(events);
@@ -44,7 +44,7 @@ impl Index for Cw20ExecuteMsg {
             amount: Uint128::from_str(send_amount)?,
           };
           update_balance(
-            db,
+            &registry.db,
             Some(&tx_height),
             gov_token_address,
             sender_addr,

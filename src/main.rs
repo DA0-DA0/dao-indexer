@@ -1,6 +1,7 @@
 pub use cw20::Cw20ExecuteMsg;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::block_synchronizer;
+use dao_indexer::indexing::indexer_registry::IndexerRegistry;
 use dao_indexer::indexing::tx::process_tx_info;
 use diesel::pg::PgConnection;
 use dotenv::dotenv;
@@ -29,9 +30,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
+    let registry = IndexerRegistry::new(db);
+
     if enable_indexer_env == "true" {
         block_synchronizer(
-            &db,
+            &registry,
             tendermint_rpc_url,
             tendermint_initial_block,
             tendermint_save_all_blocks,
@@ -49,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let events = ev.events;
         match result {
             EventData::NewBlock { block, .. } => println!("{:?}", block.unwrap()),
-            EventData::Tx { tx_result, .. } => process_tx_info(&db, tx_result, &events)?,
+            EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
             _ => eprintln!("unexpected result"),
         }
     }

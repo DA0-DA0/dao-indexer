@@ -1,8 +1,8 @@
 use crate::db::models::{Block, NewBlock};
+use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::tx::process_parsed;
 use crate::util::history_util::tx_to_hash;
 use cosmrs::tx::Tx;
-use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
@@ -35,11 +35,12 @@ fn map_from_events(
 }
 
 pub async fn block_synchronizer(
-    db: &PgConnection,
+    registry: &IndexerRegistry,
     tendermint_rpc_url: &str,
     initial_block_height: u64,
     save_all_blocks: bool,
 ) {
+    let db = &registry.db;
     use crate::db::schema::block::dsl::*;
     let tendermint_client = TendermintClient::new(tendermint_rpc_url).unwrap();
 
@@ -79,7 +80,7 @@ pub async fn block_synchronizer(
                 events.insert("tx.height".to_string(), vec![block_height.to_string()]);
                 let _ = map_from_events(&tx_response.tx_result.events, &mut events);
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-                let _ = process_parsed(db, &unmarshalled_tx, &Some(events));
+                let _ = process_parsed(registry, &unmarshalled_tx, &Some(events));
             }
         }
     }

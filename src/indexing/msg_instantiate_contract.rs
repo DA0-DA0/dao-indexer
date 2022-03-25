@@ -4,15 +4,15 @@ use crate::util::contract_util::{get_contract_addresses, insert_contract};
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-use diesel::pg::PgConnection;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use crate::util::dao::insert_dao;
+use super::indexer_registry::IndexerRegistry;
 
 impl Index for MsgInstantiateContract {
   fn index(
     &self,
-    db: &PgConnection,
+    registry: &IndexerRegistry,
     events: &Option<BTreeMap<String, Vec<String>>>,
   ) -> Result<(), Box<dyn std::error::Error>> {
     if events.is_none() {
@@ -43,13 +43,13 @@ impl Index for MsgInstantiateContract {
 
     let contract_model =
       NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
-    if let Err(e) = insert_contract(db, &contract_model) {
+    if let Err(e) = insert_contract(&registry.db, &contract_model) {
       eprintln!("Error inserting contract {:?}\n{:?}", &contract_model, e);
     }
     let msg_str = String::from_utf8(self.msg.clone())?;
     match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
       Ok(instantiate_dao) => {
-        insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
+        insert_dao(&registry.db, &instantiate_dao, &contract_addresses, Some(&tx_height))
       },
       Err(e) => {
         eprintln!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
