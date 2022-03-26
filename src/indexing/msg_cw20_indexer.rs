@@ -47,6 +47,7 @@ impl Indexer for Cw20ExecuteMsgIndexer {
           "mint",
           "update_marketing",
           "upload_logo",
+          // `propose`, `vote`, `execute`, `close`, `pause_d_a_o`, `update_config`, `update_cw20_token_list`, `update_staking_contract`, `receive`
       ];
       for key in cw20_root_keys {
           if msg.get(key).is_some() {
