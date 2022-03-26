@@ -48,7 +48,7 @@ impl Index for MsgInstantiateContract {
         if let Some(height) = tx_height_opt {
             tx_height = height;
         } else {
-            tx_height = BigDecimal::from_str("0")?;
+            tx_height = BigDecimal::default();
         }
 
         let contract_model =
