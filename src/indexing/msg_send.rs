@@ -11,11 +11,6 @@ impl Index for MsgSend {
         _registry: &IndexerRegistry,
         _events: &Option<BTreeMap<String, Vec<String>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        index_message(
-            &self.from_address,
-            &self.to_address,
-            &self.amount,
-            None,
-        )
+        index_message(&self.from_address, &self.to_address, &self.amount, None)
     }
 }
