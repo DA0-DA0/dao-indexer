@@ -1,5 +1,6 @@
 pub mod debug;
 pub mod index;
+pub mod msg_cw20_indexer;
 pub mod msg_cw20_execute;
 pub mod msg_dao_execute;
 pub mod msg_execute_contract;

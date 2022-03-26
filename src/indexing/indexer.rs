@@ -1,12 +1,13 @@
-use diesel::pg::PgConnection;
 use serde_json::Value;
 use std::slice::Iter;
 use std::collections::BTreeMap;
 
+use super::indexer_registry::IndexerRegistry;
+
 pub trait Indexer {
   fn index(
     &self,
-    db: &PgConnection,
+    registry: &IndexerRegistry,
     events: &Option<BTreeMap<String, Vec<String>>>,
     msg_dictionary: &Value,
     msg_str: &str

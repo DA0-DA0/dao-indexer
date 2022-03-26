@@ -38,22 +38,13 @@ impl<'a> IndexerRegistry {
         msg_dictionary: &Value,
         msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let db;
-        match &self.db {
-            Some(registry_db) => {
-                db = registry_db;
-            }
-            _ => {
-                return Ok(());
-            }
-        }
         if let Some(message_keys) = &self.extract_message_keys(msg_dictionary, msg_str) {
             println!("Indexing: {:?}", msg_dictionary);
             for message_key in message_keys {
                 if let Some(handlers) = self.indexers_for_key(message_key) {
                     for handler_id in handlers {
                         if let Some(indexer) = self.indexers.get(*handler_id) {
-                            indexer.index(db, events, msg_dictionary, msg_str)?;
+                            indexer.index(self, events, msg_dictionary, msg_str)?;
                         }
                     }
                 }
@@ -122,7 +113,7 @@ impl<'a> Indexer for TestIndexer {
 
     fn index(
         &self,
-        _db: &PgConnection,
+        _registry: &IndexerRegistry,
         _events: &Option<BTreeMap<String, Vec<String>>>,
         _msg_dictionary: &Value,
         _msg_str: &str,

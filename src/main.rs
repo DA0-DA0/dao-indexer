@@ -1,8 +1,9 @@
 pub use cw20::Cw20ExecuteMsg;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::block_synchronizer;
-use dao_indexer::indexing::indexer_registry::IndexerRegistry;
+use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::tx::process_tx_info;
+use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
 use diesel::pg::PgConnection;
 use dotenv::dotenv;
 use futures::StreamExt;
@@ -30,7 +31,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
-    let registry = IndexerRegistry::new(Some(db));
+    let mut registry = IndexerRegistry::new(Some(db));
+
+    // Register standard indexers:
+    let cw20_indexer = Cw20ExecuteMsgIndexer::default();
+    registry.register(Box::from(cw20_indexer), None);
 
     if enable_indexer_env == "true" {
         block_synchronizer(
