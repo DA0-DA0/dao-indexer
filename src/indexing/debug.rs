@@ -1,9 +1,7 @@
-use diesel::pg::PgConnection;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
 use super::parse::parse_message;
 
 pub fn index_message(
-  _db: &PgConnection,
   sender: &str,
   contract_addr: &str,
   funds: &[Coin],

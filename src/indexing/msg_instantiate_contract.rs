@@ -4,20 +4,27 @@ use crate::util::contract_util::{get_contract_addresses, insert_contract};
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-use diesel::pg::PgConnection;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use crate::util::dao::insert_dao;
+use super::indexer_registry::IndexerRegistry;
 
 impl Index for MsgInstantiateContract {
   fn index(
     &self,
-    db: &PgConnection,
+    registry: &IndexerRegistry,
     events: &Option<BTreeMap<String, Vec<String>>>,
   ) -> Result<(), Box<dyn std::error::Error>> {
     if events.is_none() {
       // TODO(gavindoughtie): Definitely NOT ok!
       return Ok(());
+    }
+    let db;
+    match &registry.db {
+      Some(registry_db) => {
+        db = registry_db;
+      }
+      _ => return Ok(())
     }
     println!("Indexing MsgInstantiateContract, events: {:?}", events);
     let contract_addresses = get_contract_addresses(events);
