@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
-    let registry = IndexerRegistry::new(db);
+    let registry = IndexerRegistry::new(Some(db));
 
     if enable_indexer_env == "true" {
         block_synchronizer(

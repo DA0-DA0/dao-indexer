@@ -19,6 +19,13 @@ impl Index for MsgInstantiateContract {
       // TODO(gavindoughtie): Definitely NOT ok!
       return Ok(());
     }
+    let db;
+    match &registry.db {
+      Some(registry_db) => {
+        db = registry_db;
+      }
+      _ => return Ok(())
+    }
     println!("Indexing MsgInstantiateContract, events: {:?}", events);
     let contract_addresses = get_contract_addresses(events);
     let dao_address = contract_addresses.dao_address.as_ref().ok_or("no dao_address")?;
@@ -43,13 +50,13 @@ impl Index for MsgInstantiateContract {
 
     let contract_model =
       NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
-    if let Err(e) = insert_contract(&registry.db, &contract_model) {
+    if let Err(e) = insert_contract(db, &contract_model) {
       eprintln!("Error inserting contract {:?}\n{:?}", &contract_model, e);
     }
     let msg_str = String::from_utf8(self.msg.clone())?;
     match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
       Ok(instantiate_dao) => {
-        insert_dao(&registry.db, &instantiate_dao, &contract_addresses, Some(&tx_height))
+        insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
       },
       Err(e) => {
         eprintln!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);

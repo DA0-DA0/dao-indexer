@@ -13,4 +13,5 @@ pub trait Indexer {
   ) -> Result<(), Box<dyn std::error::Error>>;
   fn id(&self) -> String;
   fn registry_keys(&self) -> Iter<String>;
+  fn extract_message_key(&self, msg: &Value, msg_string: &str) -> Option<String>;
 }

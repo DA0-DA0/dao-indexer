@@ -1,6 +1,5 @@
 use super::indexer::Indexer;
 use diesel::pg::PgConnection;
-use diesel::Connection;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -11,7 +10,7 @@ pub trait Register {
 }
 
 pub struct IndexerRegistry {
-    pub db: PgConnection,
+    pub db: Option<PgConnection>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<String, Vec<usize>>,
     indexers: Vec<Box<dyn Indexer>>,
@@ -19,12 +18,12 @@ pub struct IndexerRegistry {
 
 impl Default for IndexerRegistry {
     fn default() -> Self {
-        IndexerRegistry::new(PgConnection::establish("").unwrap())
+        IndexerRegistry::new(None)
     }
 }
 
 impl<'a> IndexerRegistry {
-    pub fn new(db: PgConnection) -> Self {
+    pub fn new(db: Option<PgConnection>) -> Self {
         IndexerRegistry {
             db,
             handlers: HashMap::default(),
@@ -39,27 +38,41 @@ impl<'a> IndexerRegistry {
         msg_dictionary: &Value,
         msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let message_key = &self.extract_message_key(msg_dictionary, msg_str);
-        println!("Indexing: {:?}", msg_dictionary);
-        if let Some(handlers) = self.indexers_for_key(message_key) {
-            for handler_id in handlers {
-                if let Some(indexer) = self.indexers.get(*handler_id) {
-                    indexer.index(&self.db, events, msg_dictionary, msg_str)?;
+        let db;
+        match &self.db {
+            Some(registry_db) => {
+                db = registry_db;
+            }
+            _ => {
+                return Ok(());
+            }
+        }
+        if let Some(message_keys) = &self.extract_message_keys(msg_dictionary, msg_str) {
+            println!("Indexing: {:?}", msg_dictionary);
+            for message_key in message_keys {
+                if let Some(handlers) = self.indexers_for_key(message_key) {
+                    for handler_id in handlers {
+                        if let Some(indexer) = self.indexers.get(*handler_id) {
+                            indexer.index(db, events, msg_dictionary, msg_str)?;
+                        }
+                    }
                 }
             }
         }
         Ok(())
     }
 
-    fn extract_message_key(
-        &self,
-        msg_dictionary: &Value,
-        _msg_str: &str
-    ) -> String {
-        if msg_dictionary.get("stake").is_some() {
-            return "stake".to_string();
+    fn extract_message_keys(&self, msg_dictionary: &Value, msg_str: &str) -> Option<Vec<String>> {
+        let mut keys = vec![];
+        for indexer in &self.indexers {
+            if let Some(message_key) = indexer.extract_message_key(msg_dictionary, msg_str) {
+                keys.push(message_key);
+            }
         }
-        "".to_string()
+        if !keys.is_empty() {
+            return Some(keys);
+        }
+        None
     }
 
     pub fn register_for_key(&mut self, registry_key: &'a str, indexer_id: usize) {
@@ -119,6 +132,15 @@ impl<'a> Indexer for TestIndexer {
 
     fn registry_keys(&self) -> Iter<String> {
         self.my_registry_keys.iter()
+    }
+
+    fn extract_message_key(&self, message: &Value, _message_string: &str) -> Option<String> {
+        for my_key in &self.my_registry_keys {
+            if message.get(my_key).is_some() {
+                return Some(my_key.clone());
+            }
+        }
+        None
     }
 }
 

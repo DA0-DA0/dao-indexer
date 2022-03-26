@@ -8,11 +8,10 @@ use std::collections::BTreeMap;
 impl Index for MsgSend {
     fn index(
         &self,
-        registry: &IndexerRegistry,
+        _registry: &IndexerRegistry,
         _events: &Option<BTreeMap<String, Vec<String>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         index_message(
-            &registry.db,
             &self.from_address,
             &self.to_address,
             &self.amount,
