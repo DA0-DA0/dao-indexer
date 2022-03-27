@@ -1,16 +1,16 @@
+use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
 use prost_types::Any;
-use std::collections::BTreeMap;
 use tendermint_rpc::event::TxInfo;
 
 pub fn process_parsed(
     registry: &IndexerRegistry,
     tx_parsed: &Tx,
-    events: &Option<BTreeMap<String, Vec<String>>>,
+    events: &EventMap,
 ) -> Result<(), Box<dyn std::error::Error>> {
     process_messages(registry, &tx_parsed.body.messages, events)
 }
@@ -18,7 +18,7 @@ pub fn process_parsed(
 pub fn process_messages(
     registry: &IndexerRegistry,
     messages: &[Any],
-    events: &Option<BTreeMap<String, Vec<String>>>,
+    events: &EventMap,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for msg in messages.iter() {
         let type_url: &str = &msg.type_url;
@@ -46,7 +46,7 @@ pub fn process_messages(
 pub fn process_tx_info(
     registry: &IndexerRegistry,
     tx_info: TxInfo,
-    events: &Option<BTreeMap<String, Vec<String>>>,
+    events: &EventMap,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let tx_parsed = Tx::from_bytes(&tx_info.tx)?;
     process_parsed(registry, &tx_parsed, events)

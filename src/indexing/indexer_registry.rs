@@ -1,7 +1,7 @@
+use super::event_map::EventMap;
 use super::indexer::Indexer;
 use diesel::pg::PgConnection;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::slice::Iter;
 
@@ -35,7 +35,7 @@ impl<'a> IndexerRegistry {
     // and asks its registered indexers to index it if they can.
     pub fn index_message_and_events(
         &self,
-        events: &Option<BTreeMap<String, Vec<String>>>,
+        events: &EventMap,
         msg_dictionary: &Value,
         msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -115,7 +115,7 @@ impl<'a> Indexer for TestIndexer {
     fn index(
         &self,
         _registry: &IndexerRegistry,
-        _events: &Option<BTreeMap<String, Vec<String>>>,
+        _events: &EventMap,
         _msg_dictionary: &Value,
         _msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {

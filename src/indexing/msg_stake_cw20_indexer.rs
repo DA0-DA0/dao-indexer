@@ -1,9 +1,9 @@
+use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer::Indexer;
 use super::indexer_registry::IndexerRegistry;
 use serde_json::Value;
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
-use std::collections::BTreeMap;
 
 const INDEXER_KEY: &str = "StakeCw20ExecuteMsg";
 static ROOT_KEYS: [&str; 4] = ["receive", "unstake", "claim", "update_config"];
@@ -24,7 +24,7 @@ impl Indexer for StakeCw20ExecuteMsgIndexer {
     fn index(
         &self,
         registry: &IndexerRegistry,
-        events: &Option<BTreeMap<String, Vec<String>>>,
+        events: &EventMap,
         _msg_dictionary: &Value,
         msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {

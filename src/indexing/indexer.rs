@@ -1,5 +1,5 @@
+use super::event_map::EventMap;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::slice::Iter;
 
 use super::indexer_registry::IndexerRegistry;
@@ -11,7 +11,7 @@ pub trait Indexer {
         // The registry of indexers
         registry: &IndexerRegistry,
         // All the transaction events in a map of "event.id": Vec<String> values.
-        events: &Option<BTreeMap<String, Vec<String>>>,
+        events: &EventMap,
         // Generic serde-parsed value dictionary
         msg_dictionary: &Value,
         // The decoded string value of the message

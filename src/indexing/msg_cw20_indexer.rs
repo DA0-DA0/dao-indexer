@@ -1,9 +1,9 @@
+use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer::Indexer;
 use super::indexer_registry::IndexerRegistry;
 pub use cw20::Cw20ExecuteMsg;
 use serde_json::Value;
-use std::collections::BTreeMap;
 
 const INDEXER_KEY: &str = "Cw20ExecuteMsg";
 static ROOT_KEYS: [&str; 11] = [
@@ -36,7 +36,7 @@ impl Indexer for Cw20ExecuteMsgIndexer {
     fn index(
         &self,
         registry: &IndexerRegistry,
-        events: &Option<BTreeMap<String, Vec<String>>>,
+        events: &EventMap,
         _msg_dictionary: &Value,
         msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {

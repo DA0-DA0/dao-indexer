@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     while let Some(res) = subs.next().await {
         let ev = res?;
         let result = ev.data;
-        let events = ev.events;
+        let events = ev.events.unwrap();
         match result {
             EventData::NewBlock { block, .. } => println!("{:?}", block.unwrap()),
             EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,

@@ -1,3 +1,4 @@
+use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use crate::db::models::NewContract;
@@ -6,19 +7,14 @@ use crate::util::dao::insert_dao;
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-use std::collections::BTreeMap;
 use std::str::FromStr;
 
 impl IndexMessage for MsgInstantiateContract {
     fn index_message(
         &self,
         registry: &IndexerRegistry,
-        events: &Option<BTreeMap<String, Vec<String>>>,
+        events: &EventMap,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if events.is_none() {
-            // TODO(gavindoughtie): Definitely NOT ok!
-            return Ok(());
-        }
         let db;
         match &registry.db {
             Some(registry_db) => {
@@ -37,13 +33,13 @@ impl IndexMessage for MsgInstantiateContract {
             .as_ref()
             .ok_or("no staking_contract_address")?;
         let mut tx_height_opt = None;
-        if let Some(event_map) = events {
-            let tx_height_strings = event_map.get("tx.height").ok_or("No tx.height supplied")?;
-            if !tx_height_strings.is_empty() {
-                let tx_height_str = &tx_height_strings[0];
-                tx_height_opt = Some(BigDecimal::from_str(tx_height_str)?);
-            }
+
+        let tx_height_strings = events.get("tx.height").ok_or("No tx.height supplied")?;
+        if !tx_height_strings.is_empty() {
+            let tx_height_str = &tx_height_strings[0];
+            tx_height_opt = Some(BigDecimal::from_str(tx_height_str)?);
         }
+
         let tx_height: BigDecimal;
         if let Some(height) = tx_height_opt {
             tx_height = height;

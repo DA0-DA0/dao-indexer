@@ -1,4 +1,5 @@
 pub mod debug;
+pub mod event_map;
 pub mod index_message;
 pub mod indexer;
 pub mod indexer_registry;

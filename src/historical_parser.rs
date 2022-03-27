@@ -77,7 +77,7 @@ pub async fn block_synchronizer(
                 events.insert("tx.height".to_string(), vec![block_height.to_string()]);
                 let _ = map_from_events(&tx_response.tx_result.events, &mut events);
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-                let _ = process_parsed(registry, &unmarshalled_tx, &Some(events));
+                let _ = process_parsed(registry, &unmarshalled_tx, &events);
             }
         }
     }
