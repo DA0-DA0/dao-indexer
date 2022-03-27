@@ -1,14 +1,12 @@
-use super::indexer::Indexer;
 use super::index_message::IndexMessage;
+use super::indexer::Indexer;
 use super::indexer_registry::IndexerRegistry;
 use serde_json::Value;
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 use std::collections::BTreeMap;
 
 const INDEXER_KEY: &str = "StakeCw20ExecuteMsg";
-static ROOT_KEYS: [&str; 4] = [
-    "receive", "unstake", "claim", "update_config"
-];
+static ROOT_KEYS: [&str; 4] = ["receive", "unstake", "claim", "update_config"];
 
 pub struct StakeCw20ExecuteMsgIndexer {
     registry_keys: Vec<String>,

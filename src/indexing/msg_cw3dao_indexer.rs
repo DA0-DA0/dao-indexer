@@ -1,5 +1,5 @@
-use super::indexer::Indexer;
 use super::index_message::IndexMessage;
+use super::indexer::Indexer;
 use super::indexer_registry::IndexerRegistry;
 use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use serde_json::Value;

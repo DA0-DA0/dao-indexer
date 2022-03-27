@@ -1,5 +1,5 @@
-use super::indexer::Indexer;
 use super::index_message::IndexMessage;
+use super::indexer::Indexer;
 use super::indexer_registry::IndexerRegistry;
 pub use cw20::Cw20ExecuteMsg;
 use serde_json::Value;
