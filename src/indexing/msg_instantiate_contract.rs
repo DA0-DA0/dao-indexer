@@ -7,6 +7,7 @@ use crate::util::dao::insert_dao;
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+use log::{debug, error};
 use std::str::FromStr;
 
 impl IndexMessage for MsgInstantiateContract {
@@ -22,7 +23,7 @@ impl IndexMessage for MsgInstantiateContract {
             }
             _ => return Ok(()),
         }
-        println!("Indexing MsgInstantiateContract, events: {:?}", events);
+        debug!("Indexing MsgInstantiateContract, events: {:?}", events);
         let contract_addresses = get_contract_addresses(events);
         let dao_address = contract_addresses
             .dao_address
@@ -50,7 +51,7 @@ impl IndexMessage for MsgInstantiateContract {
         let contract_model =
             NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
         if let Err(e) = insert_contract(db, &contract_model) {
-            eprintln!("Error inserting contract {:?}\n{:?}", &contract_model, e);
+            error!("Error inserting contract {:?}\n{:?}", &contract_model, e);
         }
         let msg_str = String::from_utf8(self.msg.clone())?;
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
@@ -58,7 +59,7 @@ impl IndexMessage for MsgInstantiateContract {
                 insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
             }
             Err(e) => {
-                eprintln!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
+                error!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
                 Ok(())
             }
         }

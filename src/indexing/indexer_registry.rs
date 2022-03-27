@@ -1,6 +1,7 @@
 use super::event_map::EventMap;
 use super::indexer::Indexer;
 use diesel::pg::PgConnection;
+use log::debug;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::slice::Iter;
@@ -40,7 +41,7 @@ impl<'a> IndexerRegistry {
         msg_str: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(message_keys) = &self.extract_message_keys(msg_dictionary, msg_str) {
-            println!("Indexing: {:?}", msg_dictionary);
+            debug!("Indexing: {:?}", msg_dictionary);
             for message_key in message_keys {
                 if let Some(handlers) = self.indexers_for_key(message_key) {
                     for handler_id in handlers {
@@ -95,7 +96,7 @@ impl<'a> Register for IndexerRegistry {
             self.register_for_key(registry_key, id);
         }
         for registry_key in indexer.registry_keys() {
-            println!("registering {}", &registry_key);
+            debug!("registering {}", &registry_key);
             self.register_for_key(registry_key, id);
         }
         self.indexers.push(indexer);

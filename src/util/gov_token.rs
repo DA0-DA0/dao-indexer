@@ -10,6 +10,7 @@ pub use cw20::Cw20ExecuteMsg;
 use cw3_dao::msg::GovTokenMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
+use log::{error, warn};
 
 pub fn insert_gov_token(
     db: &PgConnection,
@@ -54,14 +55,14 @@ pub fn insert_gov_token(
                 &balance_update,
             );
             if let Err(e) = initial_update_result {
-                eprintln!("error updating initial balance {}", e);
+                error!("error updating initial balance {}", e);
             }
 
             if let Ok(_token_id) = result {
                 // This handles the initial token distributions but not the treasury.
                 for balance in &msg.initial_balances {
                     if let Err(e) = update_balance(db, height, cw20_address, dao_address, balance) {
-                        eprintln!("{}", e);
+                        error!("Error updating balance {:?}", e);
                     }
                 }
             }
@@ -72,7 +73,7 @@ pub fn insert_gov_token(
             label,
             // unstaking_duration,
         } => {
-            println!("TODO: Use existing cw20 addr: {}, label: {},", addr, label);
+            warn!("TODO: Use existing cw20 addr: {}, label: {},", addr, label);
             result = Ok(0);
         }
     };

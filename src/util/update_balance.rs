@@ -5,6 +5,7 @@ use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
+use log::error;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
@@ -67,7 +68,7 @@ pub fn update_balance_from_events(
             &balance_update,
         )
     } else {
-        eprintln!("No 'wasm.from' value found in event map");
+        error!("No 'wasm.from' value found in event map");
         Ok(0)
     }
 }

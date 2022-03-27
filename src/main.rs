@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 pub use cw20::Cw20ExecuteMsg;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::block_synchronizer;
@@ -8,6 +11,7 @@ use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::tx::process_tx_info;
 use diesel::pg::PgConnection;
 use dotenv::dotenv;
+use env_logger::Env;
 use futures::StreamExt;
 use std::env;
 use tendermint_rpc::event::EventData;
@@ -17,7 +21,6 @@ use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
-
     let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or_else(|_| "false".to_string());
     let tendermint_websocket_url: &str = &env::var("TENDERMINT_WEBSOCKET_URL")
         .unwrap_or_else(|_| "ws://127.0.0.1:26657/websocket".to_string());
@@ -29,6 +32,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tendermint_save_all_blocks = env::var("TENDERMINT_SAVE_ALL_BLOCKS")
         .unwrap_or_else(|_| "false".to_string())
         .parse::<bool>()?;
+
+    let env = Env::default()
+        .filter_or("MY_LOG_LEVEL", "trace")
+        .write_style_or("MY_LOG_STYLE", "always");
+
+    env_logger::init_from_env(env);
+
     let db: PgConnection = establish_connection();
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
@@ -52,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await;
     } else {
-        println!("Not indexing");
+        info!("Indexing historical blocks disabled");
     }
     // Subscribe to transactions (can also add blocks but just Tx for now)
     let mut subs = client.subscribe(EventType::Tx.into()).await?;
@@ -62,16 +72,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let result = ev.data;
         let events = ev.events.unwrap();
         match result {
-            EventData::NewBlock { block, .. } => println!("{:?}", block.unwrap()),
+            EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
             EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
-            _ => eprintln!("unexpected result"),
+            _ => {
+                error!("Unexpected result {:?}", result)
+            }
         }
     }
 
     // Signal to the driver to terminate.
     match client.close() {
-        Ok(val) => println!("closed {:?}", val),
-        Err(e) => eprintln!("Error closing client {:?}", e),
+        Ok(val) => info!("closed {:?}", val),
+        Err(e) => error!("Error closing client {:?}", e),
     }
     // Await the driver's termination to ensure proper connection closure.
     let _ = driver_handle.await.unwrap();

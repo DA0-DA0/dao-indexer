@@ -5,6 +5,7 @@ use crate::indexing::tx::process_parsed;
 use crate::util::history_util::tx_to_hash;
 use cosmrs::tx::Tx;
 use diesel::prelude::*;
+use log::info;
 use std::collections::BTreeMap;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::Client;
@@ -56,7 +57,7 @@ pub async fn block_synchronizer(
 
         if db_block_opt.is_none() {
             if block_height % 1000 == 0 {
-                println!("Added another 1000 blocks, height: {}", block_height);
+                info!("Added another 1000 blocks, height: {}", block_height);
             }
 
             let response = tendermint_client.block(block_height as u32).await.unwrap();

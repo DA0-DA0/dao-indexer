@@ -2,6 +2,7 @@ use crate::db::models::NewContract;
 use crate::indexing::event_map::EventMap;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
+use log::error;
 
 #[derive(Debug)]
 pub struct ContractAddresses {
@@ -29,7 +30,7 @@ pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresse
             dao_address = Some(addr[0].clone());
             staking_contract_address = Some(addr[1].clone());
         } else {
-            eprintln!("unexpected addr {:?}", addr);
+            error!("unexpected addr {:?}", addr);
         }
     }
     ContractAddresses {

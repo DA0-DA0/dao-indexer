@@ -4,6 +4,7 @@ use super::indexer_registry::IndexerRegistry;
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
+use log::error;
 use prost_types::Any;
 use tendermint_rpc::event::TxInfo;
 
@@ -36,7 +37,7 @@ pub fn process_messages(
                 return msg_obj.index_message(registry, events);
             }
             _ => {
-                eprintln!("No handler for {}", type_url);
+                error!("No handler for {}", type_url);
             }
         }
     }

@@ -1,5 +1,6 @@
 use super::parse::parse_message;
 use cosmrs::proto::cosmos::base::v1beta1::Coin;
+use log::debug;
 
 pub fn index_message(
     sender: &str,
@@ -14,7 +15,7 @@ pub fn index_message(
             json_dump = serde_json::to_string_pretty(&obj).unwrap();
         }
     }
-    println!(
+    debug!(
       "{{\"sender\": \"{}\", \"contract_address\": \"{}\", \"funds\": \"{:?}\", \"contract\": {}}}",
       sender,
       contract_addr,
