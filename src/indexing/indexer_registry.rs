@@ -30,9 +30,10 @@ impl<'a> IndexerRegistry {
             indexers: vec![],
         }
     }
+
     // This method gets handed the decoded cosmwasm message
     // and asks its registered indexers to index it if they can.
-    pub fn index(
+    pub fn index_message_and_events(
         &self,
         events: &Option<BTreeMap<String, Vec<String>>>,
         msg_dictionary: &Value,
