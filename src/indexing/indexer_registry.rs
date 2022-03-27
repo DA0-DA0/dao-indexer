@@ -4,6 +4,7 @@ use diesel::pg::PgConnection;
 use log::debug;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::slice::Iter;
 
 pub trait Register {
@@ -15,6 +16,27 @@ pub struct IndexerRegistry {
     /// Maps string key values to ids of indexers
     handlers: HashMap<String, Vec<usize>>,
     indexers: Vec<Box<dyn Indexer>>,
+}
+
+impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
+    fn from(registry: &'a IndexerRegistry) -> Self {
+        registry.db.as_ref().unwrap()
+    }
+}
+
+// impl Deref for IndexerRegistry {
+//     type Target: &PgConnection;
+//     fn deref(&self) -> Target {
+//         return self.db.as_ref().unwrap()
+//     }
+// }
+
+impl Deref for IndexerRegistry {
+    type Target = PgConnection;
+
+    fn deref(&self) -> &Self::Target {
+        self.db.as_ref().unwrap()
+    }
 }
 
 impl Default for IndexerRegistry {

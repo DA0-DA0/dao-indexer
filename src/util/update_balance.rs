@@ -1,28 +1,30 @@
 use super::gov_token::get_gov_token;
+use crate::indexing::indexer_registry::IndexerRegistry;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use log::error;
+use log::{error, warn};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
 pub fn update_balance(
-    db: &PgConnection,
+    db: &IndexerRegistry,
     tx_height: Option<&BigDecimal>,
     token_addr: &str,
     token_sender_address: &str,
     balance_update: &Cw20Coin,
 ) -> QueryResult<usize> {
     use crate::db::schema::cw20_transactions::dsl::*;
+    warn!("Unsafe cast from u128 to i64");
     let amount_converted: BigDecimal = BigDecimal::from(balance_update.amount.u128() as i64);
     let transaction_height: BigDecimal;
     if let Some(tx_height_value) = tx_height {
         transaction_height = tx_height_value.clone();
     } else {
-        transaction_height = BigDecimal::from_str("0").unwrap();
+        transaction_height = BigDecimal::default();
     }
     diesel::insert_into(cw20_transactions)
         .values((
@@ -32,11 +34,11 @@ pub fn update_balance(
             height.eq(&transaction_height),
             amount.eq(amount_converted),
         ))
-        .execute(db)
+        .execute(db as &PgConnection)
 }
 
 pub fn update_balance_from_events(
-    db: &PgConnection,
+    db: &IndexerRegistry,
     i: usize,
     event_map: &BTreeMap<String, Vec<String>>,
 ) -> QueryResult<usize> {

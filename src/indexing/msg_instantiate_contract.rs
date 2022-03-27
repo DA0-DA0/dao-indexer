@@ -55,9 +55,12 @@ impl IndexMessage for MsgInstantiateContract {
         }
         let msg_str = String::from_utf8(self.msg.clone())?;
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
-            Ok(instantiate_dao) => {
-                insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
-            }
+            Ok(instantiate_dao) => insert_dao(
+                registry,
+                &instantiate_dao,
+                &contract_addresses,
+                Some(&tx_height),
+            ),
             Err(e) => {
                 error!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
                 Ok(())

@@ -2,7 +2,10 @@ use super::contract_util::ContractAddresses;
 use super::dao::get_dao;
 use super::insert_marketing_info::insert_marketing_info;
 use super::update_balance::update_balance;
-use crate::db::models::{Cw20, NewGovToken};
+use crate::{
+    db::models::{Cw20, NewGovToken},
+    indexing::indexer_registry::IndexerRegistry,
+};
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;
@@ -13,7 +16,7 @@ use diesel::prelude::*;
 use log::{error, warn};
 
 pub fn insert_gov_token(
-    db: &PgConnection,
+    db: &IndexerRegistry,
     token_msg: &GovTokenMsg,
     contract_addresses: &ContractAddresses,
     height: Option<&BigDecimal>,
@@ -35,7 +38,7 @@ pub fn insert_gov_token(
             result = diesel::insert_into(gov_token)
                 .values(token_model)
                 .returning(id)
-                .get_result(db);
+                .get_result(db as &PgConnection);
             let dao_address = contract_addresses.dao_address.as_ref().unwrap();
             let amount;
             if let Some(balance) = initial_dao_balance {
