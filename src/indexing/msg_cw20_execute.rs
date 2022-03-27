@@ -1,4 +1,4 @@
-use super::index::Index;
+use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use crate::util::debug::dump_events;
 use crate::util::update_balance::update_balance;
@@ -9,8 +9,8 @@ pub use cw20::Cw20ExecuteMsg;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-impl Index for Cw20ExecuteMsg {
-    fn index(
+impl IndexMessage for Cw20ExecuteMsg {
+    fn index_message(
         &self,
         registry: &IndexerRegistry,
         events: &Option<BTreeMap<String, Vec<String>>>,

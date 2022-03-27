@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use super::indexer_registry::IndexerRegistry;
 
-pub trait Index {
-    fn index(
+pub trait IndexMessage {
+    fn index_message(
         &self,
         registry: &IndexerRegistry,
         events: &Option<BTreeMap<String, Vec<String>>>,

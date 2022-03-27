@@ -1,4 +1,4 @@
-use super::index::Index;
+use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
@@ -25,15 +25,15 @@ pub fn process_messages(
         match type_url {
             "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
                 let msg_obj: MsgInstantiateContract = MsgProto::from_any(msg)?;
-                return msg_obj.index(registry, events);
+                return msg_obj.index_message(registry, events);
             }
             "/cosmwasm.wasm.v1.MsgExecuteContract" => {
                 let msg_obj: MsgExecuteContract = MsgProto::from_any(msg)?;
-                return msg_obj.index(registry, events);
+                return msg_obj.index_message(registry, events);
             }
             "/cosmos.bank.v1beta1.MsgSend" => {
                 let msg_obj: MsgSend = MsgProto::from_any(msg)?;
-                return msg_obj.index(registry, events);
+                return msg_obj.index_message(registry, events);
             }
             _ => {
                 eprintln!("No handler for {}", type_url);

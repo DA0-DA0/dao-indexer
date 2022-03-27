@@ -1,12 +1,12 @@
-use super::index::Index;
+use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use crate::util::debug::{dump_events, dump_execute_contract};
 use crate::util::update_balance::update_balance_from_events;
 use cw3_dao::msg::ExecuteMsg;
 use std::collections::BTreeMap;
 
-impl Index for ExecuteMsg {
-    fn index(
+impl IndexMessage for ExecuteMsg {
+    fn index_message(
         &self,
         registry: &IndexerRegistry,
         events: &Option<BTreeMap<String, Vec<String>>>,

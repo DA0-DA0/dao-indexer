@@ -1,4 +1,4 @@
-use super::index::Index;
+use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use crate::db::models::NewContract;
 use crate::util::contract_util::{get_contract_addresses, insert_contract};
@@ -9,8 +9,8 @@ use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-impl Index for MsgInstantiateContract {
-    fn index(
+impl IndexMessage for MsgInstantiateContract {
+    fn index_message(
         &self,
         registry: &IndexerRegistry,
         events: &Option<BTreeMap<String, Vec<String>>>,

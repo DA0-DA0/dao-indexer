@@ -1,5 +1,5 @@
 pub mod debug;
-pub mod index;
+pub mod index_message;
 pub mod indexer;
 pub mod indexer_registry;
 pub mod msg_cw20_execute;
