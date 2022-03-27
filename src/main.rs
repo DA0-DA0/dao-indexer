@@ -34,8 +34,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse::<bool>()?;
 
     let env = Env::default()
-        .filter_or("MY_LOG_LEVEL", "trace")
-        .write_style_or("MY_LOG_STYLE", "always");
+        .filter_or("INDEXER_LOG_LEVEL", "info")
+        .write_style_or("INDEXER_LOG_STYLE", "always");
 
     env_logger::init_from_env(env);
 

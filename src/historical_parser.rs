@@ -47,6 +47,7 @@ pub async fn block_synchronizer(
 
     let latest_block_response = tendermint_client.latest_block_results().await.unwrap();
     let latest_block_height = latest_block_response.height.value();
+    info!("synchronizing blocks from {} to {}", initial_block_height, latest_block_height);
 
     for block_height in initial_block_height..latest_block_height {
         let db_block_opt: Option<Block> = block

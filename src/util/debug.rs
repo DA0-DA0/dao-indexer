@@ -7,9 +7,11 @@ pub fn dump_execute_contract(execute_contract: &ExecuteMsg) {
 }
 
 pub fn dump_events(events: &EventMap) {
-    debug!("************* vv Events ***********");
+    let mut output = String::default();
+    output.push_str("\n************* vv Events ***********\n");
     for (key, value) in events {
-        debug!("{} / {:?}", key, value);
+        output.push_str(&format!("  {}: {:?}\n", key, value));
     }
-    debug!("************* ^^ Events ***********");
+    output.push_str("************* ^^ Events ***********\n");
+    debug!("{}", &output);
 }
