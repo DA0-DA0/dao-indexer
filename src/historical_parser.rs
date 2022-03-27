@@ -1,13 +1,14 @@
 use crate::db::models::{Block, NewBlock};
-use crate::indexer::tx::process_parsed;
+use crate::db::schema::block::dsl::*;
+use crate::indexing::indexer_registry::IndexerRegistry;
+use crate::indexing::tx::process_parsed;
 use crate::util::history_util::tx_to_hash;
 use cosmrs::tx::Tx;
-use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use tendermint_rpc::Client;
-use crate::db::schema::block::dsl::*;
+use log::info;
 use std::collections::BTreeMap;
 use tendermint::abci::responses::Event;
+use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
 
 fn map_from_events(
@@ -35,24 +36,32 @@ fn map_from_events(
 }
 
 pub async fn block_synchronizer(
-    db: &PgConnection,
+    registry: &IndexerRegistry,
     tendermint_rpc_url: &str,
     initial_block_height: u64,
     save_all_blocks: bool,
 ) {
+    let db = registry.db.as_ref().unwrap();
+
     let tendermint_client = TendermintClient::new(tendermint_rpc_url).unwrap();
 
     let latest_block_response = tendermint_client.latest_block_results().await.unwrap();
     let latest_block_height = latest_block_response.height.value();
-    
+    info!(
+        "synchronizing blocks from {} to {}",
+        initial_block_height, latest_block_height
+    );
+
     for block_height in initial_block_height..latest_block_height {
         let db_block_opt: Option<Block> = block
             .find(block_height as i64)
-            .get_result::<Block>(db).optional().unwrap();
+            .get_result::<Block>(db)
+            .optional()
+            .unwrap();
 
         if db_block_opt.is_none() {
             if block_height % 1000 == 0 {
-                println!("Added another 1000 blocks, height: {}", block_height);
+                info!("Added another 1000 blocks, height: {}", block_height);
             }
 
             let response = tendermint_client.block(block_height as u32).await.unwrap();
@@ -64,7 +73,7 @@ pub async fn block_synchronizer(
                     .execute(db)
                     .expect("Error saving new Block");
             }
-            
+
             // Look at the transactions:
             for tx in response.block.data.iter() {
                 let tx_hash = tx_to_hash(tx);
@@ -73,7 +82,7 @@ pub async fn block_synchronizer(
                 events.insert("tx.height".to_string(), vec![block_height.to_string()]);
                 let _ = map_from_events(&tx_response.tx_result.events, &mut events);
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-                let _ = process_parsed(db, &unmarshalled_tx, &Some(events));
+                let _ = process_parsed(registry, &unmarshalled_tx, &events);
             }
         }
     }

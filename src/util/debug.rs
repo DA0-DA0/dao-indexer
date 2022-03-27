@@ -1,15 +1,17 @@
+use crate::indexing::event_map::EventMap;
 use cw3_dao::msg::ExecuteMsg;
-use std::collections::BTreeMap;
+use log::debug;
+
 pub fn dump_execute_contract(execute_contract: &ExecuteMsg) {
-  println!("handle execute contract {:?}", execute_contract);
+    debug!("handle execute contract {:?}", execute_contract);
 }
 
-pub fn dump_events(events: &Option<BTreeMap<String, Vec<String>>>) {
-  if let Some(event_map) = events {
-    println!("************* vv Events ***********");
-    for (key, value) in event_map {
-      println!("{} / {:?}", key, value);
+pub fn dump_events(events: &EventMap) {
+    let mut output = String::default();
+    output.push_str("\n************* vv Events ***********\n");
+    for (key, value) in events {
+        output.push_str(&format!("  {}: {:?}\n", key, value));
     }
-    println!("************* ^^ Events ***********");
-  }
+    output.push_str("************* ^^ Events ***********\n");
+    debug!("{}", &output);
 }

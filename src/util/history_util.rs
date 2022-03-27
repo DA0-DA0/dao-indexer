@@ -1,8 +1,8 @@
-use cosmrs::tx::{Raw};
 use cosmrs::proto;
-use tendermint::abci::Transaction;
-use sha2::{Sha256, Digest};
+use cosmrs::tx::Raw;
+use sha2::{Digest, Sha256};
 use tendermint::abci::transaction::HASH_LENGTH;
+use tendermint::abci::Transaction;
 
 pub fn tx_to_hash(tx: &Transaction) -> tendermint::abci::transaction::Hash {
     let rust_raw = Raw::from_bytes(tx.as_bytes()).unwrap();

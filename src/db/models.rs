@@ -1,11 +1,11 @@
+use super::schema::block;
 use super::schema::{contracts, cw20_balances, dao, gov_token};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
-use cw3_dao::msg::{InstantiateMsg as Cw3DaoInstantiateMsg, GovTokenInstantiateMsg};
+use cw3_dao::msg::{GovTokenInstantiateMsg, InstantiateMsg as Cw3DaoInstantiateMsg};
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use super::schema::block;
 
 #[derive(Insertable, Debug)]
 #[table_name = "contracts"]
@@ -78,7 +78,7 @@ pub struct NewDao<'a> {
     pub name: &'a str,
     pub description: &'a str,
     pub image_url: Option<&'a String>,
-    pub gov_token_id: i32
+    pub gov_token_id: i32,
 }
 
 impl<'a> NewDao<'a> {
@@ -95,18 +95,16 @@ impl<'a> NewDao<'a> {
             description: &msg.description,
             image_url: msg.image_url.as_ref(),
             gov_token_id,
-
         }
     }
 }
-
 
 #[derive(Insertable)]
 #[table_name = "cw20_balances"]
 pub struct NewCw20Balance<'a> {
     pub address: &'a str,
     pub token: &'a str,
-    pub balance: i64,
+    pub balance: BigDecimal,
 }
 
 #[derive(Queryable)]
@@ -161,7 +159,7 @@ impl<'a> NewGovToken<'a> {
 }
 
 #[derive(Insertable)]
-#[table_name="block"]
+#[table_name = "block"]
 pub struct NewBlock<'a> {
     pub height: i64,
     pub hash: &'a str,
@@ -171,10 +169,7 @@ pub struct NewBlock<'a> {
 }
 
 impl<'a> NewBlock<'a> {
-    pub fn from_block_response(
-        hash: &'a str,
-        block: &'a tendermint::block::Block
-    ) -> NewBlock<'a> {
+    pub fn from_block_response(hash: &'a str, block: &'a tendermint::block::Block) -> NewBlock<'a> {
         NewBlock {
             height: block.header.height.value() as i64,
             hash,
