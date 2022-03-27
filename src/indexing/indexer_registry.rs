@@ -4,8 +4,37 @@ use diesel::pg::PgConnection;
 use log::debug;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::fmt;
 use std::ops::Deref;
 use std::slice::Iter;
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct RegistryKey(String);
+
+impl RegistryKey {
+    pub fn new(key: &str) -> Self {
+        RegistryKey(key.to_string())
+    }
+}
+
+impl fmt::Display for RegistryKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // Write strictly the first element into the supplied output
+        // stream: `f`. Returns `fmt::Result` which indicates whether the
+        // operation succeeded or failed. Note that `write!` uses syntax which
+        // is very similar to `println!`.
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::ops::Deref for RegistryKey {
+    type Target = str;
+
+    #[inline]
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
 
 pub trait Register {
     fn register(&mut self, indexer: Box<dyn Indexer>, registry_key: Option<&str>);
@@ -14,7 +43,7 @@ pub trait Register {
 pub struct IndexerRegistry {
     pub db: Option<PgConnection>,
     /// Maps string key values to ids of indexers
-    handlers: HashMap<String, Vec<usize>>,
+    handlers: HashMap<RegistryKey, Vec<usize>>,
     indexers: Vec<Box<dyn Indexer>>,
 }
 
@@ -23,13 +52,6 @@ impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
         registry.db.as_ref().unwrap()
     }
 }
-
-// impl Deref for IndexerRegistry {
-//     type Target: &PgConnection;
-//     fn deref(&self) -> Target {
-//         return self.db.as_ref().unwrap()
-//     }
-// }
 
 impl Deref for IndexerRegistry {
     type Target = PgConnection;
@@ -77,7 +99,11 @@ impl<'a> IndexerRegistry {
         Ok(())
     }
 
-    fn extract_message_keys(&self, msg_dictionary: &Value, msg_str: &str) -> Option<Vec<String>> {
+    fn extract_message_keys(
+        &self,
+        msg_dictionary: &Value,
+        msg_str: &str,
+    ) -> Option<Vec<RegistryKey>> {
         let mut keys = vec![];
         for indexer in &self.indexers {
             if let Some(message_key) = indexer.extract_message_key(msg_dictionary, msg_str) {
@@ -91,16 +117,18 @@ impl<'a> IndexerRegistry {
     }
 
     pub fn register_for_key(&mut self, registry_key: &'a str, indexer_id: usize) {
-        if let Some(existing_handlers) = self.handlers.get_mut(registry_key) {
+        let key = RegistryKey(registry_key.to_string());
+        if let Some(existing_handlers) = self.handlers.get_mut(&key) {
             existing_handlers.push(indexer_id);
         } else {
             let new_handlers = vec![indexer_id];
-            self.handlers.insert(registry_key.to_string(), new_handlers);
+            self.handlers.insert(key, new_handlers);
         }
     }
 
     pub fn indexers_for_key(&self, registry_key: &str) -> Option<&Vec<usize>> {
-        self.handlers.get(registry_key)
+        let registry_key = RegistryKey(registry_key.to_string());
+        self.handlers.get(&registry_key)
     }
 
     pub fn get_indexer(&self, id: usize) -> Option<&dyn Indexer> {
@@ -127,7 +155,7 @@ impl<'a> Register for IndexerRegistry {
 
 struct TestIndexer {
     pub name: String,
-    my_registry_keys: Vec<String>,
+    my_registry_keys: Vec<RegistryKey>,
 }
 
 impl<'a> Indexer for TestIndexer {
@@ -145,13 +173,13 @@ impl<'a> Indexer for TestIndexer {
         Ok(())
     }
 
-    fn registry_keys(&self) -> Iter<String> {
+    fn registry_keys(&self) -> Iter<RegistryKey> {
         self.my_registry_keys.iter()
     }
 
-    fn extract_message_key(&self, message: &Value, _message_string: &str) -> Option<String> {
+    fn extract_message_key(&self, message: &Value, _message_string: &str) -> Option<RegistryKey> {
         for my_key in &self.my_registry_keys {
-            if message.get(my_key).is_some() {
+            if message.get(my_key as &str).is_some() {
                 return Some(my_key.clone());
             }
         }
@@ -164,14 +192,17 @@ fn test_registry() {
     let indexer_a = TestIndexer {
         name: "indexer_a".to_string(),
         my_registry_keys: vec![
-            "key_1".to_string(),
-            "key_2".to_string(),
-            "key_5".to_string(),
+            RegistryKey("key_1".to_string()),
+            RegistryKey("key_2".to_string()),
+            RegistryKey("key_5".to_string()),
         ],
     };
     let indexer_b = TestIndexer {
         name: "indexer_b".to_string(),
-        my_registry_keys: vec!["key_3".to_string(), "key_4".to_string()],
+        my_registry_keys: vec![
+            RegistryKey("key_3".to_string()),
+            RegistryKey("key_4".to_string()),
+        ],
     };
     let mut registry = IndexerRegistry::default();
     registry.register(Box::from(indexer_a), None);

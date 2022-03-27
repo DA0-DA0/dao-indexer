@@ -2,7 +2,7 @@ use super::event_map::EventMap;
 use serde_json::Value;
 use std::slice::Iter;
 
-use super::indexer_registry::IndexerRegistry;
+use super::indexer_registry::{IndexerRegistry, RegistryKey};
 
 pub trait Indexer {
     // Indexes a message and its transaction events
@@ -23,9 +23,9 @@ pub trait Indexer {
     fn id(&self) -> String;
 
     // Keys that this indexer wants to have its "index" method called for.
-    fn registry_keys(&self) -> Iter<String>;
+    fn registry_keys(&self) -> Iter<RegistryKey>;
 
     // Extract the key from a given message. This should be one of the keys
     // returened in registry_keys or None.
-    fn extract_message_key(&self, msg: &Value, msg_string: &str) -> Option<String>;
+    fn extract_message_key(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey>;
 }

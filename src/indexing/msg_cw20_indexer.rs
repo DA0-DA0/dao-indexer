@@ -2,6 +2,7 @@ use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer::Indexer;
 use super::indexer_registry::IndexerRegistry;
+use super::indexer_registry::RegistryKey;
 pub use cw20::Cw20ExecuteMsg;
 use serde_json::Value;
 
@@ -21,13 +22,13 @@ static ROOT_KEYS: [&str; 11] = [
 ];
 
 pub struct Cw20ExecuteMsgIndexer {
-    registry_keys: Vec<String>,
+    registry_keys: Vec<RegistryKey>,
 }
 
 impl Default for Cw20ExecuteMsgIndexer {
     fn default() -> Self {
         Cw20ExecuteMsgIndexer {
-            registry_keys: vec![INDEXER_KEY.to_string()],
+            registry_keys: vec![RegistryKey::new(INDEXER_KEY)],
         }
     }
 }
@@ -46,13 +47,13 @@ impl Indexer for Cw20ExecuteMsgIndexer {
     fn id(&self) -> String {
         INDEXER_KEY.to_string()
     }
-    fn registry_keys(&self) -> std::slice::Iter<String> {
+    fn registry_keys(&self) -> std::slice::Iter<RegistryKey> {
         self.registry_keys.iter()
     }
-    fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<String> {
+    fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
         for key in ROOT_KEYS {
             if msg.get(key).is_some() {
-                return Some(self.id());
+                return Some(RegistryKey::new(&self.id()));
             }
         }
         None
