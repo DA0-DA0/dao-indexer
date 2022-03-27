@@ -104,7 +104,7 @@ impl<'a> NewDao<'a> {
 pub struct NewCw20Balance<'a> {
     pub address: &'a str,
     pub token: &'a str,
-    pub balance: i64,
+    pub balance: BigDecimal,
 }
 
 #[derive(Queryable)]
