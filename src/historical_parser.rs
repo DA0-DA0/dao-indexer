@@ -13,7 +13,7 @@ use tendermint_rpc::HttpClient as TendermintClient;
 
 fn map_from_events(
     events: &[Event],
-    event_map: &mut BTreeMap<String, Vec<String>>,
+    event_map: &mut BTreeMap<String, Vec<String>>, // TODO(gavin.doughtie): type alias for the event map
 ) -> Result<(), Box<dyn std::error::Error>> {
     for event in events {
         let event_name = &event.type_str;
@@ -78,11 +78,11 @@ pub async fn block_synchronizer(
             for tx in response.block.data.iter() {
                 let tx_hash = tx_to_hash(tx);
                 let tx_response = tendermint_client.tx(tx_hash, false).await.unwrap();
-                let mut events = BTreeMap::<String, Vec<String>>::default();
+                let mut events = BTreeMap::default();
                 events.insert("tx.height".to_string(), vec![block_height.to_string()]);
-                let _ = map_from_events(&tx_response.tx_result.events, &mut events);
+                map_from_events(&tx_response.tx_result.events, &mut events).unwrap();
                 let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-                let _ = process_parsed(registry, &unmarshalled_tx, &events);
+                process_parsed(registry, &unmarshalled_tx, &events).unwrap();
             }
         }
     }
