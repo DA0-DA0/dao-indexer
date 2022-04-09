@@ -6,6 +6,8 @@ FROM cosmwasm/rust-optimizer:0.11.5 as rust-optimizer
 
 FROM ubuntu:20.04
 
+FROM postgres:14
+
 COPY --from=wasmd /usr/bin/wasmd /usr/local/bin/wasmd
 COPY --from=wasmd /opt/* /opt/
 
@@ -22,10 +24,18 @@ RUN DEBIAN_FRONTEND=noninteractive apt install -y tzdata
 
 RUN apt-get install gcc
 
-RUN apt-get install -y postgresql-server-dev-12  postgresql-contrib
-RUN apt-get install -y libtool
+# RUN apt-get install -y gnupg
 
-# RUN apt install git
+# Add the PostgreSQL PGP key to verify their Debian packages.
+# It should be the same key as https://www.postgresql.org/media/keys/ACCC4CF8.asc
+#RUN apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
+
+# Add PostgreSQL's repository. It contains the most recent stable release
+#  of PostgreSQL.
+#RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ precise-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+
+RUN apt-get install -y postgresql-server-dev-14 postgresql-contrib
+
 
 ENV SSL_VERSION=1.0.2u
 
@@ -65,3 +75,4 @@ ADD . /app
 WORKDIR /app
 RUN cargo build
 CMD cargo run
+
