@@ -16,7 +16,7 @@ pub trait Indexer {
         msg_dictionary: &Value,
         // The decoded string value of the message
         msg_str: &str,
-    ) -> Result<(), Box<dyn std::error::Error>>;
+    ) -> anyhow::Result<()>;
 
     // ID of this indexer. Used internally in indexer implementations
     // and in debugging.

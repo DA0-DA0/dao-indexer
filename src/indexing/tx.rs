@@ -1,6 +1,7 @@
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
+use anyhow::anyhow;
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
@@ -12,7 +13,7 @@ pub fn process_parsed(
     registry: &IndexerRegistry,
     tx_parsed: &Tx,
     events: &EventMap,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     process_messages(registry, &tx_parsed.body.messages, events)
 }
 
@@ -20,20 +21,22 @@ pub fn process_messages(
     registry: &IndexerRegistry,
     messages: &[Any],
     events: &EventMap,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     for msg in messages.iter() {
         let type_url: &str = &msg.type_url;
         match type_url {
             "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
-                let msg_obj: MsgInstantiateContract = MsgProto::from_any(msg)?;
+                let msg_obj = MsgInstantiateContract::from_any(msg).map_err(|e| anyhow!(e))?;
                 return msg_obj.index_message(registry, events);
             }
             "/cosmwasm.wasm.v1.MsgExecuteContract" => {
-                let msg_obj: MsgExecuteContract = MsgProto::from_any(msg)?;
+                let msg_obj = MsgExecuteContract::from_any(msg).map_err(|e| anyhow!(e))?;
+                // let msg_obj: MsgExecuteContract = MsgProto::from_any(msg)?;
                 return msg_obj.index_message(registry, events);
             }
             "/cosmos.bank.v1beta1.MsgSend" => {
-                let msg_obj: MsgSend = MsgProto::from_any(msg)?;
+                let msg_obj = MsgSend::from_any(msg).map_err(|e| anyhow!(e))?;
+                // let msg_obj: MsgSend = MsgProto::from_any(msg)?;
                 return msg_obj.index_message(registry, events);
             }
             _ => {
@@ -48,7 +51,7 @@ pub fn process_tx_info(
     registry: &IndexerRegistry,
     tx_info: TxInfo,
     events: &EventMap,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let tx_parsed = Tx::from_bytes(&tx_info.tx)?;
+) -> anyhow::Result<()> {
+    let tx_parsed = Tx::from_bytes(&tx_info.tx).map_err(|e| anyhow!(e))?;
     process_parsed(registry, &tx_parsed, events)
 }

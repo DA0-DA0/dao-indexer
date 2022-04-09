@@ -10,7 +10,7 @@ impl IndexMessage for ExecuteMsg {
         &self,
         _registry: &IndexerRegistry,
         events: &EventMap,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         debug!("StakeCw20ExecuteMsg index");
         dump_events(events);
         Ok(())

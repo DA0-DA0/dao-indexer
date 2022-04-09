@@ -10,8 +10,8 @@ use log::{error, warn};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-pub fn update_balance(
-    db: &IndexerRegistry,
+pub fn update_balance<'a>(
+    db: impl Into<&'a PgConnection>, // TODO(gavin.doughtie): also below
     tx_height: Option<&BigDecimal>,
     token_addr: &str,
     token_sender_address: &str,
@@ -34,7 +34,7 @@ pub fn update_balance(
             height.eq(&transaction_height),
             amount.eq(amount_converted),
         ))
-        .execute(db as &PgConnection)
+        .execute(db.into())
 }
 
 pub fn update_balance_from_events(

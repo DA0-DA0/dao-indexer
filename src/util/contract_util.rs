@@ -3,6 +3,7 @@ use crate::indexing::event_map::EventMap;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use log::error;
+use anyhow::anyhow;
 
 #[derive(Debug)]
 pub struct ContractAddresses {
@@ -43,13 +44,13 @@ pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresse
 pub fn insert_contract(
     db: &PgConnection,
     contract_model: &NewContract,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     use crate::db::schema::contracts::dsl::*;
     match diesel::insert_into(contracts)
         .values(contract_model)
         .execute(db)
     {
         Ok(_rows) => Ok(()),
-        Err(e) => Err(Box::from(format!("Error: {:?}", e))),
+        Err(e) => Err(anyhow!("Error: {:?}", e)),
     }
 }
