@@ -10,7 +10,7 @@ impl IndexMessage for ExecuteMsg {
         &self,
         registry: &IndexerRegistry,
         event_map: &EventMap,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         if registry.db.is_none() {
             return Err(Box::from("No db connection available"));
         }

@@ -10,7 +10,7 @@ impl IndexMessage for MsgExecuteContract {
         &self,
         registry: &IndexerRegistry,
         events: &EventMap,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         let msg_str = String::from_utf8(self.msg.clone())?;
         let msg_val: Value = serde_json::from_str(&msg_str)?;
         registry.index_message_and_events(events, &msg_val, &msg_str)

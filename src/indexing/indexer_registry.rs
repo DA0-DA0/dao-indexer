@@ -83,7 +83,7 @@ impl<'a> IndexerRegistry {
         events: &EventMap,
         msg_dictionary: &Value,
         msg_str: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         if let Some(message_keys) = &self.extract_message_keys(msg_dictionary, msg_str) {
             debug!("Indexing: {:?}", msg_dictionary);
             for message_key in message_keys {
@@ -169,7 +169,7 @@ impl<'a> Indexer for TestIndexer {
         _events: &EventMap,
         _msg_dictionary: &Value,
         _msg_str: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 

@@ -43,7 +43,7 @@ pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresse
 pub fn insert_contract(
     db: &PgConnection,
     contract_model: &NewContract,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     use crate::db::schema::contracts::dsl::*;
     match diesel::insert_into(contracts)
         .values(contract_model)

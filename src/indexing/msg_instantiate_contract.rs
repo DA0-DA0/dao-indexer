@@ -15,7 +15,7 @@ impl IndexMessage for MsgInstantiateContract {
         &self,
         registry: &IndexerRegistry,
         events: &EventMap,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         let db;
         match &registry.db {
             Some(registry_db) => {

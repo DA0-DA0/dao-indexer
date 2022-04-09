@@ -12,7 +12,7 @@ pub fn process_parsed(
     registry: &IndexerRegistry,
     tx_parsed: &Tx,
     events: &EventMap,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     process_messages(registry, &tx_parsed.body.messages, events)
 }
 
@@ -20,7 +20,7 @@ pub fn process_messages(
     registry: &IndexerRegistry,
     messages: &[Any],
     events: &EventMap,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     for msg in messages.iter() {
         let type_url: &str = &msg.type_url;
         match type_url {
@@ -48,7 +48,7 @@ pub fn process_tx_info(
     registry: &IndexerRegistry,
     tx_info: TxInfo,
     events: &EventMap,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     let tx_parsed = Tx::from_bytes(&tx_info.tx)?;
     process_parsed(registry, &tx_parsed, events)
 }
