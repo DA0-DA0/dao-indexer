@@ -10,7 +10,7 @@ impl IndexMessage for MsgSend {
         &self,
         _registry: &IndexerRegistry,
         _events: &EventMap,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         index_message(&self.from_address, &self.to_address, &self.amount, None)
     }
 }

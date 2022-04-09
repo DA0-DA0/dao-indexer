@@ -15,7 +15,7 @@ pub fn insert_dao(
     instantiate_dao: &Cw3DaoInstantiateMsg,
     contract_addr: &ContractAddresses,
     height: Option<&BigDecimal>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     use crate::db::schema::dao::dsl::*;
 
     let dao_address = contract_addr.dao_address.as_ref().unwrap();

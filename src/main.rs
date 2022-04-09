@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate log;
-
 pub use cw20::Cw20ExecuteMsg;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::block_synchronizer;
@@ -17,9 +14,14 @@ use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use log::{debug, error, info};
 
+// TODO(gavin.doughtie): use the anyhow crate
+
+/// This indexes the Tendermint blockchain starting from a specified block, then
+/// listens for new blocks and indexes them with content-aware indexers.
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or_else(|_| "false".to_string());
     let tendermint_websocket_url: &str = &env::var("TENDERMINT_WEBSOCKET_URL")

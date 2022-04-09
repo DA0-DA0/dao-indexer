@@ -6,5 +6,5 @@ pub trait IndexMessage {
         &self,
         registry: &IndexerRegistry,
         events: &EventMap,
-    ) -> Result<(), Box<dyn std::error::Error>>; // TODO(gavindoughtie): anyhow::Result<()>
+    ) -> anyhow::Result<()>;
 }
