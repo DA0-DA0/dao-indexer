@@ -8,7 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = "*"
 base64 = "0.13.0"
-bigdecimal = "0.1.2"
+bigdecimal = { version="0.1.2" }
+num-bigint="0.2.6"
 bincode = "1.3.3"
 cosmos-sdk-proto = "0.9.0"
 cosmrs = {version = "0.4.1", features = ["cosmwasm"] }
@@ -16,7 +17,7 @@ cosmwasm-std = "1.0.0-beta5"
 cw20 = "0.11.1"
 cw20-base = {  version = "0.11", features = ["library"] }
 cw3-dao = { path = "../dao-contracts/contracts/cw3-dao" }
-diesel = { version = "1.4.4", features = ["postgres", "numeric"] }
+diesel = { version = "1.4.8", features = ["postgres", "numeric"] }
 dotenv = "0.15.0"
 env_logger = "0.9.0"
 futures = "0.3.21"
