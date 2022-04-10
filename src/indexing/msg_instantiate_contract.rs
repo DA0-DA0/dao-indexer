@@ -25,16 +25,16 @@ impl IndexMessage for MsgInstantiateContract {
         let dao_address = contract_addresses
             .dao_address
             .as_ref()
-            .ok_or(anyhow!("no dao_address"))?;
+            .ok_or_else(|| anyhow!("no dao_address"))?;
         let staking_contract_address = contract_addresses
             .staking_contract_address
             .as_ref()
-            .ok_or(anyhow!("no staking_contract_address"))?;
+            .ok_or_else(|| anyhow!("no staking_contract_address"))?;
         let mut tx_height_opt = None;
 
         let tx_height_strings = events
             .get("tx.height")
-            .ok_or(anyhow!("No tx.height supplied"))?;
+            .ok_or_else(|| anyhow!("No tx.height supplied"))?;
         if !tx_height_strings.is_empty() {
             let tx_height_str = &tx_height_strings[0];
             tx_height_opt = Some(BigDecimal::from_str(tx_height_str)?);
