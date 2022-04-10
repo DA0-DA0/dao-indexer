@@ -20,22 +20,6 @@ pub struct NewContract<'a> {
     pub height: &'a BigDecimal,
 }
 
-// #[test]
-// fn test_new_contract_insertable() {
-//     let height = BigDecimal::from(100);
-//     let contract = NewContract {
-//         address: "foo",
-//         staking_contract_address: "bar",
-//         code_id: -1,
-//         creator: "gavin",
-//         admin: "admin_foo",
-//         label: "label_foo",
-//         creation_time: "000",
-//         height: &height
-//     };
-//     dbg!(contract.)
-// }
-
 impl<'a> NewContract<'a> {
     pub fn from_msg(
         address: &'a str,
