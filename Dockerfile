@@ -31,7 +31,7 @@ ENV OPENSSL_LIB_DIR=/usr/local/ssl/lib \
     OPENSSL_STATIC=1
 
 
-RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y 
+RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
 ENV PATH=/root/.cargo/bin:$PATH
 RUN rustup update stable \
    && rustup target add wasm32-unknown-unknown
