@@ -1,7 +1,6 @@
 
 # CosmWasm Rust Indexer
-
-Currently, the logic is primitive, we open a websocket and listen to any new incoming messages. 
+A Rust application that queries the Tendermint APIs via both RPC and socket connections and updates a Postgres database with relevant information.
 
 ## Setup
 
