@@ -1,7 +1,5 @@
-use super::event_map::EventMap;
-use super::index_message::IndexMessage;
 use super::indexer::Indexer;
-use super::indexer_registry::{IndexerRegistry, RegistryKey};
+use super::indexer_registry::RegistryKey;
 use serde_json::Value;
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 

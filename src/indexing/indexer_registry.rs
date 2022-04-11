@@ -1,5 +1,5 @@
 use super::event_map::EventMap;
-use super::indexer::{Indexer, IndexerWrapper};
+use super::indexer::{Indexer, IndexerDyn};
 use diesel::pg::PgConnection;
 use log::debug;
 use serde_json::Value;
@@ -37,14 +37,14 @@ impl std::ops::Deref for RegistryKey {
 }
 
 pub trait Register {
-    fn register<T>(&mut self, indexer: Box<dyn Indexer<MessageType = T>>, registry_key: Option<&str>);
+    fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>);
 }
 
 pub struct IndexerRegistry {
     pub db: Option<PgConnection>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
-    indexers: Vec<Box<dyn IndexerWrapper>>,
+    indexers: Vec<Box<dyn IndexerDyn>>,
 }
 
 impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
@@ -90,7 +90,7 @@ impl<'a> IndexerRegistry {
                 if let Some(handlers) = self.indexers_for_key(message_key) {
                     for handler_id in handlers {
                         if let Some(indexer) = self.indexers.get(*handler_id) {
-                            indexer.index(self, events, msg_dictionary, msg_str)?;
+                            indexer.index_dyn(self, events, msg_dictionary, msg_str)?;
                         }
                     }
                 }
@@ -106,7 +106,7 @@ impl<'a> IndexerRegistry {
     ) -> Option<Vec<RegistryKey>> {
         let mut keys = vec![];
         for indexer in &self.indexers {
-            if let Some(message_key) = indexer.extract_message_key(msg_dictionary, msg_str) {
+            if let Some(message_key) = indexer.extract_message_key_dyn(msg_dictionary, msg_str) {
                 keys.push(message_key);
             }
         }
@@ -131,7 +131,7 @@ impl<'a> IndexerRegistry {
         self.handlers.get(&registry_key)
     }
 
-    pub fn get_indexer(&self, id: usize) -> Option<&dyn IndexerWrapper> {
+    pub fn get_indexer(&self, id: usize) -> Option<&dyn IndexerDyn> {
         if let Some(indexer) = self.indexers.get(id) {
             return Some(indexer.as_ref());
         }
@@ -140,12 +140,12 @@ impl<'a> IndexerRegistry {
 }
 
 impl<'a> Register for IndexerRegistry {
-    fn register<T>(&mut self, indexer: Box<dyn Indexer<MessageType = T>>, registry_key: Option<&str>) {
+    fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>) {
         let id = self.indexers.len();
         if let Some(registry_key) = registry_key {
             self.register_for_key(registry_key, id);
         }
-        for registry_key in indexer.registry_keys() {
+        for registry_key in indexer.registry_keys_dyn() {
             debug!("registering {}", &registry_key);
             self.register_for_key(registry_key, id);
         }
@@ -158,17 +158,19 @@ struct TestIndexer {
     my_registry_keys: Vec<RegistryKey>,
 }
 
-impl<'a> Indexer for TestIndexer {
+impl Indexer for TestIndexer {
+    type MessageType = ();
+
     fn id(&self) -> String {
         self.name.clone()
     }
 
-    fn index(
+    fn index<'a>(
         &self,
-        _registry: &IndexerRegistry,
-        _events: &EventMap,
-        _msg_dictionary: &Value,
-        _msg_str: &str,
+        _registry: &'a IndexerRegistry,
+        _events: &'a EventMap,
+        _msg_dictionary: &'a Value,
+        _msg_str: &'a str,
     ) -> anyhow::Result<()> {
         Ok(())
     }
