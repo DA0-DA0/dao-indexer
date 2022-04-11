@@ -75,6 +75,7 @@ pub fn insert_gov_token(
             // stake_contract_code_id,
             label,
             // unstaking_duration,
+            ..
         } => {
             warn!("TODO: Use existing cw20 addr: {}, label: {},", addr, label);
             result = Ok(0);

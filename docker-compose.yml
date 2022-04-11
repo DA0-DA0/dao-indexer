@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  db:
+    container_name: indexer_db
+    image: postgres:14
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - '5432:5432'
+  indexer:
+    build: .
+    command: bash -c "cargo install diesel_cli --no-default-features --features "postgres" && diesel setup && diesel migration run && cargo run" 
+    volumes:
+      - .:/code
+    network_mode: host 
+    environment:
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - ENABLE_INDEXER=true
+      - TENDERMINT_WEBSOCKET_URL=wss://rpc.uni.juno.deuslabs.fi/websocket
+      - TENDERMINT_RPC_URL=https://rpc.uni.juno.deuslabs.fi
+      - TENDERMINT_SAVE_ALL_BLOCKS=true
+      - TENDERMINT_INITAL_BLOCK_HEIGHT=100000
+      - RUST_BACKTRACE=1
+      - DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
+    depends_on:
+      - db
+  graphql-engine:
+    image: hasura/graphql-engine:v2.4.0
+    ports:
+    - "8080:8080"
+    depends_on:
+    - db
+    environment:
+      ## postgres database to store Hasura metadata
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: postgres://postgres:postgres@indexer_db:5432/postgres
+      ## this env var can be used to add the above postgres database to Hasura as a data source. this can be removed/updated based on your needs
+      PG_DATABASE_URL: postgres://postgres:postgres@indexer_db:5432/postgres
+      ## enable the console served by server
+      HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # set to "false" to disable console
+      ## enable debugging mode. It is recommended to disable this in production
+      HASURA_GRAPHQL_DEV_MODE: "true"
+      HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
+      ## uncomment next line to set an admin secret
+      # HASURA_GRAPHQL_ADMIN_SECRET: myadminsecretkey
