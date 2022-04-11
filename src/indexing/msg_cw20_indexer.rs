@@ -34,16 +34,17 @@ impl Default for Cw20ExecuteMsgIndexer {
 }
 
 impl Indexer for Cw20ExecuteMsgIndexer {
-    fn index(
-        &self,
-        registry: &IndexerRegistry,
-        events: &EventMap,
-        _msg_dictionary: &Value,
-        msg_str: &str,
-    ) -> anyhow::Result<()> {
-        let execute_contract = serde_json::from_str::<Cw20ExecuteMsg>(msg_str)?;
-        execute_contract.index_message(registry, events)
-    }
+    type MessageType = Cw20ExecuteMsg;
+    // fn index(
+    //     &self,
+    //     registry: &IndexerRegistry,
+    //     events: &EventMap,
+    //     _msg_dictionary: &Value,
+    //     msg_str: &str,
+    // ) -> anyhow::Result<()> {
+    //     let execute_contract = serde_json::from_str::<Cw20ExecuteMsg>(msg_str)?;
+    //     execute_contract.index_message(registry, events)
+    // }
     fn id(&self) -> String {
         INDEXER_KEY.to_string()
     }

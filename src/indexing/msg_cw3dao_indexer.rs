@@ -31,16 +31,17 @@ impl Default for Cw3DaoExecuteMsgIndexer {
 }
 
 impl Indexer for Cw3DaoExecuteMsgIndexer {
-    fn index(
-        &self,
-        registry: &IndexerRegistry,
-        events: &EventMap,
-        _msg_dictionary: &Value,
-        msg_str: &str,
-    ) -> anyhow::Result<()> {
-        let execute_contract = serde_json::from_str::<Cw3DaoExecuteMsg>(msg_str)?;
-        execute_contract.index_message(registry, events)
-    }
+    type MessageType = Cw3DaoExecuteMsg;
+    // fn index(
+    //     &self,
+    //     registry: &IndexerRegistry,
+    //     events: &EventMap,
+    //     _msg_dictionary: &Value,
+    //     msg_str: &str,
+    // ) -> anyhow::Result<()> {
+    //     let execute_contract = serde_json::from_str::<Cw3DaoExecuteMsg>(msg_str)?;
+    //     execute_contract.index_message(registry, events)
+    // }
     fn id(&self) -> String {
         INDEXER_KEY.to_string()
     }

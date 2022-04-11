@@ -21,16 +21,17 @@ impl Default for StakeCw20ExecuteMsgIndexer {
 }
 
 impl Indexer for StakeCw20ExecuteMsgIndexer {
-    fn index(
-        &self,
-        registry: &IndexerRegistry,
-        events: &EventMap,
-        _msg_dictionary: &Value,
-        msg_str: &str,
-    ) -> anyhow::Result<()> {
-        let execute_contract = serde_json::from_str::<StakeCw20ExecuteMsg>(msg_str)?;
-        execute_contract.index_message(registry, events)
-    }
+    type MessageType = StakeCw20ExecuteMsg;
+    // fn index(
+    //     &self,
+    //     registry: &IndexerRegistry,
+    //     events: &EventMap,
+    //     _msg_dictionary: &Value,
+    //     msg_str: &str,
+    // ) -> anyhow::Result<()> {
+    //     let execute_contract = serde_json::from_str::<StakeCw20ExecuteMsg>(msg_str)?;
+    //     execute_contract.index_message(registry, events)
+    // }
     fn id(&self) -> String {
         INDEXER_KEY.to_string()
     }

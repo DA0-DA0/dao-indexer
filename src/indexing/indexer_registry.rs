@@ -1,5 +1,5 @@
 use super::event_map::EventMap;
-use super::indexer::Indexer;
+use super::indexer::{Indexer, IndexerWrapper};
 use diesel::pg::PgConnection;
 use log::debug;
 use serde_json::Value;
@@ -37,14 +37,14 @@ impl std::ops::Deref for RegistryKey {
 }
 
 pub trait Register {
-    fn register(&mut self, indexer: Box<dyn Indexer>, registry_key: Option<&str>);
+    fn register<T>(&mut self, indexer: Box<dyn Indexer<MessageType = T>>, registry_key: Option<&str>);
 }
 
 pub struct IndexerRegistry {
     pub db: Option<PgConnection>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
-    indexers: Vec<Box<dyn Indexer>>,
+    indexers: Vec<Box<dyn IndexerWrapper>>,
 }
 
 impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
@@ -131,7 +131,7 @@ impl<'a> IndexerRegistry {
         self.handlers.get(&registry_key)
     }
 
-    pub fn get_indexer(&self, id: usize) -> Option<&dyn Indexer> {
+    pub fn get_indexer(&self, id: usize) -> Option<&dyn IndexerWrapper> {
         if let Some(indexer) = self.indexers.get(id) {
             return Some(indexer.as_ref());
         }
@@ -140,7 +140,7 @@ impl<'a> IndexerRegistry {
 }
 
 impl<'a> Register for IndexerRegistry {
-    fn register(&mut self, indexer: Box<dyn Indexer>, registry_key: Option<&str>) {
+    fn register<T>(&mut self, indexer: Box<dyn Indexer<MessageType = T>>, registry_key: Option<&str>) {
         let id = self.indexers.len();
         if let Some(registry_key) = registry_key {
             self.register_for_key(registry_key, id);
