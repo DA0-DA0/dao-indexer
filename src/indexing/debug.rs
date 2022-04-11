@@ -7,7 +7,7 @@ pub fn index_message(
     contract_addr: &str,
     funds: &[Coin],
     msg: Option<&Vec<u8>>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     let mut json_dump: String = "".to_string();
     if let Some(msg) = msg {
         if let Ok(Some(parsed)) = parse_message(msg) {

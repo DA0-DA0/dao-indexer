@@ -6,20 +6,32 @@ use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use log::{error, warn};
+use log::{error};
+use num_bigint::BigInt;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-pub fn update_balance(
-    db: &IndexerRegistry,
+#[test]
+fn test_big_decimal() {
+    use bigdecimal::ToPrimitive;
+    use num_bigint::ToBigInt;
+    let big_u128: u128 = u128::MAX - 10;
+    let converted = BigDecimal::from(BigInt::from(big_u128));
+    let converted_back = converted.to_bigint().unwrap().to_u128().unwrap();
+    dbg!(big_u128);
+    dbg!(converted);
+    assert_eq!(big_u128, converted_back);
+}
+
+pub fn update_balance<'a>(
+    db: impl Into<&'a PgConnection>, // TODO(gavin.doughtie): also below
     tx_height: Option<&BigDecimal>,
     token_addr: &str,
     token_sender_address: &str,
     balance_update: &Cw20Coin,
 ) -> QueryResult<usize> {
     use crate::db::schema::cw20_transactions::dsl::*;
-    warn!("Unsafe cast from u128 to i64");
-    let amount_converted: BigDecimal = BigDecimal::from(balance_update.amount.u128() as i64);
+    let amount_converted: BigDecimal = BigDecimal::from(BigInt::from(balance_update.amount.u128()));
     let transaction_height: BigDecimal;
     if let Some(tx_height_value) = tx_height {
         transaction_height = tx_height_value.clone();
@@ -34,7 +46,7 @@ pub fn update_balance(
             height.eq(&transaction_height),
             amount.eq(amount_converted),
         ))
-        .execute(db as &PgConnection)
+        .execute(db.into())
 }
 
 pub fn update_balance_from_events(

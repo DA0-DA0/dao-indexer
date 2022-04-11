@@ -37,7 +37,7 @@ impl Indexer for Cw3DaoExecuteMsgIndexer {
         events: &EventMap,
         _msg_dictionary: &Value,
         msg_str: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<()> {
         let execute_contract = serde_json::from_str::<Cw3DaoExecuteMsg>(msg_str)?;
         execute_contract.index_message(registry, events)
     }
