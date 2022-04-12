@@ -49,6 +49,7 @@ pub trait IndexerDyn {
     ) -> anyhow::Result<()>;
     fn extract_message_key_dyn(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey>;
     fn registry_keys_dyn(&self) -> Iter<RegistryKey>;
+    fn id(&self) -> String;
 }
 
 impl<I: Indexer> IndexerDyn for I {
@@ -68,5 +69,9 @@ impl<I: Indexer> IndexerDyn for I {
 
     fn registry_keys_dyn(&self) -> Iter<RegistryKey> {
         self.registry_keys()
+    }
+
+    fn id(&self) -> String {
+        self.id()
     }
 }
