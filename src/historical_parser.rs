@@ -3,6 +3,7 @@ use crate::db::schema::block::dsl::*;
 use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::tx::process_parsed;
 use crate::util::history_util::tx_to_hash;
+use anyhow::anyhow;
 use cosmrs::tx::Tx;
 use diesel::prelude::*;
 use log::info;
@@ -13,7 +14,7 @@ use tendermint_rpc::HttpClient as TendermintClient;
 
 fn map_from_events(
     events: &[Event],
-    event_map: &mut BTreeMap<String, Vec<String>>,// TODO(gavin.doughtie): type alias for the event map
+    event_map: &mut BTreeMap<String, Vec<String>>, // TODO(gavin.doughtie): type alias for the event map
 ) -> anyhow::Result<()> {
     for event in events {
         let event_name = &event.type_str;
@@ -40,7 +41,7 @@ pub async fn block_synchronizer(
     tendermint_rpc_url: &str,
     initial_block_height: u64,
     save_all_blocks: bool,
-) {
+) -> anyhow::Result<()> {
     let db = registry.db.as_ref().unwrap();
 
     let tendermint_client = TendermintClient::new(tendermint_rpc_url).unwrap();
@@ -56,34 +57,31 @@ pub async fn block_synchronizer(
         let db_block_opt: Option<Block> = block
             .find(block_height as i64)
             .get_result::<Block>(db)
-            .optional()
-            .unwrap();
+            .optional()?;
 
         if db_block_opt.is_none() {
             if block_height % 1000 == 0 {
                 info!("Added another 1000 blocks, height: {}", block_height);
             }
 
-            let response = tendermint_client.block(block_height as u32).await.unwrap();
+            let response = tendermint_client.block(block_height as u32).await?;
             let block_hash = response.block_id.hash.to_string();
             if save_all_blocks {
                 let new_block = NewBlock::from_block_response(&block_hash, &response.block);
-                diesel::insert_into(block)
-                    .values(&new_block)
-                    .execute(db)
-                    .expect("Error saving new Block");
+                diesel::insert_into(block).values(&new_block).execute(db)?;
             }
 
             // Look at the transactions:
             for tx in response.block.data.iter() {
                 let tx_hash = tx_to_hash(tx);
-                let tx_response = tendermint_client.tx(tx_hash, false).await.unwrap();
+                let tx_response = tendermint_client.tx(tx_hash, false).await?;
                 let mut events = BTreeMap::default();
                 events.insert("tx.height".to_string(), vec![block_height.to_string()]);
-                map_from_events(&tx_response.tx_result.events, &mut events).unwrap();
-                let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).unwrap();
-                process_parsed(registry, &unmarshalled_tx, &events).unwrap();
+                map_from_events(&tx_response.tx_result.events, &mut events)?;
+                let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).map_err(|e| anyhow!(e))?;
+                process_parsed(registry, &unmarshalled_tx, &events)?;
             }
         }
     }
+    Ok(())
 }
