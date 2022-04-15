@@ -6,14 +6,13 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
-use std::slice::Iter;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
 
 impl RegistryKey {
-    pub fn new(key: &str) -> Self {
-        RegistryKey(key.to_string())
+    pub fn new(key: String) -> Self {
+        RegistryKey(key)
     }
 }
 
@@ -176,12 +175,12 @@ impl<'a> Indexer for TestIndexer<'a> {
         Ok(())
     }
 
-    fn registry_keys(&self) -> Iter<RegistryKey> {
-        self.my_registry_keys.iter()
+    fn registry_keys(&self) -> Box<dyn Iterator<Item = &RegistryKey> + '_> {
+        Box::from(self.my_registry_keys.iter())
     }
 
-    fn root_keys(&self) -> Iter<&'a str> {
-        self.my_root_keys.iter()
+    fn root_keys(&'a self) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+        Box::from(self.my_root_keys.iter())
     }
 }
 
