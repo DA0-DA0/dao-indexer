@@ -31,9 +31,21 @@ pub trait Indexer {
     // Keys that this indexer wants to have its "index" method called for.
     fn registry_keys(&self) -> Iter<RegistryKey>;
 
+    // Iterator over the root keys in a given
+    // message, used by the default extract_message_key
+    // implementation
+    fn root_keys(&self) -> Iter<&str>;
+
     // Extract the key from a given message. This should be one of the keys
-    // returened in registry_keys or None.
-    fn extract_message_key(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey>;
+    // returned in registry_keys or None.
+    fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+        for key in self.root_keys() {
+            if msg.get(key).is_some() {
+                return Some(RegistryKey::new(&self.id()));
+            }
+        }
+        None
+    }
 }
 
 // IndexerDyn is needed in order to have dynamic dispatch on Indexer. Rust doesn't allow dynamic

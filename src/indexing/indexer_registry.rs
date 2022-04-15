@@ -153,24 +153,25 @@ impl<'a> Register for IndexerRegistry {
     }
 }
 
-struct TestIndexer {
+struct TestIndexer<'a> {
     pub name: String,
     my_registry_keys: Vec<RegistryKey>,
+    my_root_keys: Box<[&'a str]>
 }
 
-impl Indexer for TestIndexer {
+impl<'a> Indexer for TestIndexer<'a> {
     type MessageType = ();
 
     fn id(&self) -> String {
         self.name.clone()
     }
 
-    fn index<'a>(
+    fn index<'b>(
         &self,
-        _registry: &'a IndexerRegistry,
-        _events: &'a EventMap,
-        _msg_dictionary: &'a Value,
-        _msg_str: &'a str,
+        _registry: &'b IndexerRegistry,
+        _events: &'b EventMap,
+        _msg_dictionary: &'b Value,
+        _msg_str: &'b str,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -179,13 +180,8 @@ impl Indexer for TestIndexer {
         self.my_registry_keys.iter()
     }
 
-    fn extract_message_key(&self, message: &Value, _message_string: &str) -> Option<RegistryKey> {
-        for my_key in &self.my_registry_keys {
-            if message.get(my_key as &str).is_some() {
-                return Some(my_key.clone());
-            }
-        }
-        None
+    fn root_keys(&self) -> Iter<&'a str> {
+        self.my_root_keys.iter()
     }
 }
 
@@ -198,6 +194,7 @@ fn test_registry() {
             RegistryKey("key_2".to_string()),
             RegistryKey("key_5".to_string()),
         ],
+        my_root_keys: Box::from(["key_1", "key_2", "key_5"])
     };
     let indexer_b = TestIndexer {
         name: "indexer_b".to_string(),
@@ -205,6 +202,7 @@ fn test_registry() {
             RegistryKey("key_3".to_string()),
             RegistryKey("key_4".to_string()),
         ],
+        my_root_keys: Box::from(["key_3", "key_4"])
     };
     let mut registry = IndexerRegistry::default();
     registry.register(Box::from(indexer_a), None);
