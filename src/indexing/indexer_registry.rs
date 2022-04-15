@@ -155,7 +155,7 @@ impl<'a> Register for IndexerRegistry {
 struct TestIndexer<'a> {
     pub name: String,
     my_registry_keys: Vec<RegistryKey>,
-    my_root_keys: Box<[&'a str]>
+    my_root_keys: Box<[&'a str]>,
 }
 
 impl<'a> Indexer for TestIndexer<'a> {
@@ -179,8 +179,8 @@ impl<'a> Indexer for TestIndexer<'a> {
         Box::from(self.my_registry_keys.iter())
     }
 
-    fn root_keys(&'a self) -> Box<dyn Iterator<Item = &'a str> + 'a> {
-        Box::from(self.my_root_keys.iter())
+    fn root_keys<'b>(&'b self) -> Box<dyn Iterator<Item = &'b str> + 'b> {
+        Box::from(self.my_root_keys.iter().copied())
     }
 }
 
@@ -193,7 +193,7 @@ fn test_registry() {
             RegistryKey("key_2".to_string()),
             RegistryKey("key_5".to_string()),
         ],
-        my_root_keys: Box::from(["key_1", "key_2", "key_5"])
+        my_root_keys: Box::from(["key_1", "key_2", "key_5"]),
     };
     let indexer_b = TestIndexer {
         name: "indexer_b".to_string(),
@@ -201,7 +201,7 @@ fn test_registry() {
             RegistryKey("key_3".to_string()),
             RegistryKey("key_4".to_string()),
         ],
-        my_root_keys: Box::from(["key_3", "key_4"])
+        my_root_keys: Box::from(["key_3", "key_4"]),
     };
     let mut registry = IndexerRegistry::default();
     registry.register(Box::from(indexer_a), None);

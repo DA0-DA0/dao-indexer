@@ -2,7 +2,6 @@ use super::indexer::Indexer;
 
 use super::indexer_registry::RegistryKey;
 pub use cw20::Cw20ExecuteMsg;
-use std::slice::Iter;
 
 const INDEXER_KEY: &str = "Cw20ExecuteMsg";
 static ROOT_KEYS: [&str; 11] = [
@@ -26,7 +25,7 @@ pub struct Cw20ExecuteMsgIndexer {
 impl Default for Cw20ExecuteMsgIndexer {
     fn default() -> Self {
         Cw20ExecuteMsgIndexer {
-            registry_keys: vec![RegistryKey::new(INDEXER_KEY)],
+            registry_keys: vec![RegistryKey::new(INDEXER_KEY.to_string())],
         }
     }
 }
@@ -36,10 +35,10 @@ impl Indexer for Cw20ExecuteMsgIndexer {
     fn id(&self) -> String {
         INDEXER_KEY.to_string()
     }
-    fn registry_keys(&self) -> Iter<RegistryKey> {
-        self.registry_keys.iter()
+    fn registry_keys(&self) -> Box<dyn Iterator<Item = &RegistryKey> + '_> {
+        Box::new(self.registry_keys.iter())
     }
-    fn root_keys(&self) -> Iter<&str> {
-        ROOT_KEYS.iter()
+    fn root_keys(&self) -> Box<dyn Iterator<Item = &str> + '_> {
+        Box::new(ROOT_KEYS.iter().copied())
     }
 }
