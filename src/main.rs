@@ -90,7 +90,7 @@ async fn main() -> anyhow::Result<()> {
             tendermint_initial_block,
             tendermint_save_all_blocks,
         )
-        .await;
+        .await?;
     } else {
         info!("Indexing historical blocks disabled");
     }
