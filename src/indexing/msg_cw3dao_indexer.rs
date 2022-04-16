@@ -1,7 +1,8 @@
-use super::indexer::Indexer;
+use super::indexer::{
+    registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
+};
 use super::indexer_registry::RegistryKey;
 use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
-use std::slice::Iter;
 
 const INDEXER_KEY: &str = "Cw3DaoExecuteMsg";
 static ROOT_KEYS: [&str; 9] = [
@@ -23,7 +24,7 @@ pub struct Cw3DaoExecuteMsgIndexer {
 impl Default for Cw3DaoExecuteMsgIndexer {
     fn default() -> Self {
         Cw3DaoExecuteMsgIndexer {
-            registry_keys: vec![RegistryKey::new(INDEXER_KEY)],
+            registry_keys: vec![RegistryKey::new(INDEXER_KEY.to_string())],
         }
     }
 }
@@ -33,10 +34,10 @@ impl Indexer for Cw3DaoExecuteMsgIndexer {
     fn id(&self) -> String {
         INDEXER_KEY.to_string()
     }
-    fn registry_keys(&self) -> Iter<RegistryKey> {
-        self.registry_keys.iter()
+    fn registry_keys(&self) -> RegistryKeysType {
+        registry_keys_from_iter(self.registry_keys.iter())
     }
-    fn root_keys(&self) -> Iter<&str> {
-        ROOT_KEYS.iter()
+    fn root_keys(&self) -> RootKeysType {
+        root_keys_from_iter(ROOT_KEYS.into_iter())
     }
 }

@@ -6,14 +6,13 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
-use std::slice::Iter;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
 
 impl RegistryKey {
-    pub fn new(key: &str) -> Self {
-        RegistryKey(key.to_string())
+    pub fn new(key: String) -> Self {
+        RegistryKey(key)
     }
 }
 
@@ -156,7 +155,7 @@ impl<'a> Register for IndexerRegistry {
 struct TestIndexer<'a> {
     pub name: String,
     my_registry_keys: Vec<RegistryKey>,
-    my_root_keys: Box<[&'a str]>
+    my_root_keys: Box<[&'a str]>,
 }
 
 impl<'a> Indexer for TestIndexer<'a> {
@@ -176,12 +175,12 @@ impl<'a> Indexer for TestIndexer<'a> {
         Ok(())
     }
 
-    fn registry_keys(&self) -> Iter<RegistryKey> {
-        self.my_registry_keys.iter()
+    fn registry_keys(&self) -> Box<dyn Iterator<Item = &RegistryKey> + '_> {
+        Box::from(self.my_registry_keys.iter())
     }
 
-    fn root_keys(&self) -> Iter<&'a str> {
-        self.my_root_keys.iter()
+    fn root_keys<'b>(&'b self) -> Box<dyn Iterator<Item = &'b str> + 'b> {
+        Box::from(self.my_root_keys.iter().copied())
     }
 }
 
@@ -194,7 +193,7 @@ fn test_registry() {
             RegistryKey("key_2".to_string()),
             RegistryKey("key_5".to_string()),
         ],
-        my_root_keys: Box::from(["key_1", "key_2", "key_5"])
+        my_root_keys: Box::from(["key_1", "key_2", "key_5"]),
     };
     let indexer_b = TestIndexer {
         name: "indexer_b".to_string(),
@@ -202,7 +201,7 @@ fn test_registry() {
             RegistryKey("key_3".to_string()),
             RegistryKey("key_4".to_string()),
         ],
-        my_root_keys: Box::from(["key_3", "key_4"])
+        my_root_keys: Box::from(["key_3", "key_4"]),
     };
     let mut registry = IndexerRegistry::default();
     registry.register(Box::from(indexer_a), None);
