@@ -4,9 +4,15 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use super::indexer_registry::{IndexerRegistry, RegistryKey};
+type RootKeysType<'a> = Box<dyn Iterator<Item = &'a str> + 'a>;
+
+pub fn root_keys_from_iter<'a>(iter: impl Iterator<Item = &'a str> + 'a) -> RootKeysType<'a> {
+    Box::new(iter)
+}
 
 pub trait Indexer {
     type MessageType: DeserializeOwned + IndexMessage;
+
     // Indexes a message and its transaction events
     fn index<'a>(
         &'a self,
@@ -33,7 +39,7 @@ pub trait Indexer {
     // Iterator over the root keys in a given
     // message, used by the default extract_message_key
     // implementation
-    fn root_keys<'a>(&'a self) -> Box<dyn Iterator<Item = &'a str> + 'a>;
+    fn root_keys(&self) -> RootKeysType;//Box<dyn Iterator<Item = &'a str> + 'a>;
 
     // Extract the key from a given message. This should be one of the keys
     // returned in registry_keys or None.
@@ -60,7 +66,7 @@ pub trait IndexerDyn {
         msg_str: &'a str,
     ) -> anyhow::Result<()>;
     fn extract_message_key_dyn(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey>;
-    fn registry_keys_dyn(&self) -> Box<dyn Iterator<Item = &RegistryKey>+ '_>;
+    fn registry_keys_dyn(&self) -> Box<dyn Iterator<Item = &RegistryKey> + '_>;
     fn id(&self) -> String;
 }
 
@@ -80,7 +86,7 @@ impl<I: Indexer> IndexerDyn for I {
     }
 
     fn registry_keys_dyn(&self) -> Box<dyn Iterator<Item = &RegistryKey> + '_> {
-        Box::from(self.registry_keys())
+        self.registry_keys()
     }
 
     fn id(&self) -> String {
