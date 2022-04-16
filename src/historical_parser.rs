@@ -43,9 +43,9 @@ pub async fn block_synchronizer(
 ) -> anyhow::Result<()> {
     let db = registry.db.as_ref().unwrap();
 
-    let tendermint_client = TendermintClient::new(tendermint_rpc_url).unwrap();
+    let tendermint_client = TendermintClient::new(tendermint_rpc_url)?;
 
-    let latest_block_response = tendermint_client.latest_block_results().await.unwrap();
+    let latest_block_response = tendermint_client.latest_block_results().await?;
     let latest_block_height = latest_block_response.height.value();
     info!(
         "synchronizing blocks from {} to {}",
@@ -86,7 +86,7 @@ pub async fn block_synchronizer(
                     Err(e) => {
                         error!("Error unmarshalling: {:?}", e);
                     }
-                }
+                }   
             }
         }
     }
