@@ -1,4 +1,4 @@
-use super::{event_map::EventMap};
+use super::event_map::EventMap;
 use crate::indexing::index_message::IndexMessage;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -11,7 +11,9 @@ pub fn root_keys_from_iter<'a>(iter: impl Iterator<Item = &'a str> + 'a) -> Root
     Box::new(iter)
 }
 
-pub fn registry_keys_from_iter<'a>(iter: impl Iterator<Item = &'a RegistryKey> + 'a) -> RegistryKeysType<'a> {
+pub fn registry_keys_from_iter<'a>(
+    iter: impl Iterator<Item = &'a RegistryKey> + 'a,
+) -> RegistryKeysType<'a> {
     Box::new(iter)
 }
 
@@ -39,12 +41,12 @@ pub trait Indexer {
     fn id(&self) -> String;
 
     // Keys that this indexer wants to have its "index" method called for.
-    fn registry_keys(&self) -> RegistryKeysType;// Box<dyn Iterator<Item = &RegistryKey> + '_>;
+    fn registry_keys(&self) -> RegistryKeysType; // Box<dyn Iterator<Item = &RegistryKey> + '_>;
 
     // Iterator over the root keys in a given
     // message, used by the default extract_message_key
     // implementation
-    fn root_keys(&self) -> RootKeysType;//Box<dyn Iterator<Item = &'a str> + 'a>;
+    fn root_keys(&self) -> RootKeysType; //Box<dyn Iterator<Item = &'a str> + 'a>;
 
     // Extract the key from a given message. This should be one of the keys
     // returned in registry_keys or None.
@@ -90,7 +92,8 @@ impl<I: Indexer> IndexerDyn for I {
         self.extract_message_key(msg, msg_string)
     }
 
-    fn registry_keys_dyn(&self) -> RegistryKeysType { // Box<dyn Iterator<Item = &RegistryKey> + '_> {
+    fn registry_keys_dyn(&self) -> RegistryKeysType {
+        // Box<dyn Iterator<Item = &RegistryKey> + '_> {
         self.registry_keys()
     }
 

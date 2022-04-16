@@ -86,7 +86,7 @@ pub async fn block_synchronizer(
                     Err(e) => {
                         error!("Error unmarshalling: {:?}", e);
                     }
-                }   
+                }
             }
         }
     }

@@ -6,7 +6,7 @@ use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use log::{error};
+use log::error;
 use num_bigint::BigInt;
 use std::collections::BTreeMap;
 use std::str::FromStr;
