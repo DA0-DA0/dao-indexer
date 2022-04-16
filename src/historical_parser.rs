@@ -3,10 +3,9 @@ use crate::db::schema::block::dsl::*;
 use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::tx::process_parsed;
 use crate::util::history_util::tx_to_hash;
-use anyhow::anyhow;
 use cosmrs::tx::Tx;
 use diesel::prelude::*;
-use log::info;
+use log::{error, info};
 use std::collections::BTreeMap;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::Client;
@@ -78,8 +77,16 @@ pub async fn block_synchronizer(
                 let mut events = BTreeMap::default();
                 events.insert("tx.height".to_string(), vec![block_height.to_string()]);
                 map_from_events(&tx_response.tx_result.events, &mut events)?;
-                let unmarshalled_tx = Tx::from_bytes(tx.as_bytes()).map_err(|e| anyhow!(e))?;
-                process_parsed(registry, &unmarshalled_tx, &events)?;
+                match Tx::from_bytes(tx.as_bytes()) {
+                    Ok(unmarshalled_tx) => {
+                        if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events) {
+                            error!("Error in process_parsed: {:?}", e);
+                        }
+                    }
+                    Err(e) => {
+                        error!("Error unmarshalling: {:?}", e);
+                    }
+                }
             }
         }
     }
