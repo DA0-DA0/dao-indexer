@@ -9,7 +9,7 @@ use diesel::pg::PgConnection;
 use dotenv::dotenv;
 use env_logger::Env;
 use futures::StreamExt;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
@@ -42,6 +42,10 @@ async fn main() -> anyhow::Result<()> {
         .write_style_or("INDEXER_LOG_STYLE", "always");
 
     env_logger::init_from_env(env);
+
+    if !postgres_backend {
+        warn!("Running indexer without a postgres backend!");
+    }
 
     let mut registry;
     if postgres_backend {
