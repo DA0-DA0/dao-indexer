@@ -1,25 +1,26 @@
 use bigdecimal::BigDecimal;
 pub use cw20::Cw20ExecuteMsg;
 use dao_indexer::db::connection::establish_connection;
+use dao_indexer::db::models::NewContract;
 use dao_indexer::historical_parser::block_synchronizer;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
 use dao_indexer::indexing::msg_cw3dao_indexer::Cw3DaoExecuteMsgIndexer;
 use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::tx::process_tx_info;
-use dao_indexer::db::models::NewContract;
 use diesel::pg::PgConnection;
+use diesel::RunQueryDsl;
 use dotenv::dotenv;
 use env_logger::Env;
-use futures::StreamExt;
+use log::{debug, error, info};
+use num_bigint::BigInt;
+use parallel_stream::from_stream;
+use parallel_stream::ParallelStream;
 use std::env;
 use std::str::FromStr;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use log::{debug, error, info};
-use diesel::RunQueryDsl;
-use num_bigint::BigInt;
 
 // TODO(gavin.doughtie): use the anyhow crate
 
@@ -29,7 +30,10 @@ fn test_contract_insert(db: &PgConnection) {
     dbg!(big_u128);
     let super_big_int = BigInt::from(big_u128) * BigInt::from(big_u128);
     let myheight = BigDecimal::from(super_big_int.clone());
-    let supposed_height = BigInt::from_str("115792089237316195423570985008687907845783772593379917843263342644414228988025").unwrap();
+    let supposed_height = BigInt::from_str(
+        "115792089237316195423570985008687907845783772593379917843263342644414228988025",
+    )
+    .unwrap();
     dbg!(supposed_height == super_big_int);
     dbg!(BigInt::from(big_u128) * BigInt::from(big_u128));
     let contract = NewContract {
@@ -40,9 +44,12 @@ fn test_contract_insert(db: &PgConnection) {
         admin: "admin_foo",
         label: "label_foo",
         creation_time: "000",
-        height: &myheight
+        height: &myheight,
     };
-    diesel::insert_into(contracts).values(contract).execute(db).unwrap();
+    diesel::insert_into(contracts)
+        .values(contract)
+        .execute(db)
+        .unwrap();
 }
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
@@ -72,7 +79,6 @@ async fn main() -> anyhow::Result<()> {
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
-
     let mut registry = IndexerRegistry::new(Some(db));
 
     // Register standard indexers:
@@ -95,20 +101,33 @@ async fn main() -> anyhow::Result<()> {
         info!("Indexing historical blocks disabled");
     }
     // Subscribe to transactions (can also add blocks but just Tx for now)
-    let mut subs = client.subscribe(EventType::Tx.into()).await?;
-
-    while let Some(res) = subs.next().await {
-        let ev = res?;
+    from_stream(client.subscribe(EventType::Tx.into()).await?).for_each(|res| async move {
+        let ev = res.unwrap();
         let result = ev.data;
         let events = ev.events.unwrap();
         match result {
             EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
-            EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
+            EventData::Tx { tx_result, .. } => {
+                process_tx_info(&registry, tx_result, &events).unwrap()
+            }
             _ => {
                 error!("Unexpected result {:?}", result)
             }
         }
-    }
+    });
+
+    // while let Some(res) = subs.next().await {
+    //     let ev = res?;
+    //     let result = ev.data;
+    //     let events = ev.events.unwrap();
+    //     match result {
+    //         EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
+    //         EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
+    //         _ => {
+    //             error!("Unexpected result {:?}", result)
+    //         }
+    //     }
+    // }
 
     // Signal to the driver to terminate.
     match client.close() {
