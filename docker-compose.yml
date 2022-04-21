@@ -24,6 +24,7 @@ services:
       - POSTGRES_NAME=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PERSISTENCE=true
       - ENABLE_INDEXER=true
       - TENDERMINT_INITIAL_BLOCK_HEIGHT=1055000
       - TENDERMINT_WEBSOCKET_URL=ws://54.177.5.188:26657/websocket
