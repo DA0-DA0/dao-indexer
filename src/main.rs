@@ -74,8 +74,8 @@ async fn main() -> anyhow::Result<()> {
 
     env_logger::init_from_env(env);
 
-    let db: PgConnection = establish_connection();
-    test_contract_insert(&db);
+    let pool = establish_connection();
+    test_contract_insert(&pool.get().unwrap());
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
@@ -85,9 +85,9 @@ async fn main() -> anyhow::Result<()> {
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
     let cw3dao_indexer = Cw3DaoExecuteMsgIndexer::default();
     let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
-    registry.register(Box::from(cw20_indexer), None);
-    registry.register(Box::from(cw3dao_indexer), None);
-    registry.register(Box::from(cw20_stake_indexer), None);
+    registry.register(Box::new(cw20_indexer), None);
+    registry.register(Box::new(cw3dao_indexer), None);
+    registry.register(Box::new(cw20_stake_indexer), None);
 
     if enable_indexer_env == "true" {
         block_synchronizer(
