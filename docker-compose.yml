@@ -14,7 +14,7 @@ services:
       - '5432:5432'
   indexer:
     container_name: indexer_service
-    entrypoint: ["sh", "-c", "sleep 2073600"]
+    # entrypoint: ["sh", "-c", "sleep 2073600"]
     build: .
     command: bash -c "cargo install diesel_cli --no-default-features --features "postgres" && diesel setup && diesel migration run && cargo run" 
     volumes:
@@ -34,22 +34,3 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
     depends_on:
       - db
-  # graphql-engine:
-  #   image: hasura/graphql-engine:v2.4.0
-  #   ports:
-  #   - "8080:8080"
-  #   depends_on:
-  #     - db
-  #     - indexer
-  #   environment:
-  #     ## postgres database to store Hasura metadata
-  #     HASURA_GRAPHQL_METADATA_DATABASE_URL: postgres://postgres:postgres@indexer_db:5432/postgres
-  #     ## this env var can be used to add the above postgres database to Hasura as a data source. this can be removed/updated based on your needs
-  #     PG_DATABASE_URL: postgres://postgres:postgres@indexer_db:5432/postgres
-  #     ## enable the console served by server
-  #     HASURA_GRAPHQL_ENABLE_CONSOLE: "true" # set to "false" to disable console
-  #     ## enable debugging mode. It is recommended to disable this in production
-  #     HASURA_GRAPHQL_DEV_MODE: "true"
-  #     HASURA_GRAPHQL_ENABLED_LOG_TYPES: startup, http-log, webhook-log, websocket-log, query-log
-  #     ## uncomment next line to set an admin secret
-  #     # HASURA_GRAPHQL_ADMIN_SECRET: myadminsecretkey
