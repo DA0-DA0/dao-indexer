@@ -8,8 +8,10 @@ use dao_indexer::indexing::tx::process_tx_info;
 use diesel::pg::PgConnection;
 use dotenv::dotenv;
 use env_logger::Env;
-use futures::StreamExt;
 use log::{debug, error, info, warn};
+use num_bigint::BigInt;
+use parallel_stream::from_stream;
+use parallel_stream::ParallelStream;
 use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
@@ -54,16 +56,19 @@ async fn main() -> anyhow::Result<()> {
     } else {
         registry = IndexerRegistry::new(None);
     }
+    let pool = establish_connection();
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
+
+    let mut registry = IndexerRegistry::new(Some(db));
 
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
     let cw3dao_indexer = Cw3DaoExecuteMsgIndexer::default();
     let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
-    registry.register(Box::from(cw20_indexer), None);
-    registry.register(Box::from(cw3dao_indexer), None);
-    registry.register(Box::from(cw20_stake_indexer), None);
+    registry.register(Box::new(cw20_indexer), None);
+    registry.register(Box::new(cw3dao_indexer), None);
+    registry.register(Box::new(cw20_stake_indexer), None);
 
     if enable_indexer_env == "true" {
         block_synchronizer(
@@ -77,20 +82,33 @@ async fn main() -> anyhow::Result<()> {
         info!("Indexing historical blocks disabled");
     }
     // Subscribe to transactions (can also add blocks but just Tx for now)
-    let mut subs = client.subscribe(EventType::Tx.into()).await?;
-
-    while let Some(res) = subs.next().await {
-        let ev = res?;
+    from_stream(client.subscribe(EventType::Tx.into()).await?).for_each(|res| async move {
+        let ev = res.unwrap();
         let result = ev.data;
         let events = ev.events.unwrap();
         match result {
             EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
-            EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
+            EventData::Tx { tx_result, .. } => {
+                process_tx_info(&registry, tx_result, &events).unwrap()
+            }
             _ => {
                 error!("Unexpected result {:?}", result)
             }
         }
-    }
+    });
+
+    // while let Some(res) = subs.next().await {
+    //     let ev = res?;
+    //     let result = ev.data;
+    //     let events = ev.events.unwrap();
+    //     match result {
+    //         EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
+    //         EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
+    //         _ => {
+    //             error!("Unexpected result {:?}", result)
+    //         }
+    //     }
+    // }
 
     // Signal to the driver to terminate.
     match client.close() {
