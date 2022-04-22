@@ -6,6 +6,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
+use diesel::r2d2::Pool;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
@@ -40,7 +41,8 @@ pub trait Register {
 }
 
 pub struct IndexerRegistry {
-    pub db: Option<PgConnection>,
+    // pub db: Option<PgConnection>,
+    pool: Pool<PgConnection>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
     indexers: Vec<Box<dyn IndexerDyn>>,

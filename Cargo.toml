@@ -17,7 +17,7 @@ cosmwasm-std = "1.0.0-beta5"
 cw20 = "0.11.1"
 cw20-base = {  version = "0.11", features = ["library"] }
 cw3-dao = { path = "../dao-contracts/contracts/cw3-dao" }
-diesel = { version = "1.4.8", features = ["postgres", "numeric"] }
+diesel = { version = "1.4.8", features = ["postgres", "numeric", "r2d2"] }
 dotenv = "0.15.0"
 env_logger = "0.9.0"
 futures = "0.3.21"

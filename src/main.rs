@@ -22,35 +22,6 @@ use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 
-// TODO(gavin.doughtie): use the anyhow crate
-
-fn test_contract_insert(db: &PgConnection) {
-    use dao_indexer::db::schema::contracts::dsl::*;
-    let big_u128 = u128::MAX - 10;
-    dbg!(big_u128);
-    let super_big_int = BigInt::from(big_u128) * BigInt::from(big_u128);
-    let myheight = BigDecimal::from(super_big_int.clone());
-    let supposed_height = BigInt::from_str(
-        "115792089237316195423570985008687907845783772593379917843263342644414228988025",
-    )
-    .unwrap();
-    dbg!(supposed_height == super_big_int);
-    dbg!(BigInt::from(big_u128) * BigInt::from(big_u128));
-    let contract = NewContract {
-        address: "foo",
-        staking_contract_address: "bar",
-        code_id: -1,
-        creator: "gavin",
-        admin: "admin_foo",
-        label: "label_foo",
-        creation_time: "000",
-        height: &myheight,
-    };
-    diesel::insert_into(contracts)
-        .values(contract)
-        .execute(db)
-        .unwrap();
-}
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
 #[tokio::main]
@@ -74,8 +45,7 @@ async fn main() -> anyhow::Result<()> {
 
     env_logger::init_from_env(env);
 
-    let db: PgConnection = establish_connection();
-    test_contract_insert(&db);
+    let pool = establish_connection();
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
@@ -85,9 +55,9 @@ async fn main() -> anyhow::Result<()> {
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
     let cw3dao_indexer = Cw3DaoExecuteMsgIndexer::default();
     let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
-    registry.register(Box::from(cw20_indexer), None);
-    registry.register(Box::from(cw3dao_indexer), None);
-    registry.register(Box::from(cw20_stake_indexer), None);
+    registry.register(Box::new(cw20_indexer), None);
+    registry.register(Box::new(cw3dao_indexer), None);
+    registry.register(Box::new(cw20_stake_indexer), None);
 
     if enable_indexer_env == "true" {
         block_synchronizer(
