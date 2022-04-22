@@ -1,5 +1,6 @@
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
+use crate::db::connection::PgPool;
 use anyhow::anyhow;
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, ManageConnection, Pool, PooledConnection};
@@ -42,8 +43,7 @@ pub trait Register {
 }
 
 pub struct IndexerRegistry {
-    // pub db: Option<PgConnection>,
-    pool: Option<Pool<ConnectionManager<PgConnection>>>,
+    pool: Option<PgPool>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
     indexers: Vec<Box<dyn IndexerDyn>>,
