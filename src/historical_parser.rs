@@ -52,12 +52,13 @@ pub async fn block_synchronizer(
         initial_block_height, latest_block_height
     );
 
-    let has_db = registry.db.is_some();
+    let has_db = registry.has_db();
     for block_height in initial_block_height..latest_block_height {
         if has_db {
+            let db = registry?.db_ref()?;
             let db_block_opt = block
                 .find(block_height as i64)
-                .get_result::<Block>(registry.db.as_ref().unwrap())
+                .get_result::<Block>(db)
                 .optional()?;
             if db_block_opt.is_some() {
                 return Ok(());

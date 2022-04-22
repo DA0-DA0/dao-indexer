@@ -1,12 +1,13 @@
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
+use anyhow::anyhow;
 use diesel::pg::PgConnection;
+use diesel::r2d2::{ConnectionManager, ManageConnection, Pool, PooledConnection};
 use log::debug;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
-use diesel::r2d2::Pool;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
@@ -42,7 +43,7 @@ pub trait Register {
 
 pub struct IndexerRegistry {
     // pub db: Option<PgConnection>,
-    pool: Pool<PgConnection>,
+    pool: Option<Pool<ConnectionManager<PgConnection>>>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
     indexers: Vec<Box<dyn IndexerDyn>>,
@@ -69,12 +70,23 @@ impl Default for IndexerRegistry {
 }
 
 impl<'a> IndexerRegistry {
-    pub fn new(db: Option<PgConnection>) -> Self {
+    pub fn new(pool: Option<Pool<ConnectionManager<PgConnection>>>) -> Self {
         IndexerRegistry {
-            db,
+            pool,
             handlers: HashMap::default(),
             indexers: vec![],
         }
+    }
+
+    pub fn has_db(&self) -> bool {
+        self.pool.is_some()
+    }
+
+    pub fn db_ref(&self) -> Option<PooledConnection<PgConnection>> {
+        if let Some(pool) = &self.pool {
+            return pool.try_get();
+        }
+        None
     }
 
     // This method gets handed the decoded cosmwasm message
