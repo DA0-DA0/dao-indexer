@@ -1,4 +1,5 @@
 use dao_indexer::db::connection::establish_connection;
+use dao_indexer::db::models::NewContract;
 use dao_indexer::historical_parser::block_synchronizer;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
@@ -6,11 +7,15 @@ use dao_indexer::indexing::msg_cw3dao_indexer::Cw3DaoExecuteMsgIndexer;
 use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::tx::process_tx_info;
 use diesel::pg::PgConnection;
+use diesel::RunQueryDsl;
 use dotenv::dotenv;
 use env_logger::Env;
-use futures::StreamExt;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
+use num_bigint::BigInt;
+use par_stream::ParStreamExt;
 use std::env;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
@@ -43,31 +48,24 @@ async fn main() -> anyhow::Result<()> {
 
     env_logger::init_from_env(env);
 
-    if !postgres_backend {
-        warn!("Running indexer without a postgres backend!");
-    }
-
-    let mut registry;
-    if postgres_backend {
-        let db: PgConnection = establish_connection();
-        registry = IndexerRegistry::new(Some(db));
-    } else {
-        registry = IndexerRegistry::new(None);
-    }
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
+
+    let mut registry = IndexerRegistry::new(Some(pool));
 
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
     let cw3dao_indexer = Cw3DaoExecuteMsgIndexer::default();
     let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
-    registry.register(Box::from(cw20_indexer), None);
-    registry.register(Box::from(cw3dao_indexer), None);
-    registry.register(Box::from(cw20_stake_indexer), None);
+    registry.register(Box::new(cw20_indexer), None);
+    registry.register(Box::new(cw3dao_indexer), None);
+    registry.register(Box::new(cw20_stake_indexer), None);
+
+    let registry = Arc::new(Mutex::new(registry));
 
     if enable_indexer_env == "true" {
         block_synchronizer(
-            &registry,
+            &registry.lock().unwrap(),
             tendermint_rpc_url,
             tendermint_initial_block,
             tendermint_save_all_blocks,
@@ -77,20 +75,40 @@ async fn main() -> anyhow::Result<()> {
         info!("Indexing historical blocks disabled");
     }
     // Subscribe to transactions (can also add blocks but just Tx for now)
-    let mut subs = client.subscribe(EventType::Tx.into()).await?;
-
-    while let Some(res) = subs.next().await {
-        let ev = res?;
-        let result = ev.data;
-        let events = ev.events.unwrap();
-        match result {
-            EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
-            EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
-            _ => {
-                error!("Unexpected result {:?}", result)
+    client
+        .subscribe(EventType::Tx.into())
+        .await?
+        .par_for_each(None, move |res| {
+            let registry = registry.clone();
+            async move {
+                let ev = res.unwrap();
+                let result = ev.data;
+                let events = ev.events.unwrap();
+                match result {
+                    EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
+                    EventData::Tx { tx_result, .. } => {
+                        process_tx_info(&registry.lock().unwrap(), tx_result, &events).unwrap()
+                    }
+                    _ => {
+                        error!("Unexpected result {:?}", result)
+                    }
+                }
             }
-        }
-    }
+        })
+        .await;
+
+    // while let Some(res) = subs.next().await {
+    //     let ev = res?;
+    //     let result = ev.data;
+    //     let events = ev.events.unwrap();
+    //     match result {
+    //         EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
+    //         EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
+    //         _ => {
+    //             error!("Unexpected result {:?}", result)
+    //         }
+    //     }
+    // }
 
     // Signal to the driver to terminate.
     match client.close() {

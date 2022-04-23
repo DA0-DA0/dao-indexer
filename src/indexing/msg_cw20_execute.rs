@@ -52,7 +52,7 @@ impl IndexMessage for Cw20ExecuteMsg {
                     amount: Uint128::from_str(send_amount)?,
                 };
                 update_balance(
-                    registry,
+                    &registry.db.as_ref().unwrap().get().unwrap(),
                     Some(&tx_height),
                     gov_token_address,
                     sender_addr,

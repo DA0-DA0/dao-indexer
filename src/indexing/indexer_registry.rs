@@ -1,11 +1,11 @@
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
 use diesel::pg::PgConnection;
+use diesel::r2d2::{ConnectionManager, Pool};
 use log::debug;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
-use std::ops::Deref;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
@@ -36,29 +36,29 @@ impl std::ops::Deref for RegistryKey {
 }
 
 pub trait Register {
-    fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>);
+    fn register(&mut self, indexer: Box<dyn IndexerDyn + Send + Sync>, registry_key: Option<&str>);
 }
 
 pub struct IndexerRegistry {
-    pub db: Option<PgConnection>,
+    pub db: Option<Pool<ConnectionManager<PgConnection>>>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
-    indexers: Vec<Box<dyn IndexerDyn>>,
+    indexers: Vec<Box<dyn IndexerDyn + Send + Sync>>,
 }
 
-impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
-    fn from(registry: &'a IndexerRegistry) -> Self {
-        registry.db.as_ref().unwrap()
-    }
-}
+// impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
+//     fn from(registry: &'a IndexerRegistry) -> Self {
+//         registry.db.as_ref().unwrap().get().unwrap()
+//     }
+// }
 
-impl Deref for IndexerRegistry {
-    type Target = PgConnection;
-
-    fn deref(&self) -> &Self::Target {
-        self.db.as_ref().unwrap()
-    }
-}
+// impl Deref for IndexerRegistry {
+//     type Target = PgConnection;
+//
+//     fn deref(&self) -> &Self::Target {
+//         &self.db.unwrap().get().unwrap()
+//     }
+// }
 
 impl Default for IndexerRegistry {
     fn default() -> Self {
@@ -67,7 +67,7 @@ impl Default for IndexerRegistry {
 }
 
 impl<'a> IndexerRegistry {
-    pub fn new(db: Option<PgConnection>) -> Self {
+    pub fn new(db: Option<Pool<ConnectionManager<PgConnection>>>) -> Self {
         IndexerRegistry {
             db,
             handlers: HashMap::default(),
@@ -139,7 +139,7 @@ impl<'a> IndexerRegistry {
 }
 
 impl<'a> Register for IndexerRegistry {
-    fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>) {
+    fn register(&mut self, indexer: Box<dyn IndexerDyn + Send + Sync>, registry_key: Option<&str>) {
         let id = self.indexers.len();
         if let Some(registry_key) = registry_key {
             self.register_for_key(registry_key, id);
