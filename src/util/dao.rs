@@ -1,6 +1,5 @@
 use super::contract_util::ContractAddresses;
 use crate::db::models::{Dao, NewDao};
-use crate::indexing::indexer_registry::IndexerRegistry;
 use bigdecimal::BigDecimal;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
@@ -11,7 +10,7 @@ use super::gov_token::insert_gov_token;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 
 pub fn insert_dao(
-    db: &IndexerRegistry,
+    db: &PgConnection,
     instantiate_dao: &Cw3DaoInstantiateMsg,
     contract_addr: &ContractAddresses,
     height: Option<&BigDecimal>,

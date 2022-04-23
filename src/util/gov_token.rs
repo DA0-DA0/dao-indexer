@@ -3,8 +3,7 @@ use super::dao::get_dao;
 use super::insert_marketing_info::insert_marketing_info;
 use super::update_balance::update_balance;
 use crate::{
-    db::models::{Cw20, NewGovToken},
-    indexing::indexer_registry::IndexerRegistry,
+    db::models::{Cw20, NewGovToken}
 };
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
@@ -16,7 +15,7 @@ use diesel::prelude::*;
 use log::{error, warn};
 
 pub fn insert_gov_token(
-    db: &IndexerRegistry,
+    db: &PgConnection,
     token_msg: &GovTokenMsg,
     contract_addresses: &ContractAddresses,
     height: Option<&BigDecimal>,

@@ -1,5 +1,4 @@
 use super::gov_token::get_gov_token;
-use crate::indexing::indexer_registry::IndexerRegistry;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;
@@ -24,7 +23,7 @@ fn test_big_decimal() {
 }
 
 pub fn update_balance<'a>(
-    db: impl Into<&'a PgConnection>, // TODO(gavin.doughtie): also below
+    db: &'a PgConnection,
     tx_height: Option<&BigDecimal>,
     token_addr: &str,
     token_sender_address: &str,
@@ -46,11 +45,11 @@ pub fn update_balance<'a>(
             height.eq(&transaction_height),
             amount.eq(amount_converted),
         ))
-        .execute(db.into())
+        .execute(db)
 }
 
 pub fn update_balance_from_events(
-    db: &IndexerRegistry,
+    db: &PgConnection,
     i: usize,
     event_map: &BTreeMap<String, Vec<String>>,
 ) -> QueryResult<usize> {

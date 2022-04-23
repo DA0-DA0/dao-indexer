@@ -1,14 +1,10 @@
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
-use crate::db::connection::PgPool;
-use anyhow::anyhow;
 use diesel::pg::PgConnection;
-use diesel::r2d2::{ConnectionManager, ManageConnection, Pool, PooledConnection};
 use log::debug;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
-use std::ops::Deref;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
@@ -42,57 +38,31 @@ pub trait Register {
     fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>);
 }
 
+// #[derive(Clone)]
 pub struct IndexerRegistry {
-    pool: Option<PgPool>,
-    /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
     indexers: Vec<Box<dyn IndexerDyn>>,
 }
 
-impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
-    fn from(registry: &'a IndexerRegistry) -> Self {
-        registry.db.as_ref().unwrap()
-    }
-}
-
-impl Deref for IndexerRegistry {
-    type Target = PgConnection;
-
-    fn deref(&self) -> &Self::Target {
-        self.db.as_ref().unwrap()
-    }
-}
-
 impl Default for IndexerRegistry {
     fn default() -> Self {
-        IndexerRegistry::new(None)
+        IndexerRegistry::new()
     }
 }
 
 impl<'a> IndexerRegistry {
-    pub fn new(pool: Option<Pool<ConnectionManager<PgConnection>>>) -> Self {
+    pub fn new() -> Self {
         IndexerRegistry {
-            pool,
             handlers: HashMap::default(),
             indexers: vec![],
         }
-    }
-
-    pub fn has_db(&self) -> bool {
-        self.pool.is_some()
-    }
-
-    pub fn db_ref(&self) -> Option<PooledConnection<PgConnection>> {
-        if let Some(pool) = &self.pool {
-            return pool.try_get();
-        }
-        None
     }
 
     // This method gets handed the decoded cosmwasm message
     // and asks its registered indexers to index it if they can.
     pub fn index_message_and_events(
         &self,
+        conn: Option<&PgConnection>,
         events: &EventMap,
         msg_dictionary: &Value,
         msg_str: &str,
@@ -103,7 +73,7 @@ impl<'a> IndexerRegistry {
                 if let Some(handlers) = self.indexers_for_key(message_key) {
                     for handler_id in handlers {
                         if let Some(indexer) = self.indexers.get(*handler_id) {
-                            indexer.index_dyn(self, events, msg_dictionary, msg_str)?;
+                            indexer.index_dyn(conn, self, events, msg_dictionary, msg_str)?;
                         }
                     }
                 }
@@ -166,6 +136,7 @@ impl<'a> Register for IndexerRegistry {
     }
 }
 
+#[derive(Clone)]
 struct TestIndexer<'a> {
     pub name: String,
     my_registry_keys: Vec<RegistryKey>,
@@ -181,6 +152,7 @@ impl<'a> Indexer for TestIndexer<'a> {
 
     fn index<'b>(
         &self,
+        _conn: Option<&'b PgConnection>,
         _registry: &'b IndexerRegistry,
         _events: &'b EventMap,
         _msg_dictionary: &'b Value,

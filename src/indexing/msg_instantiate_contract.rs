@@ -10,15 +10,15 @@ use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use log::{debug, error};
 use std::str::FromStr;
+use diesel::PgConnection;
 
 impl IndexMessage for MsgInstantiateContract {
-    fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
+    fn index_message(&self, conn: Option<&PgConnection>, _registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
         let db;
-        match &registry.db {
-            Some(registry_db) => {
-                db = registry_db;
-            }
-            _ => return Ok(()),
+        if let Some(registry_db) = conn {
+            db = registry_db;
+        } else {
+            return Ok(());
         }
         debug!("Indexing MsgInstantiateContract, events: {:?}", events);
         let contract_addresses = get_contract_addresses(events);
@@ -55,7 +55,7 @@ impl IndexMessage for MsgInstantiateContract {
         let msg_str = String::from_utf8(self.msg.clone())?;
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
             Ok(instantiate_dao) => insert_dao(
-                registry,
+                db,
                 &instantiate_dao,
                 &contract_addresses,
                 Some(&tx_height),

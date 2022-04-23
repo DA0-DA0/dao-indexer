@@ -1,5 +1,6 @@
 use super::event_map::EventMap;
 use crate::indexing::index_message::IndexMessage;
+use diesel::PgConnection;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -23,6 +24,7 @@ pub trait Indexer {
     // Indexes a message and its transaction events
     fn index<'a>(
         &'a self,
+        conn: Option<&'a PgConnection>,
         // The registry of indexers
         registry: &'a IndexerRegistry,
         // All the transaction events in a map of "event.id": Vec<String> values.
@@ -33,7 +35,7 @@ pub trait Indexer {
         msg_str: &'a str,
     ) -> anyhow::Result<()> {
         let execute_contract = serde_json::from_str::<Self::MessageType>(msg_str)?;
-        execute_contract.index_message(registry, events)
+        execute_contract.index_message(conn, registry, events)
     }
 
     // ID of this indexer. Used internally in indexer implementations
@@ -67,6 +69,7 @@ pub trait Indexer {
 pub trait IndexerDyn {
     fn index_dyn<'a>(
         &'a self,
+        conn: Option<&'a PgConnection>,
         registry: &'a IndexerRegistry,
         events: &'a EventMap,
         msg_dictionary: &'a Value,
@@ -77,15 +80,16 @@ pub trait IndexerDyn {
     fn id(&self) -> String;
 }
 
-impl<I: Indexer> IndexerDyn for I {
+impl<I: Indexer + Clone> IndexerDyn for I {
     fn index_dyn<'a>(
         &'a self,
+        conn: Option<&'a PgConnection>,
         registry: &'a IndexerRegistry,
         events: &'a EventMap,
         msg_dictionary: &'a Value,
         msg_str: &'a str,
     ) -> anyhow::Result<()> {
-        self.index(registry, events, msg_dictionary, msg_str)
+        self.index(conn, registry, events, msg_dictionary, msg_str)
     }
 
     fn extract_message_key_dyn(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey> {
@@ -93,7 +97,6 @@ impl<I: Indexer> IndexerDyn for I {
     }
 
     fn registry_keys_dyn(&self) -> RegistryKeysType {
-        // Box<dyn Iterator<Item = &RegistryKey> + '_> {
         self.registry_keys()
     }
 

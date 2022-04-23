@@ -20,6 +20,7 @@ static ROOT_KEYS: [&str; 11] = [
     "upload_logo",
 ];
 
+#[derive(Clone)]
 pub struct Cw20ExecuteMsgIndexer {
     registry_keys: Vec<RegistryKey>,
 }

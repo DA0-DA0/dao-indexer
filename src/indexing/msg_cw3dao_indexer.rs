@@ -17,6 +17,7 @@ static ROOT_KEYS: [&str; 9] = [
     "receive",
 ];
 
+#[derive(Clone)]
 pub struct Cw3DaoExecuteMsgIndexer {
     registry_keys: Vec<RegistryKey>,
 }

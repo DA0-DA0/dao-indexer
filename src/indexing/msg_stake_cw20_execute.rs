@@ -4,9 +4,10 @@ use super::indexer_registry::IndexerRegistry;
 use crate::util::debug::dump_events;
 use log::debug;
 use stake_cw20::msg::ExecuteMsg;
+use diesel::PgConnection;
 
 impl IndexMessage for ExecuteMsg {
-    fn index_message(&self, _registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
+    fn index_message(&self, _conn: Option<&PgConnection>, _registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
         debug!("StakeCw20ExecuteMsg index");
         dump_events(events);
         Ok(())

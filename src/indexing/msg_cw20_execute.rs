@@ -8,12 +8,14 @@ use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
+use diesel::PgConnection;
 use std::str::FromStr;
 
 impl IndexMessage for Cw20ExecuteMsg {
     fn index_message(
         &self,
-        registry: &IndexerRegistry,
+        conn: Option<&PgConnection>,
+        _registry: &IndexerRegistry,
         event_map: &EventMap,
     ) -> anyhow::Result<()> {
         dump_events(event_map);
@@ -51,13 +53,15 @@ impl IndexMessage for Cw20ExecuteMsg {
                     address: staking_contract_addr,
                     amount: Uint128::from_str(send_amount)?,
                 };
-                update_balance(
-                    registry,
-                    Some(&tx_height),
-                    gov_token_address,
-                    sender_addr,
-                    &balance_update,
-                )?;
+                if let Some(db) = conn {
+                    update_balance(
+                        db,
+                        Some(&tx_height),
+                        gov_token_address,
+                        sender_addr,
+                        &balance_update,
+                    )?;
+                }
             }
         }
         Ok(())

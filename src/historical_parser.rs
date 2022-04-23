@@ -37,12 +37,11 @@ fn map_from_events(
 
 pub async fn block_synchronizer(
     registry: &IndexerRegistry,
+    conn: Option<&PgConnection>,
     tendermint_rpc_url: &str,
     initial_block_height: u64,
     save_all_blocks: bool,
 ) -> anyhow::Result<()> {
-    // let db = registry.db.as_ref().unwrap();
-
     let tendermint_client = TendermintClient::new(tendermint_rpc_url)?;
 
     let latest_block_response = tendermint_client.latest_block_results().await?;
@@ -52,10 +51,8 @@ pub async fn block_synchronizer(
         initial_block_height, latest_block_height
     );
 
-    let has_db = registry.has_db();
     for block_height in initial_block_height..latest_block_height {
-        if has_db {
-            let db = registry?.db_ref()?;
+        if let Some(db) = conn {
             let db_block_opt = block
                 .find(block_height as i64)
                 .get_result::<Block>(db)
@@ -73,8 +70,7 @@ pub async fn block_synchronizer(
         let block_hash = response.block_id.hash.to_string();
         if save_all_blocks {
             let new_block = NewBlock::from_block_response(&block_hash, &response.block);
-            if has_db {
-                let db = registry.db.as_ref().unwrap();
+            if let Some(db) = conn {
                 diesel::insert_into(block).values(&new_block).execute(db)?;
             }
         }
@@ -88,7 +84,7 @@ pub async fn block_synchronizer(
             map_from_events(&tx_response.tx_result.events, &mut events)?;
             match Tx::from_bytes(tx.as_bytes()) {
                 Ok(unmarshalled_tx) => {
-                    if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events) {
+                    if let Err(e) = process_parsed(conn, registry, &unmarshalled_tx, &events) {
                         error!("Error in process_parsed: {:?}", e);
                     }
                 }

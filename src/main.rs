@@ -5,17 +5,16 @@ use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
 use dao_indexer::indexing::msg_cw3dao_indexer::Cw3DaoExecuteMsgIndexer;
 use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::tx::process_tx_info;
-use diesel::pg::PgConnection;
 use dotenv::dotenv;
 use env_logger::Env;
 use log::{debug, error, info, warn};
-use num_bigint::BigInt;
 use parallel_stream::from_stream;
 use parallel_stream::ParallelStream;
 use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use std::ops::Deref;
 
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
@@ -49,18 +48,11 @@ async fn main() -> anyhow::Result<()> {
         warn!("Running indexer without a postgres backend!");
     }
 
-    let mut registry;
-    if postgres_backend {
-        let db: PgConnection = establish_connection();
-        registry = IndexerRegistry::new(Some(db));
-    } else {
-        registry = IndexerRegistry::new(None);
-    }
+    let registry = IndexerRegistry::new();
+
     let pool = establish_connection();
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
-
-    let mut registry = IndexerRegistry::new(Some(db));
 
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
@@ -71,8 +63,13 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::new(cw20_stake_indexer), None);
 
     if enable_indexer_env == "true" {
+        let mut db_conn = None;
+        if let Some(conn) = pool.try_get() {
+            db_conn = Some(conn.deref());
+        }
         block_synchronizer(
             &registry,
+            db_conn,
             tendermint_rpc_url,
             tendermint_initial_block,
             tendermint_save_all_blocks,
@@ -89,26 +86,17 @@ async fn main() -> anyhow::Result<()> {
         match result {
             EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
             EventData::Tx { tx_result, .. } => {
-                process_tx_info(&registry, tx_result, &events).unwrap()
+                let mut db_conn = None;
+                if let Some(conn) = pool.try_get() {
+                    db_conn = Some(conn.deref());
+                }              
+                process_tx_info(db_conn, &registry, tx_result, &events).unwrap()
             }
             _ => {
                 error!("Unexpected result {:?}", result)
             }
         }
     });
-
-    // while let Some(res) = subs.next().await {
-    //     let ev = res?;
-    //     let result = ev.data;
-    //     let events = ev.events.unwrap();
-    //     match result {
-    //         EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
-    //         EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events)?,
-    //         _ => {
-    //             error!("Unexpected result {:?}", result)
-    //         }
-    //     }
-    // }
 
     // Signal to the driver to terminate.
     match client.close() {

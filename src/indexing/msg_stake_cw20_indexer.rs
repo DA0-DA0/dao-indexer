@@ -7,6 +7,7 @@ use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 const INDEXER_KEY: &str = "StakeCw20ExecuteMsg";
 static ROOT_KEYS: [&str; 4] = ["receive", "unstake", "claim", "update_config"];
 
+#[derive(Clone)]
 pub struct StakeCw20ExecuteMsgIndexer {
     registry_keys: Vec<RegistryKey>,
 }

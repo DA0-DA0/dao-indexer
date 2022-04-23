@@ -1,5 +1,4 @@
 use diesel::pg::PgConnection;
-use diesel::prelude::*;
 use dotenv::dotenv;
 use std::env;
 use diesel::r2d2;
