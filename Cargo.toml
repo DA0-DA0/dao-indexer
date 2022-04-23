@@ -31,5 +31,4 @@ stake-cw20 = { path = "../dao-contracts/contracts/stake-cw20" }
 tendermint = "0.23.3"
 tendermint-rpc = {version = "0.23.3", features = ["websocket-client", "http-client"] }
 tokio = { version = "1.16.1", features = ["rt-multi-thread", "macros"] }
-parallel-stream = "*"
-par-stream = "*"
+par-stream = {version = "0.10.2", features = ["runtime-tokio"]}

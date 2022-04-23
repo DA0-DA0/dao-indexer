@@ -46,7 +46,7 @@ pub fn update_balance<'a>(
             height.eq(&transaction_height),
             amount.eq(amount_converted),
         ))
-        .execute(db.into())
+        .execute(db)
 }
 
 pub fn update_balance_from_events(
