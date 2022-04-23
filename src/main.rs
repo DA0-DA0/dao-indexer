@@ -14,11 +14,10 @@ use dotenv::dotenv;
 use env_logger::Env;
 use log::{debug, error, info};
 use num_bigint::BigInt;
-use parallel_stream::from_stream;
-use parallel_stream::ParallelStream;
+use par_stream::ParStreamExt;
 use std::env;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
@@ -90,11 +89,11 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::new(cw3dao_indexer), None);
     registry.register(Box::new(cw20_stake_indexer), None);
 
-    let registry = Arc::new(registry);
+    let registry = Arc::new(Mutex::new(registry));
 
     if enable_indexer_env == "true" {
         block_synchronizer(
-            &registry,
+            &registry.lock().unwrap(),
             tendermint_rpc_url,
             tendermint_initial_block,
             tendermint_save_all_blocks,
@@ -104,20 +103,27 @@ async fn main() -> anyhow::Result<()> {
         info!("Indexing historical blocks disabled");
     }
     // Subscribe to transactions (can also add blocks but just Tx for now)
-    from_stream(client.subscribe(EventType::Tx.into()).await?).for_each(|res| async move {
-        let ev = res.unwrap();
-        let result = ev.data;
-        let events = ev.events.unwrap();
-        match result {
-            EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
-            EventData::Tx { tx_result, .. } => {
-                process_tx_info(&registry, tx_result, &events).unwrap()
+    client
+        .subscribe(EventType::Tx.into())
+        .await?
+        .par_for_each(None, move |res| {
+            let registry = registry.clone();
+            async move {
+                let ev = res.unwrap();
+                let result = ev.data;
+                let events = ev.events.unwrap();
+                match result {
+                    EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
+                    EventData::Tx { tx_result, .. } => {
+                        process_tx_info(&registry.lock().unwrap(), tx_result, &events).unwrap()
+                    }
+                    _ => {
+                        error!("Unexpected result {:?}", result)
+                    }
+                }
             }
-            _ => {
-                error!("Unexpected result {:?}", result)
-            }
-        }
-    });
+        })
+        .await;
 
     // while let Some(res) = subs.next().await {
     //     let ev = res?;

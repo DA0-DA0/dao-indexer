@@ -3,11 +3,9 @@ use super::indexer::{Indexer, IndexerDyn};
 use diesel::pg::PgConnection;
 use diesel::r2d2::{ConnectionManager, Pool};
 use log::debug;
-use log::kv::Source;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
-use std::ops::Deref;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
@@ -38,14 +36,14 @@ impl std::ops::Deref for RegistryKey {
 }
 
 pub trait Register {
-    fn register(&mut self, indexer: Box<dyn IndexerDyn + Send>, registry_key: Option<&str>);
+    fn register(&mut self, indexer: Box<dyn IndexerDyn + Send + Sync>, registry_key: Option<&str>);
 }
 
 pub struct IndexerRegistry {
     pub db: Option<Pool<ConnectionManager<PgConnection>>>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
-    indexers: Vec<Box<dyn IndexerDyn + Send>>,
+    indexers: Vec<Box<dyn IndexerDyn + Send + Sync>>,
 }
 
 // impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
@@ -141,7 +139,7 @@ impl<'a> IndexerRegistry {
 }
 
 impl<'a> Register for IndexerRegistry {
-    fn register(&mut self, indexer: Box<dyn IndexerDyn + Send>, registry_key: Option<&str>) {
+    fn register(&mut self, indexer: Box<dyn IndexerDyn + Send + Sync>, registry_key: Option<&str>) {
         let id = self.indexers.len();
         if let Some(registry_key) = registry_key {
             self.register_for_key(registry_key, id);

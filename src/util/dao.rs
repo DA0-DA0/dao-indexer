@@ -9,7 +9,6 @@ use diesel::prelude::*;
 use super::gov_token::insert_gov_token;
 
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-use log::kv::Source;
 
 pub fn insert_dao(
     registry: &IndexerRegistry,
