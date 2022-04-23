@@ -55,7 +55,7 @@ pub async fn block_synchronizer(
     for block_height in initial_block_height..latest_block_height {
         let db_block_opt: Option<Block> = block
             .find(block_height as i64)
-            .get_result::<Block>(db)
+            .get_result::<Block>(&db.get().unwrap())
             .optional()?;
 
         if db_block_opt.is_none() {
@@ -67,7 +67,9 @@ pub async fn block_synchronizer(
             let block_hash = response.block_id.hash.to_string();
             if save_all_blocks {
                 let new_block = NewBlock::from_block_response(&block_hash, &response.block);
-                diesel::insert_into(block).values(&new_block).execute(db)?;
+                diesel::insert_into(block)
+                    .values(&new_block)
+                    .execute(&db.get().unwrap())?;
             }
 
             // Look at the transactions:

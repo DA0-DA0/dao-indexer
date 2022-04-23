@@ -18,6 +18,7 @@ use parallel_stream::from_stream;
 use parallel_stream::ParallelStream;
 use std::env;
 use std::str::FromStr;
+use std::sync::Arc;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
@@ -79,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
-    let mut registry = IndexerRegistry::new(Some(db));
+    let mut registry = IndexerRegistry::new(Some(pool));
 
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
@@ -88,6 +89,8 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::new(cw20_indexer), None);
     registry.register(Box::new(cw3dao_indexer), None);
     registry.register(Box::new(cw20_stake_indexer), None);
+
+    let registry = Arc::new(registry);
 
     if enable_indexer_env == "true" {
         block_synchronizer(

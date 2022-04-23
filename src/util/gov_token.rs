@@ -16,7 +16,7 @@ use diesel::prelude::*;
 use log::{error, warn};
 
 pub fn insert_gov_token(
-    db: &IndexerRegistry,
+    registry: &IndexerRegistry,
     token_msg: &GovTokenMsg,
     contract_addresses: &ContractAddresses,
     height: Option<&BigDecimal>,
@@ -31,14 +31,17 @@ pub fn insert_gov_token(
         } => {
             let mut marketing_record_id: Option<i32> = None;
             if let Some(marketing) = &msg.marketing {
-                marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
+                marketing_record_id = Some(
+                    insert_marketing_info(&registry.db.as_ref().unwrap().get().unwrap(), marketing)
+                        .unwrap(),
+                );
             }
             let cw20_address = contract_addresses.cw20_address.as_ref().unwrap();
             let token_model = NewGovToken::from_msg(cw20_address, marketing_record_id, msg);
             result = diesel::insert_into(gov_token)
                 .values(token_model)
                 .returning(id)
-                .get_result(db as &PgConnection);
+                .get_result(&registry.db.as_ref().unwrap().get().unwrap());
             let dao_address = contract_addresses.dao_address.as_ref().unwrap();
             let amount;
             if let Some(balance) = initial_dao_balance {
@@ -51,7 +54,7 @@ pub fn insert_gov_token(
                 amount,
             };
             let initial_update_result = update_balance(
-                db,
+                &registry.db.as_ref().unwrap().get().unwrap(),
                 height,
                 cw20_address,
                 dao_address, // As the minter the DAO is also the sender for its own initial balance (???)
@@ -64,7 +67,13 @@ pub fn insert_gov_token(
             if let Ok(_token_id) = result {
                 // This handles the initial token distributions but not the treasury.
                 for balance in &msg.initial_balances {
-                    if let Err(e) = update_balance(db, height, cw20_address, dao_address, balance) {
+                    if let Err(e) = update_balance(
+                        &registry.db.as_ref().unwrap().get().unwrap(),
+                        height,
+                        cw20_address,
+                        dao_address,
+                        balance,
+                    ) {
                         error!("Error updating balance {:?}", e);
                     }
                 }

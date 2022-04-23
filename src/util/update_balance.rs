@@ -6,7 +6,7 @@ use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use log::{error};
+use log::error;
 use num_bigint::BigInt;
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -24,7 +24,7 @@ fn test_big_decimal() {
 }
 
 pub fn update_balance<'a>(
-    db: impl Into<&'a PgConnection>, // TODO(gavin.doughtie): also below
+    db: &'a PgConnection, // TODO(gavin.doughtie): also below
     tx_height: Option<&BigDecimal>,
     token_addr: &str,
     token_sender_address: &str,
@@ -50,7 +50,7 @@ pub fn update_balance<'a>(
 }
 
 pub fn update_balance_from_events(
-    db: &IndexerRegistry,
+    registry: &IndexerRegistry,
     i: usize,
     event_map: &BTreeMap<String, Vec<String>>,
 ) -> QueryResult<usize> {
@@ -69,13 +69,14 @@ pub fn update_balance_from_events(
         }
     }
     if !from.is_empty() {
-        let gov_token = get_gov_token(db, &from).unwrap();
+        let gov_token =
+            get_gov_token(&registry.db.as_ref().unwrap().get().unwrap(), &from).unwrap();
         let balance_update = Cw20Coin {
             address: receiver.clone(),
             amount: Uint128::from_str(amount).unwrap(),
         };
         update_balance(
-            db,
+            &registry.db.as_ref().unwrap().get().unwrap(),
             Some(&tx_height),
             &gov_token.address,
             sender,

@@ -9,9 +9,10 @@ use diesel::prelude::*;
 use super::gov_token::insert_gov_token;
 
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+use log::kv::Source;
 
 pub fn insert_dao(
-    db: &IndexerRegistry,
+    registry: &IndexerRegistry,
     instantiate_dao: &Cw3DaoInstantiateMsg,
     contract_addr: &ContractAddresses,
     height: Option<&BigDecimal>,
@@ -21,7 +22,7 @@ pub fn insert_dao(
     let dao_address = contract_addr.dao_address.as_ref().unwrap();
 
     let inserted_token_id: i32 =
-        insert_gov_token(db, &instantiate_dao.gov_token, contract_addr, height).unwrap();
+        insert_gov_token(registry, &instantiate_dao.gov_token, contract_addr, height).unwrap();
 
     let dao_model = NewDao::from_msg(
         dao_address,
@@ -32,7 +33,7 @@ pub fn insert_dao(
 
     diesel::insert_into(dao)
         .values(dao_model)
-        .execute(db as &PgConnection)
+        .execute(&registry.db.as_ref().unwrap().get().unwrap())
         .expect("Error saving dao");
 
     Ok(())

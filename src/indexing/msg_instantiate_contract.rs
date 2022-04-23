@@ -49,7 +49,7 @@ impl IndexMessage for MsgInstantiateContract {
 
         let contract_model =
             NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
-        if let Err(e) = insert_contract(db, &contract_model) {
+        if let Err(e) = insert_contract(&db.get().unwrap(), &contract_model) {
             error!("Error inserting contract {:?}\n{:?}", &contract_model, e);
         }
         let msg_str = String::from_utf8(self.msg.clone())?;
