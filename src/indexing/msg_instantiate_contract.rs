@@ -8,12 +8,17 @@ use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+use diesel::PgConnection;
 use log::{debug, error};
 use std::str::FromStr;
-use diesel::PgConnection;
 
 impl IndexMessage for MsgInstantiateContract {
-    fn index_message(&self, conn: Option<&PgConnection>, _registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
+    fn index_message(
+        &self,
+        conn: Option<&PgConnection>,
+        _registry: &IndexerRegistry,
+        events: &EventMap,
+    ) -> anyhow::Result<()> {
         let db;
         if let Some(registry_db) = conn {
             db = registry_db;
@@ -54,12 +59,9 @@ impl IndexMessage for MsgInstantiateContract {
         }
         let msg_str = String::from_utf8(self.msg.clone())?;
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
-            Ok(instantiate_dao) => insert_dao(
-                db,
-                &instantiate_dao,
-                &contract_addresses,
-                Some(&tx_height),
-            ),
+            Ok(instantiate_dao) => {
+                insert_dao(db, &instantiate_dao, &contract_addresses, Some(&tx_height))
+            }
             Err(e) => {
                 error!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
                 Ok(())

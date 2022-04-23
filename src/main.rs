@@ -8,13 +8,14 @@ use dao_indexer::indexing::tx::process_tx_info;
 use dotenv::dotenv;
 use env_logger::Env;
 use log::{debug, error, info, warn};
-use parallel_stream::from_stream;
-use parallel_stream::ParallelStream;
+// use parallel_stream::from_stream;
+// use parallel_stream::ParallelStream;
+use futures::StreamExt;
 use std::env;
+use std::ops::Deref;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use std::ops::Deref;
 
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
@@ -48,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
         warn!("Running indexer without a postgres backend!");
     }
 
-    let registry = IndexerRegistry::new();
+    let mut registry = IndexerRegistry::new();
 
     let pool = establish_connection();
     let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
@@ -63,40 +64,40 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::new(cw20_stake_indexer), None);
 
     if enable_indexer_env == "true" {
-        let mut db_conn = None;
         if let Some(conn) = pool.try_get() {
-            db_conn = Some(conn.deref());
+            let db_conn = Some(conn.deref());
+            block_synchronizer(
+                &registry,
+                db_conn,
+                tendermint_rpc_url,
+                tendermint_initial_block,
+                tendermint_save_all_blocks,
+            )
+            .await?;
         }
-        block_synchronizer(
-            &registry,
-            db_conn,
-            tendermint_rpc_url,
-            tendermint_initial_block,
-            tendermint_save_all_blocks,
-        )
-        .await?;
     } else {
         info!("Indexing historical blocks disabled");
     }
     // Subscribe to transactions (can also add blocks but just Tx for now)
-    from_stream(client.subscribe(EventType::Tx.into()).await?).for_each(|res| async move {
-        let ev = res.unwrap();
+    let mut subs = client.subscribe(EventType::Tx.into()).await?;
+
+    while let Some(res) = subs.next().await {
+        let ev = res?;
         let result = ev.data;
         let events = ev.events.unwrap();
         match result {
             EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
             EventData::Tx { tx_result, .. } => {
-                let mut db_conn = None;
                 if let Some(conn) = pool.try_get() {
-                    db_conn = Some(conn.deref());
-                }              
-                process_tx_info(db_conn, &registry, tx_result, &events).unwrap()
+                    let db_conn = Some(conn.deref());
+                    process_tx_info(db_conn, &registry, tx_result, &events).unwrap()
+                }
             }
             _ => {
                 error!("Unexpected result {:?}", result)
             }
         }
-    });
+    }
 
     // Signal to the driver to terminate.
     match client.close() {

@@ -2,9 +2,7 @@ use super::contract_util::ContractAddresses;
 use super::dao::get_dao;
 use super::insert_marketing_info::insert_marketing_info;
 use super::update_balance::update_balance;
-use crate::{
-    db::models::{Cw20, NewGovToken}
-};
+use crate::db::models::{Cw20, NewGovToken};
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;

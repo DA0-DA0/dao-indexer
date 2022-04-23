@@ -7,7 +7,12 @@ pub use cw20::Cw20ExecuteMsg;
 use diesel::PgConnection;
 
 impl IndexMessage for MsgSend {
-    fn index_message(&self, _conn: Option<&PgConnection>, _registry: &IndexerRegistry, _events: &EventMap) -> anyhow::Result<()> {
+    fn index_message(
+        &self,
+        _conn: Option<&PgConnection>,
+        _registry: &IndexerRegistry,
+        _events: &EventMap,
+    ) -> anyhow::Result<()> {
         index_message(&self.from_address, &self.to_address, &self.amount, None)
     }
 }

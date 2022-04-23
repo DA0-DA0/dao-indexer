@@ -21,24 +21,24 @@ impl IndexMessage for ExecuteMsg {
             // TODO(gavin.doughtie): Handle propose, vote
             if !wasm_actions.is_empty() && wasm_actions[0] == "execute" {
                 if let Some(db) = conn {
-                for (i, action_type) in (&wasm_actions[1..]).iter().enumerate() {
-                    match action_type.as_str() {
-                        "transfer" => {
-                            if let Err(e) = update_balance_from_events(db, i, event_map) {
-                                return Err(anyhow!(e));
+                    for (i, action_type) in (&wasm_actions[1..]).iter().enumerate() {
+                        match action_type.as_str() {
+                            "transfer" => {
+                                if let Err(e) = update_balance_from_events(db, i, event_map) {
+                                    return Err(anyhow!(e));
+                                }
                             }
-                        }
-                        "mint" => {
-                            if let Err(e) = update_balance_from_events(db, i, event_map) {
-                                return Err(anyhow!(e));
+                            "mint" => {
+                                if let Err(e) = update_balance_from_events(db, i, event_map) {
+                                    return Err(anyhow!(e));
+                                }
                             }
-                        }
-                        _ => {
-                            return Err(anyhow!("Unhandled exec type {}", action_type));
+                            _ => {
+                                return Err(anyhow!("Unhandled exec type {}", action_type));
+                            }
                         }
                     }
                 }
-            }
             }
         }
         Ok(())
