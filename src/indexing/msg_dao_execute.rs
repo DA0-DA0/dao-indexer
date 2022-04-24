@@ -3,8 +3,8 @@ use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use crate::util::debug::{dump_events, dump_execute_contract};
 use crate::util::update_balance::update_balance_from_events;
-use cw3_dao::msg::ExecuteMsg;
 use anyhow::anyhow;
+use cw3_dao::msg::ExecuteMsg;
 
 impl IndexMessage for ExecuteMsg {
     fn index_message(

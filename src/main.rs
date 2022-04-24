@@ -11,7 +11,7 @@ use env_logger::Env;
 use log::{debug, error, info};
 use par_stream::ParStreamExt;
 use std::env;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
@@ -53,11 +53,11 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::new(cw3dao_indexer), None);
     registry.register(Box::new(cw20_stake_indexer), None);
 
-    let registry = Arc::new(Mutex::new(registry));
+    let registry = Arc::new(RwLock::new(registry));
 
     if enable_indexer_env == "true" {
         block_synchronizer(
-            &registry.lock().unwrap(),
+            &registry.read().unwrap(),
             tendermint_rpc_url,
             tendermint_initial_block,
             tendermint_save_all_blocks,
@@ -80,7 +80,7 @@ async fn main() -> anyhow::Result<()> {
                 match result {
                     EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
                     EventData::Tx { tx_result, .. } => {
-                        process_tx_info(&registry.lock().unwrap(), tx_result, &events).unwrap()
+                        process_tx_info(&registry.read().unwrap(), tx_result, &events).unwrap()
                     }
                     _ => {
                         error!("Unexpected result {:?}", result)
