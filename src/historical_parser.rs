@@ -112,7 +112,7 @@ pub async fn block_synchronizer(
             // println!("search_results: {:?}, txs:\n{:?}\ncurrent_height: {}", search_results.total_count, search_results.txs.iter().map(|tx| &tx.tx_result.log), current_height);
         }
         if current_height - last_log_height > 1000 {
-            println!("current_height: {}", current_height);
+            println!("current_height: {}-{}", last_log_height, current_height);
             last_log_height = current_height;
         }
         current_height += block_page_size as u64;
