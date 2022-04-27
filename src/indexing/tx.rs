@@ -14,7 +14,7 @@ pub fn process_parsed(
     registry: &IndexerRegistry,
     tx_parsed: &Tx,
     events: &EventMap,
-    msg_set: &mut HashSet<String>
+    msg_set: &mut HashSet<String>,
 ) -> anyhow::Result<()> {
     process_messages(registry, &tx_parsed.body.messages, events, msg_set)
 }
@@ -23,7 +23,7 @@ pub fn process_messages(
     registry: &IndexerRegistry,
     messages: &[Any],
     events: &EventMap,
-    msg_set: &mut HashSet<String>
+    msg_set: &mut HashSet<String>,
 ) -> anyhow::Result<()> {
     for msg in messages.iter() {
         let type_url: &str = &msg.type_url;
@@ -42,55 +42,6 @@ pub fn process_messages(
                 // let msg_obj: MsgSend = MsgProto::from_any(msg)?;
                 return msg_obj.index_message(registry, events);
             }
-            // "/cosmos.staking.v1beta1.MsgDelegate" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.staking.v1beta1.MsgBeginRedelegate" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.staking.v1beta1.MsgWithdrawDelegatorReward" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.staking.v1beta1.MsgCreateValidator" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.staking.v1beta1.MsgWithdrawValidatorCommission" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.staking.v1beta1.MsgEditValidator" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.staking.v1beta1.MsgUndelegate" => {
-            //     return Ok(());
-            // }
-            // "/ibc.core.client.v1.MsgCreateClient" => return Ok(()),
-            // "/ibc.core.connection.v1.MsgConnectionOpenInit" => {
-            //     return Ok(());
-            // }
-            // "/ibc.core.client.v1.MsgUpdateClient" => {
-            //     return Ok(());
-            // }
-            // "/ibc.core.connection.v1.MsgConnectionOpenAck" => {
-            //     return Ok(());
-            // }
-            // "/cosmos.slashing.v1beta1.MsgUnjail" => {
-            //     return Ok(());
-            // }
-            // "/ibc.core.channel.v1.MsgChannelOpenInit" => {
-            //     return Ok(());
-            // }
-            // "/ibc.core.channel.v1.MsgChannelOpenTry" => {
-            //     return Ok(());
-            // }
-            // "/ibc.core.channel.v1.MsgRecvPacket" => {
-            //     return Ok(());
-            // }
             _ => {
                 if !msg_set.contains(type_url) {
                     msg_set.insert(type_url.to_string());
@@ -106,7 +57,7 @@ pub fn process_tx_info(
     registry: &IndexerRegistry,
     tx_info: TxInfo,
     events: &EventMap,
-    msg_set: &mut HashSet<String>
+    msg_set: &mut HashSet<String>,
 ) -> anyhow::Result<()> {
     let tx_parsed = Tx::from_bytes(&tx_info.tx).map_err(|e| anyhow!(e))?;
     process_parsed(registry, &tx_parsed, events, msg_set)

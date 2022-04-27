@@ -18,6 +18,7 @@ pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresse
     let mut staking_contract_address = None;
 
     if let Some(addr) = transaction_events.get("instantiate._contract_address") {
+        println!("addr: {:?}", addr);
         // 0: DAO
         // 1: cw20
         // 2: staking contract
@@ -30,6 +31,8 @@ pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresse
         } else if addr.len() == 2 {
             dao_address = Some(addr[0].clone());
             staking_contract_address = Some(addr[1].clone());
+        } else if addr.len() == 1 {
+            dao_address = Some(addr[0].clone());
         } else {
             error!("unexpected addr {:?}", addr);
         }

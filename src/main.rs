@@ -1,5 +1,5 @@
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::historical_parser::block_synchronizer;
+use dao_indexer::historical_parser::{block_synchronizer, init_known_unknown_messages};
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
 use dao_indexer::indexing::msg_cw3dao_indexer::Cw3DaoExecuteMsgIndexer;
@@ -10,11 +10,11 @@ use dotenv::dotenv;
 use env_logger::Env;
 use futures::StreamExt;
 use log::{debug, error, info, warn};
+use std::collections::HashSet;
 use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
-use std::collections::HashSet;
 
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
@@ -39,7 +39,8 @@ async fn main() -> anyhow::Result<()> {
         .parse::<bool>()?;
 
     let transaction_page_size: u8 = env::var("TRANSACTION_PAGE_SIZE")
-        .unwrap_or_else(|_| "100".to_string()).parse::<u8>()?;
+        .unwrap_or_else(|_| "100".to_string())
+        .parse::<u8>()?;
 
     let env = Env::default()
         .filter_or("INDEXER_LOG_LEVEL", "info")
@@ -70,6 +71,7 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::from(cw20_stake_indexer), None);
 
     let mut msg_set: HashSet<String> = HashSet::new();
+    init_known_unknown_messages(&mut msg_set);
 
     if enable_indexer_env == "true" {
         block_synchronizer(
@@ -78,9 +80,10 @@ async fn main() -> anyhow::Result<()> {
             tendermint_initial_block,
             tendermint_save_all_blocks,
             transaction_page_size,
-            &mut msg_set
+            &mut msg_set,
         )
         .await?;
+        warn!("Messages with no handlers:\n{:?}", &msg_set);
     } else {
         info!("Indexing historical blocks disabled");
     }
@@ -93,7 +96,9 @@ async fn main() -> anyhow::Result<()> {
         let events = ev.events.unwrap();
         match result {
             EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
-            EventData::Tx { tx_result, .. } => process_tx_info(&registry, tx_result, &events, &mut msg_set)?,
+            EventData::Tx { tx_result, .. } => {
+                process_tx_info(&registry, tx_result, &events, &mut msg_set)?
+            }
             _ => {
                 error!("Unexpected result {:?}", result)
             }
