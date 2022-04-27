@@ -1,7 +1,7 @@
 use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
-use log::{debug, error, info};
+use log::{warn, error, info};
 use prost::Message;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
@@ -80,14 +80,16 @@ pub async fn block_synchronizer(
                         }
                     }
                     Err(e) => {
-                        debug!(
+                        warn!(
                             "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
                             e
                         );
+                        info!("tx_response:\n{:?}", tx_response);
                         match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(
                             tx_response.tx.as_bytes(),
                         ) {
                             Ok(unmarshalled_tx) => {
+                                info!("decoded response debug:\n{:?}", unmarshalled_tx);
                                 if let Err(e) = process_parsed_v1beta(
                                     registry,
                                     &unmarshalled_tx,
@@ -143,6 +145,7 @@ pub fn init_known_unknown_messages(msg_set: &mut HashSet<String>) {
         "/ibc.core.client.v1.MsgUpdateClient",
         "/ibc.core.connection.v1.MsgConnectionOpenAck",
         "/ibc.core.connection.v1.MsgConnectionOpenInit",
+        "/cosmos.authz.v1beta1.MsgExec",
     ];
     known.map(|msg| msg_set.insert(msg.to_string()));
 }
