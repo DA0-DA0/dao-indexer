@@ -19,6 +19,19 @@ pub fn process_parsed(
     process_messages(registry, &tx_parsed.body.messages, events, msg_set)
 }
 
+pub fn process_parsed_v1beta(
+    registry: &IndexerRegistry,
+    tx_parsed: &cosmos_sdk_proto::cosmos::tx::v1beta1::Tx,
+    events: &EventMap,
+    msg_set: &mut HashSet<String>,
+) -> anyhow::Result<()> {
+    if let Some(body) = &tx_parsed.body {
+        process_messages(registry, &body.messages, events, msg_set)
+    } else {
+        Ok(())
+    }
+}
+
 pub fn process_messages(
     registry: &IndexerRegistry,
     messages: &[Any],
@@ -34,12 +47,10 @@ pub fn process_messages(
             }
             "/cosmwasm.wasm.v1.MsgExecuteContract" => {
                 let msg_obj = MsgExecuteContract::from_any(msg).map_err(|e| anyhow!(e))?;
-                // let msg_obj: MsgExecuteContract = MsgProto::from_any(msg)?;
                 return msg_obj.index_message(registry, events);
             }
             "/cosmos.bank.v1beta1.MsgSend" => {
                 let msg_obj = MsgSend::from_any(msg).map_err(|e| anyhow!(e))?;
-                // let msg_obj: MsgSend = MsgProto::from_any(msg)?;
                 return msg_obj.index_message(registry, events);
             }
             _ => {

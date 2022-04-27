@@ -1,7 +1,8 @@
 use crate::indexing::indexer_registry::IndexerRegistry;
-use crate::indexing::tx::process_parsed;
+use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
-use log::{error, info};
+use log::{debug, error, info};
+use prost::Message;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use tendermint::abci::responses::Event;
@@ -67,10 +68,6 @@ pub async fn block_synchronizer(
             )
             .await?;
         if search_results.total_count > 0 {
-            println!(
-                "{} at height {}",
-                search_results.total_count, current_height
-            );
             for tx_response in search_results.txs.iter() {
                 let mut events = BTreeMap::default();
                 events.insert("tx.height".to_string(), vec![current_height.to_string()]);
@@ -83,16 +80,33 @@ pub async fn block_synchronizer(
                         }
                     }
                     Err(e) => {
-                        error!(
-                            "Error unmarshalling: {:?}\ntx_response:\n{:?}\n",
-                            e, tx_response
+                        debug!(
+                            "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
+                            e
                         );
+                        match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(
+                            tx_response.tx.as_bytes(),
+                        ) {
+                            Ok(unmarshalled_tx) => {
+                                if let Err(e) = process_parsed_v1beta(
+                                    registry,
+                                    &unmarshalled_tx,
+                                    &events,
+                                    msg_set,
+                                ) {
+                                    error!("Error in process_parsed: {:?}", e);
+                                }
+                            }
+                            Err(e) => {
+                                error!("Error decoding: {:?}", e);
+                            }
+                        }
                     }
                 }
             }
         }
         if current_height - last_log_height > 1000 {
-            info!("current_height: {}-{}", last_log_height, current_height);
+            info!("indexed heights {}-{}", last_log_height, current_height);
             last_log_height = current_height;
         }
         current_height += block_page_size as u64;
@@ -103,8 +117,13 @@ pub async fn block_synchronizer(
 
 pub fn init_known_unknown_messages(msg_set: &mut HashSet<String>) {
     let known = [
+        "/cosmos.authz.v1beta1.MsgGrant",
+        "/cosmos.distribution.v1beta1.MsgSetWithdrawAddress",
         "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
         "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission",
+        "/cosmos.feegrant.v1beta1.MsgGrantAllowance",
+        "/cosmos.feegrant.v1beta1.MsgRevokeAllowance",
+        "/cosmos.gov.v1beta1.MsgVote",
         "/cosmos.slashing.v1beta1.MsgUnjail",
         "/cosmos.staking.v1beta1.MsgBeginRedelegate",
         "/cosmos.staking.v1beta1.MsgCreateValidator",
@@ -113,9 +132,13 @@ pub fn init_known_unknown_messages(msg_set: &mut HashSet<String>) {
         "/cosmos.staking.v1beta1.MsgUndelegate",
         "/cosmos.staking.v1beta1.MsgWithdrawDelegatorReward",
         "/cosmos.staking.v1beta1.MsgWithdrawValidatorCommission",
+        "/cosmwasm.wasm.v1.MsgStoreCode",
+        "/ibc.applications.transfer.v1.MsgTransfer",
+        "/ibc.core.channel.v1.MsgAcknowledgement",
         "/ibc.core.channel.v1.MsgChannelOpenInit",
         "/ibc.core.channel.v1.MsgChannelOpenTry",
         "/ibc.core.channel.v1.MsgRecvPacket",
+        "/ibc.core.channel.v1.MsgTimeout",
         "/ibc.core.client.v1.MsgCreateClient",
         "/ibc.core.client.v1.MsgUpdateClient",
         "/ibc.core.connection.v1.MsgConnectionOpenAck",
