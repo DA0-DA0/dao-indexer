@@ -47,7 +47,7 @@ RUN rustup update stable \
 
 RUN cargo install diesel_cli --no-default-features --features "postgres"
 
-RUN git clone https://github.com/DA0-DA0/dao-contracts.git
+RUN git clone --branch v0.2.5 https://github.com/DA0-DA0/dao-contracts.git
 RUN mkdir /app
 ADD . /app
 WORKDIR /app

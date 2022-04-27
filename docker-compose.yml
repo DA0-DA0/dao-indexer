@@ -30,7 +30,7 @@ services:
       - TENDERMINT_WEBSOCKET_URL=ws://54.177.5.188:26657/websocket
       - TENDERMINT_RPC_URL=http://54.177.5.188:26657
       - RUST_LOG="debug"
-      - TENDERMINT_SAVE_ALL_BLOCKS=false
+      - TENDERMINT_SAVE_ALL_BLOCKS=true
       - RUST_BACKTRACE=full
       - DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres
     depends_on:
