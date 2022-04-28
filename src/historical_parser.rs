@@ -1,7 +1,7 @@
 use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
-use log::{warn, error, info};
+use log::{error, info, warn};
 use prost::Message;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
@@ -34,6 +34,71 @@ fn map_from_events(
     Ok(())
 }
 
+pub async fn load_block_transactions(
+    tendermint_client: &TendermintClient,
+    transaction_page_size: u8,
+    registry: &IndexerRegistry,
+    msg_set: &mut HashSet<String>,
+    current_height: u64,
+    block_page_size: u64,
+) -> anyhow::Result<()> {
+    // while current_height < latest_block_height {
+    info!("loading block {}", current_height);
+    let key = "tx.height";
+    let query =
+        Query::gte(key, current_height).and_lt(key, current_height + block_page_size as u64);
+    let search_results = tendermint_client
+        .tx_search(
+            query,
+            false,
+            1,
+            transaction_page_size,
+            tendermint_rpc::Order::Ascending,
+        )
+        .await?;
+    info!(
+        "received {} for block {}",
+        search_results.total_count, current_height
+    );
+    if search_results.total_count > 0 {
+        for tx_response in search_results.txs.iter() {
+            let mut events = BTreeMap::default();
+            events.insert("tx.height".to_string(), vec![current_height.to_string()]);
+            map_from_events(&tx_response.tx_result.events, &mut events)?;
+            match Tx::from_bytes(tx_response.tx.as_bytes()) {
+                Ok(unmarshalled_tx) => {
+                    if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set) {
+                        error!("Error in process_parsed: {:?}", e);
+                    }
+                }
+                Err(e) => {
+                    warn!(
+                        "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
+                        e
+                    );
+                    info!("tx_response:\n{:?}", tx_response);
+                    match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(
+                        tx_response.tx.as_bytes(),
+                    ) {
+                        Ok(unmarshalled_tx) => {
+                            info!("decoded response debug:\n{:?}", unmarshalled_tx);
+                            if let Err(e) =
+                                process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
+                            {
+                                error!("Error in process_parsed: {:?}", e);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Error decoding: {:?}", e);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub async fn block_synchronizer(
     registry: &IndexerRegistry,
     tendermint_rpc_url: &str,
@@ -51,74 +116,29 @@ pub async fn block_synchronizer(
     );
 
     let block_page_size = transaction_page_size;
-
     let mut current_height = initial_block_height;
     let mut last_log_height = 0;
-    let key = "tx.height";
     while current_height < latest_block_height {
-        let query =
-            Query::gte(key, current_height).and_lt(key, current_height + block_page_size as u64);
-        let search_results = tendermint_client
-            .tx_search(
-                query,
-                false,
-                1,
-                transaction_page_size,
-                tendermint_rpc::Order::Ascending,
-            )
-            .await?;
-        if search_results.total_count > 0 {
-            for tx_response in search_results.txs.iter() {
-                let mut events = BTreeMap::default();
-                events.insert("tx.height".to_string(), vec![current_height.to_string()]);
-                map_from_events(&tx_response.tx_result.events, &mut events)?;
-                match Tx::from_bytes(tx_response.tx.as_bytes()) {
-                    Ok(unmarshalled_tx) => {
-                        if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set)
-                        {
-                            error!("Error in process_parsed: {:?}", e);
-                        }
-                    }
-                    Err(e) => {
-                        warn!(
-                            "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
-                            e
-                        );
-                        info!("tx_response:\n{:?}", tx_response);
-                        match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(
-                            tx_response.tx.as_bytes(),
-                        ) {
-                            Ok(unmarshalled_tx) => {
-                                info!("decoded response debug:\n{:?}", unmarshalled_tx);
-                                if let Err(e) = process_parsed_v1beta(
-                                    registry,
-                                    &unmarshalled_tx,
-                                    &events,
-                                    msg_set,
-                                ) {
-                                    error!("Error in process_parsed: {:?}", e);
-                                }
-                            }
-                            Err(e) => {
-                                error!("Error decoding: {:?}", e);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // TODO(gavin.doughtie): we should be able to run N of these
+        // load_block_transactions calls in a loop and have them run
+        // in parallel!
+        load_block_transactions(&tendermint_client, transaction_page_size, registry, msg_set, current_height, block_page_size as u64).await?;
         if current_height - last_log_height > 1000 {
             info!("indexed heights {}-{}", last_log_height, current_height);
             last_log_height = current_height;
         }
         current_height += block_page_size as u64;
+        if current_height - last_log_height > 1000 {
+            info!("indexed heights {}-{}", last_log_height, current_height);
+            last_log_height = current_height;
+        }    
     }
-
     Ok(())
 }
 
 pub fn init_known_unknown_messages(msg_set: &mut HashSet<String>) {
     let known = [
+        "/cosmos.authz.v1beta1.MsgExec",
         "/cosmos.authz.v1beta1.MsgGrant",
         "/cosmos.distribution.v1beta1.MsgSetWithdrawAddress",
         "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
@@ -145,7 +165,6 @@ pub fn init_known_unknown_messages(msg_set: &mut HashSet<String>) {
         "/ibc.core.client.v1.MsgUpdateClient",
         "/ibc.core.connection.v1.MsgConnectionOpenAck",
         "/ibc.core.connection.v1.MsgConnectionOpenInit",
-        "/cosmos.authz.v1beta1.MsgExec",
     ];
     known.map(|msg| msg_set.insert(msg.to_string()));
 }

@@ -25,7 +25,7 @@ impl IndexMessage for MsgInstantiateContract {
         let dao_address = contract_addresses
             .dao_address
             .as_ref()
-            .ok_or_else(|| anyhow!("no dao_address"))?;
+            .ok_or_else(|| anyhow!("no dao_address in {:?}\n{:?}", contract_addresses, events))?;
         let staking_contract_address = contract_addresses
             .staking_contract_address
             .as_ref()
