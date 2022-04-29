@@ -78,7 +78,7 @@ pub fn update_balance_from_events(
                 eprintln!("Error parsing amount: {} {:?}", amount, e);
             }
         }
-        let gov_token = get_gov_token(db, &from).unwrap();
+        let gov_token = get_gov_token(db, &from)?;
         let balance_update = Cw20Coin {
             address: receiver.clone(),
             amount: parsed_amount
