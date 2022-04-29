@@ -47,9 +47,21 @@ impl IndexMessage for Cw20ExecuteMsg {
                 if receiving_contract_action == "stake" {
                     send_amount = action_amount;
                 }
+                println!("parsing Cw20Coin amount {}", send_amount);
+                let mut amount: Uint128 = Uint128::new(0);
+                match Uint128::from_str(send_amount) {
+                    Ok(parsed_amount) => {
+                        amount = parsed_amount;
+                    }
+                    Err(e) => {
+                        // Try to parse as a decimal
+                        let decimal_amount = BigDecimal::from_str(send_amount)?;
+                        println!("Parsed as {:?} due to error {:?}", decimal_amount, e)
+                    }
+                }
                 let balance_update: Cw20Coin = Cw20Coin {
                     address: staking_contract_addr,
-                    amount: Uint128::from_str(send_amount)?,
+                    amount,
                 };
                 update_balance(
                     registry,

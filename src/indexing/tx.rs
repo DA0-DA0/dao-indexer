@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContract};
 use cosmrs::tx::{MsgProto, Tx};
-use log::error;
+use log::{debug, error};
 use prost_types::Any;
 use std::collections::HashSet;
 use tendermint_rpc::event::TxInfo;
@@ -40,18 +40,41 @@ pub fn process_messages(
 ) -> anyhow::Result<()> {
     for msg in messages.iter() {
         let type_url: &str = &msg.type_url;
+        debug!("processing msg {:?}", msg);
         match type_url {
             "/cosmwasm.wasm.v1.MsgInstantiateContract" => {
-                let msg_obj = MsgInstantiateContract::from_any(msg).map_err(|e| anyhow!(e))?;
-                return msg_obj.index_message(registry, events);
+                match MsgInstantiateContract::from_any(msg) {
+                    Ok(msg_obj) => {
+                        return msg_obj.index_message(registry, events);
+                    }
+                    Err(e) => {
+                        error!("error parsing MsgInstantiateContract, events: {:?}", events);
+                        return Err(anyhow!(e));
+                    }
+                }
             }
             "/cosmwasm.wasm.v1.MsgExecuteContract" => {
-                let msg_obj = MsgExecuteContract::from_any(msg).map_err(|e| anyhow!(e))?;
-                return msg_obj.index_message(registry, events);
+                match MsgExecuteContract::from_any(msg) {
+                    Ok(msg_obj) => {
+                        return msg_obj.index_message(registry, events);
+                    }
+                    Err(e) => {
+                        error!("error parsing MsgExecuteContract, events: {:?}", events);
+                        return Err(anyhow!(e));
+                    }
+                }
+                
             }
             "/cosmos.bank.v1beta1.MsgSend" => {
-                let msg_obj = MsgSend::from_any(msg).map_err(|e| anyhow!(e))?;
-                return msg_obj.index_message(registry, events);
+                match MsgSend::from_any(msg) {
+                    Ok(msg_obj) => {
+                        return msg_obj.index_message(registry, events);
+                    }
+                    Err(e) => {
+                        error!("error parsing MsgSend, events: {:?}", events);
+                        return Err(anyhow!(e));
+                    }
+                }
             }
             _ => {
                 if !msg_set.contains(type_url) {

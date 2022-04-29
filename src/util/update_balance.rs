@@ -69,10 +69,19 @@ pub fn update_balance_from_events(
         }
     }
     if !from.is_empty() {
+        let mut parsed_amount: Uint128 = Uint128::new(0);
+        match Uint128::from_str(amount) {
+            Ok(ok_parsed_amount) => {
+                parsed_amount = ok_parsed_amount;
+            }
+            Err(e) => {
+                eprintln!("Error parsing amount: {} {:?}", amount, e);
+            }
+        }
         let gov_token = get_gov_token(db, &from).unwrap();
         let balance_update = Cw20Coin {
             address: receiver.clone(),
-            amount: Uint128::from_str(amount).unwrap(),
+            amount: parsed_amount
         };
         update_balance(
             db,
