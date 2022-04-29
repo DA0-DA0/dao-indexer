@@ -2,10 +2,12 @@ use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
 use log::{error, info, warn};
+use math::round;
 use prost::Message;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use tendermint::abci::responses::Event;
+use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
@@ -34,32 +36,12 @@ fn map_from_events(
     Ok(())
 }
 
-pub async fn load_block_transactions(
-    tendermint_client: &TendermintClient,
-    transaction_page_size: u8,
+async fn index_search_results(
+    search_results: &TxSearchResponse,
+    current_height: u64,
     registry: &IndexerRegistry,
     msg_set: &mut HashSet<String>,
-    current_height: u64,
-    block_page_size: u64,
 ) -> anyhow::Result<()> {
-    // while current_height < latest_block_height {
-    info!("loading block {}", current_height);
-    let key = "tx.height";
-    let query =
-        Query::gte(key, current_height).and_lt(key, current_height + block_page_size as u64);
-    let search_results = tendermint_client
-        .tx_search(
-            query,
-            false,
-            1,
-            transaction_page_size,
-            tendermint_rpc::Order::Ascending,
-        )
-        .await?;
-    info!(
-        "received {} for block {}",
-        search_results.total_count, current_height
-    );
     if search_results.total_count > 0 {
         for tx_response in search_results.txs.iter() {
             let mut events = BTreeMap::default();
@@ -99,6 +81,55 @@ pub async fn load_block_transactions(
     Ok(())
 }
 
+pub async fn load_block_transactions(
+    tendermint_client: &TendermintClient,
+    transaction_page_size: u8,
+    registry: &IndexerRegistry,
+    msg_set: &mut HashSet<String>,
+    current_height: u64,
+    block_page_size: u64,
+) -> anyhow::Result<()> {
+    // while current_height < latest_block_height {
+    info!("loading block {}", current_height);
+    let key = "tx.height";
+    let query =
+        Query::gte(key, current_height).and_lt(key, current_height + block_page_size as u64);
+    let search_results = tendermint_client
+        .tx_search(
+            query.clone(),
+            false,
+            1,
+            transaction_page_size,
+            tendermint_rpc::Order::Ascending,
+        )
+        .await?;
+    let total_pages = round::ceil(
+        search_results.total_count as f64 / transaction_page_size as f64,
+        0,
+    ) as u32;
+    info!(
+        "received {} for block {}, at {} items per page this is {} total pages",
+        search_results.total_count, current_height, transaction_page_size, total_pages
+    );
+    index_search_results(&search_results, current_height, registry, msg_set).await?;
+    // TODO: iterate through all the pages in the results:
+    if total_pages > 1 {
+        for page in 2..total_pages {
+            let search_results = tendermint_client
+                .tx_search(
+                    query.clone(),
+                    false,
+                    page,
+                    transaction_page_size,
+                    tendermint_rpc::Order::Ascending,
+                )
+                .await?;
+            index_search_results(&search_results, current_height, registry, msg_set).await?;
+        }
+    }
+    Ok(())
+}
+
 pub async fn block_synchronizer(
     registry: &IndexerRegistry,
     tendermint_rpc_url: &str,
@@ -115,14 +146,22 @@ pub async fn block_synchronizer(
         initial_block_height, latest_block_height
     );
 
-    let block_page_size = transaction_page_size;
+    let block_page_size = 1000_u64;
     let mut current_height = initial_block_height;
     let mut last_log_height = 0;
     while current_height < latest_block_height {
         // TODO(gavin.doughtie): we should be able to run N of these
         // load_block_transactions calls in a loop and have them run
         // in parallel!
-        load_block_transactions(&tendermint_client, transaction_page_size, registry, msg_set, current_height, block_page_size as u64).await?;
+        load_block_transactions(
+            &tendermint_client,
+            transaction_page_size,
+            registry,
+            msg_set,
+            current_height,
+            block_page_size,
+        )
+        .await?;
         if current_height - last_log_height > 1000 {
             info!("indexed heights {}-{}", last_log_height, current_height);
             last_log_height = current_height;
@@ -131,7 +170,7 @@ pub async fn block_synchronizer(
         if current_height - last_log_height > 1000 {
             info!("indexed heights {}-{}", last_log_height, current_height);
             last_log_height = current_height;
-        }    
+        }
     }
     Ok(())
 }

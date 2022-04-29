@@ -48,6 +48,12 @@ async fn main() -> anyhow::Result<()> {
 
     env_logger::init_from_env(env);
 
+    info!(
+        "INDEXING WITH ENV:\n\
+        tendermint_rpc_url: {}\n\
+        transaction_page_size: {}\n",
+        tendermint_rpc_url, transaction_page_size
+    );
     if !postgres_backend {
         warn!("Running indexer without a postgres backend!");
     }
