@@ -111,10 +111,11 @@ pub async fn load_block_transactions(
         "received {} for block {}, at {} items per page this is {} total pages",
         search_results.total_count, current_height, transaction_page_size, total_pages
     );
+    info!("indexing page 1, block {}", current_height);
     index_search_results(&search_results, current_height, registry, msg_set).await?;
     // TODO: iterate through all the pages in the results:
     if total_pages > 1 {
-        for page in 2..total_pages {
+        for page in 2..=total_pages { // Inclusive range
             let search_results = tendermint_client
                 .tx_search(
                     query.clone(),
@@ -124,6 +125,7 @@ pub async fn load_block_transactions(
                     tendermint_rpc::Order::Ascending,
                 )
                 .await?;
+            info!("indexing page {}, block {}", page, current_height);
             index_search_results(&search_results, current_height, registry, msg_set).await?;
         }
     }
@@ -145,6 +147,10 @@ pub async fn block_synchronizer(
         "synchronizing blocks from {} to {}",
         initial_block_height, latest_block_height
     );
+    if latest_block_height < initial_block_height {
+        error!("Requested start at {} but latest block height is {}", initial_block_height, latest_block_height);
+        return Ok(());
+    }    
 
     let block_page_size = 1000_u64;
     let mut current_height = initial_block_height;
@@ -167,10 +173,6 @@ pub async fn block_synchronizer(
             last_log_height = current_height;
         }
         current_height += block_page_size as u64;
-        if current_height - last_log_height > 1000 {
-            info!("indexed heights {}-{}", last_log_height, current_height);
-            last_log_height = current_height;
-        }
     }
     Ok(())
 }
