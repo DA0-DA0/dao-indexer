@@ -53,29 +53,24 @@ pub fn process_messages(
                     }
                 }
             }
-            "/cosmwasm.wasm.v1.MsgExecuteContract" => {
-                match MsgExecuteContract::from_any(msg) {
-                    Ok(msg_obj) => {
-                        return msg_obj.index_message(registry, events);
-                    }
-                    Err(e) => {
-                        error!("error parsing MsgExecuteContract, events: {:?}", events);
-                        return Err(anyhow!(e));
-                    }
+            "/cosmwasm.wasm.v1.MsgExecuteContract" => match MsgExecuteContract::from_any(msg) {
+                Ok(msg_obj) => {
+                    return msg_obj.index_message(registry, events);
                 }
-                
-            }
-            "/cosmos.bank.v1beta1.MsgSend" => {
-                match MsgSend::from_any(msg) {
-                    Ok(msg_obj) => {
-                        return msg_obj.index_message(registry, events);
-                    }
-                    Err(e) => {
-                        error!("error parsing MsgSend, events: {:?}", events);
-                        return Err(anyhow!(e));
-                    }
+                Err(e) => {
+                    error!("error parsing MsgExecuteContract, events: {:?}", events);
+                    return Err(anyhow!(e));
                 }
-            }
+            },
+            "/cosmos.bank.v1beta1.MsgSend" => match MsgSend::from_any(msg) {
+                Ok(msg_obj) => {
+                    return msg_obj.index_message(registry, events);
+                }
+                Err(e) => {
+                    error!("error parsing MsgSend, events: {:?}", events);
+                    return Err(anyhow!(e));
+                }
+            },
             _ => {
                 if !msg_set.contains(type_url) {
                     msg_set.insert(type_url.to_string());

@@ -42,37 +42,33 @@ async fn index_search_results(
     registry: &IndexerRegistry,
     msg_set: &mut HashSet<String>,
 ) -> anyhow::Result<()> {
-    if search_results.total_count > 0 {
-        for tx_response in search_results.txs.iter() {
-            let mut events = BTreeMap::default();
-            events.insert("tx.height".to_string(), vec![current_height.to_string()]);
-            map_from_events(&tx_response.tx_result.events, &mut events)?;
-            match Tx::from_bytes(tx_response.tx.as_bytes()) {
-                Ok(unmarshalled_tx) => {
-                    if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set) {
-                        error!("Error in process_parsed: {:?}", e);
-                    }
+    for tx_response in search_results.txs.iter() {
+        let mut events = BTreeMap::default();
+        events.insert("tx.height".to_string(), vec![current_height.to_string()]);
+        map_from_events(&tx_response.tx_result.events, &mut events)?;
+        match Tx::from_bytes(tx_response.tx.as_bytes()) {
+            Ok(unmarshalled_tx) => {
+                if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set) {
+                    error!("Error in process_parsed: {:?}", e);
                 }
-                Err(e) => {
-                    warn!(
-                        "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
-                        e
-                    );
-                    info!("tx_response:\n{:?}", tx_response);
-                    match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(
-                        tx_response.tx.as_bytes(),
-                    ) {
-                        Ok(unmarshalled_tx) => {
-                            info!("decoded response debug:\n{:?}", unmarshalled_tx);
-                            if let Err(e) =
-                                process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
-                            {
-                                error!("Error in process_parsed: {:?}", e);
-                            }
+            }
+            Err(e) => {
+                warn!(
+                    "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
+                    e
+                );
+                info!("tx_response:\n{:?}", tx_response);
+                match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(tx_response.tx.as_bytes()) {
+                    Ok(unmarshalled_tx) => {
+                        info!("decoded response debug:\n{:?}", unmarshalled_tx);
+                        if let Err(e) =
+                            process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
+                        {
+                            error!("Error in process_parsed: {:?}", e);
                         }
-                        Err(e) => {
-                            error!("Error decoding: {:?}", e);
-                        }
+                    }
+                    Err(e) => {
+                        error!("Error decoding: {:?}", e);
                     }
                 }
             }
@@ -115,7 +111,8 @@ pub async fn load_block_transactions(
     index_search_results(&search_results, current_height, registry, msg_set).await?;
     // TODO: iterate through all the pages in the results:
     if total_pages > 1 {
-        for page in 2..=total_pages { // Inclusive range
+        for page in 2..=total_pages {
+            // Inclusive range
             let search_results = tendermint_client
                 .tx_search(
                     query.clone(),
@@ -148,9 +145,12 @@ pub async fn block_synchronizer(
         initial_block_height, latest_block_height
     );
     if latest_block_height < initial_block_height {
-        error!("Requested start at {} but latest block height is {}", initial_block_height, latest_block_height);
+        error!(
+            "Requested start at {} but latest block height is {}",
+            initial_block_height, latest_block_height
+        );
         return Ok(());
-    }    
+    }
 
     let block_page_size = 1000_u64;
     let mut current_height = initial_block_height;

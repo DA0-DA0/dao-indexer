@@ -81,7 +81,7 @@ pub fn update_balance_from_events(
         let gov_token = get_gov_token(db, &from)?;
         let balance_update = Cw20Coin {
             address: receiver.clone(),
-            amount: parsed_amount
+            amount: parsed_amount,
         };
         update_balance(
             db,
