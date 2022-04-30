@@ -10,9 +10,10 @@ pub fn index_message(
 ) -> anyhow::Result<()> {
     let mut json_dump: String = "".to_string();
     if let Some(msg) = msg {
-        if let Ok(Some(parsed)) = parse_message(msg) {
-            let obj = parsed.as_object();
-            json_dump = serde_json::to_string_pretty(&obj).unwrap();
+        if let Ok(Some(_parsed)) = parse_message(msg) {
+            // let obj = parsed.as_object();
+            // json_dump = serde_json::to_string_pretty(&obj).unwrap();
+            json_dump = "[json_dump skipped]".to_string();
         }
     }
     debug!(

@@ -86,6 +86,11 @@ pub fn insert_gov_token(
 
 pub fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Cw20> {
     use crate::db::schema::gov_token::dsl::*;
-    let dao = get_dao(db, dao_address).unwrap();
-    gov_token.filter(id.eq(dao.gov_token_id)).first(db)
+    match get_dao(db, dao_address) {
+        Ok(dao) => gov_token.filter(id.eq(dao.gov_token_id)).first(db),
+        Err(e) => {
+            error!("Error getting dao for address '{}'", dao_address);
+            Err(e)
+        }
+    }
 }

@@ -25,7 +25,7 @@ impl IndexMessage for MsgInstantiateContract {
         let dao_address = contract_addresses
             .dao_address
             .as_ref()
-            .ok_or_else(|| anyhow!("no dao_address"))?;
+            .ok_or_else(|| anyhow!("no dao_address in {:?}\n{:?}", contract_addresses, events))?;
         let staking_contract_address = contract_addresses
             .staking_contract_address
             .as_ref()
@@ -53,6 +53,11 @@ impl IndexMessage for MsgInstantiateContract {
             error!("Error inserting contract {:?}\n{:?}", &contract_model, e);
         }
         let msg_str = String::from_utf8(self.msg.clone())?;
+
+        // TODO(gavin.doughtie):
+        // Due to versioning, we can't guarantee that serde deserialization
+        // will work here so we have to deal with that OR import all the
+        // different contract versions and try them in a cascade.
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
             Ok(instantiate_dao) => insert_dao(
                 registry,
