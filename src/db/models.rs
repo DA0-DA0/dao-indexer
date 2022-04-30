@@ -2,7 +2,7 @@ use super::schema::block;
 use super::schema::{contracts, cw20_balances, dao, gov_token};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
-use cw3_dao::msg::{GovTokenInstantiateMsg, InstantiateMsg as Cw3DaoInstantiateMsg};
+use cw3_dao::msg::GovTokenInstantiateMsg;
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -82,19 +82,21 @@ pub struct NewDao<'a> {
 }
 
 impl<'a> NewDao<'a> {
-    pub fn from_msg(
+    pub fn new(
         contract_address: &'a str,
-        staking_contract_address: &'a str,
+        description: &'a str,
         gov_token_id: i32,
-        msg: &'a Cw3DaoInstantiateMsg,
+        image_url: Option<&'a String>,
+        name: &'a str,
+        staking_contract_address: &'a str,
     ) -> NewDao<'a> {
         NewDao {
-            name: &msg.name,
             contract_address,
-            staking_contract_address,
-            description: &msg.description,
-            image_url: msg.image_url.as_ref(),
+            description,
             gov_token_id,
+            image_url,
+            name,
+            staking_contract_address,
         }
     }
 }

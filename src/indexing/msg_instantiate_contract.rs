@@ -8,8 +8,9 @@ use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-use log::{debug, error};
+use log::{debug, error, info};
 use std::str::FromStr;
+use cw3_dao::msg::GovTokenMsg;
 
 impl IndexMessage for MsgInstantiateContract {
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
@@ -61,13 +62,27 @@ impl IndexMessage for MsgInstantiateContract {
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
             Ok(instantiate_dao) => insert_dao(
                 registry,
-                &instantiate_dao,
+                &instantiate_dao.name,
+                &instantiate_dao.description,
+                &instantiate_dao.gov_token,
+                instantiate_dao.image_url.as_ref(),
                 &contract_addresses,
                 Some(&tx_height),
             ),
             Err(e) => {
-                error!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
-                Ok(())
+                error!("Error parsing instantiate msg ({:?}); trying generic", e);
+                let parsed = serde_json::from_str::<serde_json::Value>(&msg_str)?;
+                info!("parsed:\n{}", serde_json::to_string_pretty(&parsed)?);
+                let gov_token = serde_json::from_str::<GovTokenMsg>(&parsed["gov_token"].to_string())?;
+                insert_dao(
+                    registry,
+                    &parsed["name"].to_string(),
+                    &parsed["description"].to_string(),
+                    &gov_token,
+                    Some(&parsed["image_url"].to_string()),
+                    &contract_addresses,
+                    Some(&tx_height),
+                )
             }
         }
     }

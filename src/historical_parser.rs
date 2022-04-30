@@ -85,7 +85,6 @@ pub async fn load_block_transactions(
     current_height: u64,
     block_page_size: u64,
 ) -> anyhow::Result<()> {
-    // while current_height < latest_block_height {
     info!("loading block {}", current_height);
     let key = "tx.height";
     let query =
