@@ -15,6 +15,7 @@ use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
+use std::sync::Arc;
 
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
@@ -42,6 +43,10 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "100".to_string())
         .parse::<u8>()?;
 
+    let block_page_size: u64 = env::var("BLOCK_PAGE_SIZE")
+        .unwrap_or_else(|_| "100".to_string())
+        .parse::<u64>()?;
+
     let env = Env::default()
         .filter_or("INDEXER_LOG_LEVEL", "info")
         .write_style_or("INDEXER_LOG_STYLE", "always");
@@ -51,8 +56,21 @@ async fn main() -> anyhow::Result<()> {
     info!(
         "INDEXING WITH ENV:\n\
         tendermint_rpc_url: {}\n\
-        transaction_page_size: {}\n",
-        tendermint_rpc_url, transaction_page_size
+        tendermint_websocket_url: {}\n\
+        tendermint_initial_block: {}\n\
+        tendermint_save_all_blocks: {}\n\
+        postgres_backend: {}\n\
+        enable_indexer_env: {}\n\
+        transaction_page_size: {}\n\
+        block_page_size: {}\n",
+        tendermint_rpc_url,
+        tendermint_websocket_url,
+        tendermint_initial_block,
+        tendermint_save_all_blocks,
+        postgres_backend,
+        enable_indexer_env,
+        transaction_page_size,
+        block_page_size
     );
     if !postgres_backend {
         warn!("Running indexer without a postgres backend!");
@@ -78,6 +96,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut msg_set: HashSet<String> = HashSet::new();
     init_known_unknown_messages(&mut msg_set);
+    let arc_msg_set = Arc::new(msg_set);
 
     if enable_indexer_env == "true" {
         block_synchronizer(
@@ -86,10 +105,11 @@ async fn main() -> anyhow::Result<()> {
             tendermint_initial_block,
             tendermint_save_all_blocks,
             transaction_page_size,
-            &mut msg_set,
+            block_page_size,
+            arc_msg_set.clone(),
         )
         .await?;
-        warn!("Messages with no handlers:\n{:?}", &msg_set);
+        warn!("Messages with no handlers:\n{:?}", &arc_msg_set);
     } else {
         info!("Indexing historical blocks disabled");
     }
@@ -103,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
         match result {
             EventData::NewBlock { block, .. } => debug!("{:?}", block.unwrap()),
             EventData::Tx { tx_result, .. } => {
-                process_tx_info(&registry, tx_result, &events, &mut msg_set)?
+                process_tx_info(&registry, tx_result, &events, arc_msg_set.clone())?
             }
             _ => {
                 error!("Unexpected result {:?}", result)

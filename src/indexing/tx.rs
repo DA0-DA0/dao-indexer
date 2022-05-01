@@ -7,14 +7,16 @@ use cosmrs::proto::cosmwasm::wasm::v1::{MsgExecuteContract, MsgInstantiateContra
 use cosmrs::tx::{MsgProto, Tx};
 use log::{debug, error};
 use prost_types::Any;
+// use std::borrow::BorrowMut;
 use std::collections::HashSet;
 use tendermint_rpc::event::TxInfo;
+use std::sync::Arc;
 
 pub fn process_parsed(
     registry: &IndexerRegistry,
     tx_parsed: &Tx,
     events: &EventMap,
-    msg_set: &mut HashSet<String>,
+    msg_set: Arc<HashSet<String>>,
 ) -> anyhow::Result<()> {
     process_messages(registry, &tx_parsed.body.messages, events, msg_set)
 }
@@ -23,7 +25,7 @@ pub fn process_parsed_v1beta(
     registry: &IndexerRegistry,
     tx_parsed: &cosmos_sdk_proto::cosmos::tx::v1beta1::Tx,
     events: &EventMap,
-    msg_set: &mut HashSet<String>,
+    msg_set: Arc<HashSet<String>>,
 ) -> anyhow::Result<()> {
     if let Some(body) = &tx_parsed.body {
         process_messages(registry, &body.messages, events, msg_set)
@@ -36,7 +38,7 @@ pub fn process_messages(
     registry: &IndexerRegistry,
     messages: &[Any],
     events: &EventMap,
-    msg_set: &mut HashSet<String>,
+    msg_set: Arc<HashSet<String>>,
 ) -> anyhow::Result<()> {
     for msg in messages.iter() {
         let type_url: &str = &msg.type_url;
@@ -73,7 +75,7 @@ pub fn process_messages(
             },
             _ => {
                 if !msg_set.contains(type_url) {
-                    msg_set.insert(type_url.to_string());
+                    // msg_set.borrow_mut().insert(type_url.to_string());
                     error!("No handler for {}", type_url);
                 }
             }
@@ -86,7 +88,7 @@ pub fn process_tx_info(
     registry: &IndexerRegistry,
     tx_info: TxInfo,
     events: &EventMap,
-    msg_set: &mut HashSet<String>,
+    msg_set: Arc<HashSet<String>>,
 ) -> anyhow::Result<()> {
     let tx_parsed = Tx::from_bytes(&tx_info.tx).map_err(|e| anyhow!(e))?;
     process_parsed(registry, &tx_parsed, events, msg_set)
