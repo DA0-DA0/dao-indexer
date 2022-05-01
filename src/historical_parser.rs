@@ -112,7 +112,7 @@ pub async fn load_block_transactions(
     if total_pages > 1 {
         for page in 2..=total_pages {
             // Inclusive range
-            let search_results = tendermint_client
+            match tendermint_client
                 .tx_search(
                     query.clone(),
                     false,
@@ -120,9 +120,15 @@ pub async fn load_block_transactions(
                     transaction_page_size,
                     tendermint_rpc::Order::Ascending,
                 )
-                .await?;
-            info!("indexing page {}, block {}", page, current_height);
-            index_search_results(&search_results, current_height, registry, msg_set).await?;
+                .await {
+                    Ok(search_results) => {
+                        info!("indexing page {}, block {}", page, current_height);
+                        index_search_results(&search_results, current_height, registry, msg_set).await?;            
+                    }
+                    Err(e) => {
+                        error!("Error fetching page {}:\n{:?}", page, e);
+                    }
+                }
         }
     }
     Ok(())

@@ -59,6 +59,16 @@ impl IndexMessage for MsgInstantiateContract {
         // Due to versioning, we can't guarantee that serde deserialization
         // will work here so we have to deal with that OR import all the
         // different contract versions and try them in a cascade.
+        // TODO(gavin.doughtie): This might be a lp contract:
+        // {
+        //   "lp_token_code_id": 1,
+        //   "token1_denom": {
+        //       "cw20": "juno17c7zyezg3m8p2tf9hqgue9jhahvle70d59e8j9nmrvhw9anrpk8qxlrghx"
+        //   },
+        //   "token2_denom": {
+        //       "native": "ibc/C4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9"
+        //   }
+        // }
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
             Ok(instantiate_dao) => insert_dao(
                 registry,
