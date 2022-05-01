@@ -20,7 +20,9 @@ impl IndexMessage for Cw20ExecuteMsg {
         dump_events(event_map);
         if let Some(wasm_actions) = event_map.get("wasm.action") {
             if !wasm_actions.is_empty() && &wasm_actions[0] == "send" {
-                let tx_height = BigDecimal::from_str(&(event_map.get("tx.height").unwrap()[0]))?;
+                let height_str = &event_map.get("tx.height").ok_or(["0"]).unwrap()[0];
+                let tx_height = BigDecimal::from_str(height_str)?;
+                // let tx_height = BigDecimal::from_str(&(event_map.get("tx.height").ok_or([0])[0]))?;
                 let contract_addresses = event_map
                     .get("wasm._contract_address")
                     .ok_or_else(|| anyhow!("no wasm._contract_address"))?;
