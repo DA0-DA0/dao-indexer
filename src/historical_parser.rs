@@ -3,18 +3,19 @@ use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
 use futures::future::join_all;
 // use futures::prelude::*;
+use crate::config::IndexerConfig;
+use futures::FutureExt;
 use log::{error, info, warn};
 use math::round;
 use prost::Message;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
+use std::sync::Arc;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
-use std::sync::Arc;
-use futures::{FutureExt};
 
 fn map_from_events(
     events: &[Event],
@@ -45,7 +46,11 @@ async fn index_search_results(
     registry: &IndexerRegistry,
     msg_set: Arc<HashSet<String>>,
 ) -> anyhow::Result<()> {
-    info!("index_search_results txs: {} total_count: {}", search_results.txs.len(), search_results.total_count);
+    info!(
+        "index_search_results txs: {} total_count: {}",
+        search_results.txs.len(),
+        search_results.total_count
+    );
     for tx_response in search_results.txs.iter() {
         let mut events = BTreeMap::default();
         let block_height = tx_response.height;
@@ -56,7 +61,8 @@ async fn index_search_results(
         }
         match Tx::from_bytes(tx_response.tx.as_bytes()) {
             Ok(unmarshalled_tx) => {
-                if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set.clone()) {
+                if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set.clone())
+                {
                     error!("Error in process_parsed: {:?}", e);
                 }
             }
@@ -69,9 +75,12 @@ async fn index_search_results(
                 match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(tx_response.tx.as_bytes()) {
                     Ok(unmarshalled_tx) => {
                         info!("decoded response debug:\n{:?}", unmarshalled_tx);
-                        if let Err(e) =
-                            process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set.clone())
-                        {
+                        if let Err(e) = process_parsed_v1beta(
+                            registry,
+                            &unmarshalled_tx,
+                            &events,
+                            msg_set.clone(),
+                        ) {
                             error!("Error in process_parsed: {:?}", e);
                         }
                     }
@@ -96,8 +105,7 @@ pub async fn load_block_transactions(
     let last_block = current_height + block_page_size;
     info!("loading blocks {}-{}", current_height, last_block - 1);
     let key = "tx.height";
-    let query =
-        Query::gte(key, current_height).and_lt(key, last_block);
+    let query = Query::gte(key, current_height).and_lt(key, last_block);
     let search_results = tendermint_client
         .tx_search(
             query.clone(),
@@ -115,7 +123,11 @@ pub async fn load_block_transactions(
         "received {} for block {}, at {} items per page this is {} total pages",
         search_results.total_count, current_height, transaction_page_size, total_pages
     );
-    info!("indexing page 1, blocks {}-{}", current_height, last_block-1);
+    info!(
+        "indexing page 1, blocks {}-{}",
+        current_height,
+        last_block - 1
+    );
     index_search_results(search_results, registry, msg_set.clone()).await?;
 
     // Iterate through all the pages in the results:
@@ -124,35 +136,33 @@ pub async fn load_block_transactions(
         for page in 2..=total_pages {
             // Inclusive range
             let async_query = query.clone();
-            info!("querying for page {}, blocks {}-{}", page, current_height, last_block-1);
-            let f = tendermint_client.tx_search(
-                async_query,
-                false,
+            info!(
+                "querying for page {}, blocks {}-{}",
                 page,
-                transaction_page_size,
-                tendermint_rpc::Order::Ascending,
-            ).map(|response| {
-                match response {
-                Ok(search_results) => {
-                    index_search_results(
-                        search_results,
-                        registry,
-                        msg_set.clone(),
-                    )
-                }
-                Err(e) => {
-                    error!("{:?}", e);
-                    let empty_response = TxSearchResponse {
-                        txs: vec![],
-                        total_count: 0
-                    };
-                    index_search_results(
-                        empty_response,
-                        registry,
-                        msg_set.clone(),
-                    )
-                }
-            }});
+                current_height,
+                last_block - 1
+            );
+            let f = tendermint_client
+                .tx_search(
+                    async_query,
+                    false,
+                    page,
+                    transaction_page_size,
+                    tendermint_rpc::Order::Ascending,
+                )
+                .map(|response| match response {
+                    Ok(search_results) => {
+                        index_search_results(search_results, registry, msg_set.clone())
+                    }
+                    Err(e) => {
+                        error!("{:?}", e);
+                        let empty_response = TxSearchResponse {
+                            txs: vec![],
+                            total_count: 0,
+                        };
+                        index_search_results(empty_response, registry, msg_set.clone())
+                    }
+                });
             page_futures.push(f);
         }
     }
@@ -164,29 +174,34 @@ pub async fn load_block_transactions(
 
 pub async fn block_synchronizer(
     registry: &IndexerRegistry,
-    tendermint_rpc_url: &str,
-    initial_block_height: u64,
-    _save_all_blocks: bool,
-    transaction_page_size: u8,
-    block_page_size: u64,
+    config: &IndexerConfig,
+    // tendermint_rpc_url: &str,
+    // initial_block_height: u64,
+    // tendermint_final_block: u64,
+    // _save_all_blocks: bool,
+    // transaction_page_size: u8,
+    // block_page_size: u64,
     msg_set: Arc<HashSet<String>>,
 ) -> anyhow::Result<()> {
-    let tendermint_client = TendermintClient::new(tendermint_rpc_url)?;
+    let tendermint_client = TendermintClient::new::<&str>(&config.tendermint_rpc_url)?;
     let latest_block_response = tendermint_client.latest_block_results().await?;
-    let latest_block_height = latest_block_response.height.value();
+    let mut latest_block_height = latest_block_response.height.value();
+    if config.tendermint_final_block != 0 {
+        latest_block_height = config.tendermint_final_block;
+    }
     info!(
         "synchronizing blocks from {} to {}",
-        initial_block_height, latest_block_height
+        config.tendermint_initial_block, latest_block_height
     );
-    if latest_block_height < initial_block_height {
+    if latest_block_height < config.tendermint_initial_block {
         error!(
             "Requested start at {} but latest block height is {}",
-            initial_block_height, latest_block_height
+            config.tendermint_initial_block, latest_block_height
         );
         return Ok(());
     }
 
-    let mut current_height = initial_block_height;
+    let mut current_height = config.tendermint_initial_block;
     let mut last_log_height = 0;
     while current_height < latest_block_height {
         // TODO(gavin.doughtie): we should be able to run N of these
@@ -194,18 +209,18 @@ pub async fn block_synchronizer(
         // in parallel!
         load_block_transactions(
             &tendermint_client,
-            transaction_page_size,
+            config.transaction_page_size,
             registry,
             msg_set.clone(),
             current_height,
-            block_page_size,
+            config.block_page_size,
         )
         .await?;
         if current_height - last_log_height > 1000 {
             info!("indexed heights {}-{}", last_log_height, current_height);
             last_log_height = current_height;
         }
-        current_height += block_page_size as u64;
+        current_height += config.block_page_size as u64;
     }
     Ok(())
 }

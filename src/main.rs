@@ -11,41 +11,45 @@ use env_logger::Env;
 use futures::StreamExt;
 use log::{debug, error, info, warn};
 use std::collections::HashSet;
-use std::env;
 use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 use std::sync::Arc;
+use dao_indexer::config::IndexerConfig;
 
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv().ok();
-    let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or_else(|_| "false".to_string());
-    let tendermint_websocket_url: &str = &env::var("TENDERMINT_WEBSOCKET_URL")
-        .unwrap_or_else(|_| "ws://127.0.0.1:26657/websocket".to_string());
-    let tendermint_rpc_url: &str =
-        &env::var("TENDERMINT_RPC_URL").unwrap_or_else(|_| "http://127.0.0.1:26657".to_string());
-    let tendermint_initial_block = env::var("TENDERMINT_INITIAL_BLOCK_HEIGHT")
-        .unwrap_or_else(|_| "1".to_string())
-        .parse::<u64>()?;
-    let tendermint_save_all_blocks = env::var("TENDERMINT_SAVE_ALL_BLOCKS")
-        .unwrap_or_else(|_| "false".to_string())
-        .parse::<bool>()?;
+    let config = IndexerConfig::new();
+    // let enable_indexer_env = env::var("ENABLE_INDEXER").unwrap_or_else(|_| "false".to_string());
+    // let tendermint_websocket_url: &str = &env::var("TENDERMINT_WEBSOCKET_URL")
+    //     .unwrap_or_else(|_| "ws://127.0.0.1:26657/websocket".to_string());
+    // let tendermint_rpc_url: &str =
+    //     &env::var("TENDERMINT_RPC_URL").unwrap_or_else(|_| "http://127.0.0.1:26657".to_string());
+    // let tendermint_initial_block = env::var("TENDERMINT_INITIAL_BLOCK_HEIGHT")
+    //     .unwrap_or_else(|_| "1".to_string())
+    //     .parse::<u64>()?;
+    // let tendermint_final_block = env::var("TENDERMINT_FINAL_BLOCK_HEIGHT")
+    //     .unwrap_or_else(|_| "0".to_string())
+    //     .parse::<u64>()?;
+    // let tendermint_save_all_blocks = env::var("TENDERMINT_SAVE_ALL_BLOCKS")
+    //     .unwrap_or_else(|_| "false".to_string())
+    //     .parse::<bool>()?;
 
-    // By default we use a postgres database for the backend, but not always!
-    let postgres_backend = env::var("POSTGRES_PERSISTENCE")
-        .unwrap_or_else(|_| "true".to_string())
-        .parse::<bool>()?;
+    // // By default we use a postgres database for the backend, but not always!
+    // let postgres_backend = env::var("POSTGRES_PERSISTENCE")
+    //     .unwrap_or_else(|_| "true".to_string())
+    //     .parse::<bool>()?;
 
-    let transaction_page_size: u8 = env::var("TRANSACTION_PAGE_SIZE")
-        .unwrap_or_else(|_| "100".to_string())
-        .parse::<u8>()?;
+    // let transaction_page_size: u8 = env::var("TRANSACTION_PAGE_SIZE")
+    //     .unwrap_or_else(|_| "100".to_string())
+    //     .parse::<u8>()?;
 
-    let block_page_size: u64 = env::var("BLOCK_PAGE_SIZE")
-        .unwrap_or_else(|_| "100".to_string())
-        .parse::<u64>()?;
+    // let block_page_size: u64 = env::var("BLOCK_PAGE_SIZE")
+    //     .unwrap_or_else(|_| "100".to_string())
+    //     .parse::<u64>()?;
 
     let env = Env::default()
         .filter_or("INDEXER_LOG_LEVEL", "info")
@@ -53,37 +57,40 @@ async fn main() -> anyhow::Result<()> {
 
     env_logger::init_from_env(env);
 
-    info!(
-        "INDEXING WITH ENV:\n\
-        tendermint_rpc_url: {}\n\
-        tendermint_websocket_url: {}\n\
-        tendermint_initial_block: {}\n\
-        tendermint_save_all_blocks: {}\n\
-        postgres_backend: {}\n\
-        enable_indexer_env: {}\n\
-        transaction_page_size: {}\n\
-        block_page_size: {}\n",
-        tendermint_rpc_url,
-        tendermint_websocket_url,
-        tendermint_initial_block,
-        tendermint_save_all_blocks,
-        postgres_backend,
-        enable_indexer_env,
-        transaction_page_size,
-        block_page_size
-    );
-    if !postgres_backend {
+    info!("indexing with environment:\n{}", config);
+    // info!(
+    //     "INDEXING WITH ENV:\n\
+    //     tendermint_rpc_url: {}\n\
+    //     tendermint_websocket_url: {}\n\
+    //     tendermint_initial_block: {}\n\
+    //     tendermint_final_block: {}\n\
+    //     tendermint_save_all_blocks: {}\n\
+    //     postgres_backend: {}\n\
+    //     enable_indexer_env: {}\n\
+    //     transaction_page_size: {}\n\
+    //     block_page_size: {}\n",
+    //     tendermint_rpc_url,
+    //     tendermint_websocket_url,
+    //     tendermint_initial_block,
+    //     tendermint_final_block,
+    //     tendermint_save_all_blocks,
+    //     postgres_backend,
+    //     enable_indexer_env,
+    //     transaction_page_size,
+    //     block_page_size
+    // );
+    if !config.postgres_backend {
         warn!("Running indexer without a postgres backend!");
     }
 
     let mut registry;
-    if postgres_backend {
+    if config.postgres_backend {
         let db: PgConnection = establish_connection();
         registry = IndexerRegistry::new(Some(db));
     } else {
         registry = IndexerRegistry::new(None);
     }
-    let (client, driver) = WebSocketClient::new(tendermint_websocket_url).await?;
+    let (client, driver) = WebSocketClient::new::<&str>(&config.tendermint_websocket_url).await?;
     let driver_handle = tokio::spawn(async move { driver.run().await });
 
     // Register standard indexers:
@@ -98,14 +105,16 @@ async fn main() -> anyhow::Result<()> {
     init_known_unknown_messages(&mut msg_set);
     let arc_msg_set = Arc::new(msg_set);
 
-    if enable_indexer_env == "true" {
+    if config.enable_indexer_env {
         block_synchronizer(
             &registry,
-            tendermint_rpc_url,
-            tendermint_initial_block,
-            tendermint_save_all_blocks,
-            transaction_page_size,
-            block_page_size,
+            &config,
+            // tendermint_rpc_url,
+            // tendermint_initial_block,
+            // tendermint_final_block,
+            // tendermint_save_all_blocks,
+            // transaction_page_size,
+            // block_page_size,
             arc_msg_set.clone(),
         )
         .await?;
