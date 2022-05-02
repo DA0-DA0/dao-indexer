@@ -14,6 +14,7 @@ use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
 use std::sync::Arc;
+use futures::{FutureExt};
 
 fn map_from_events(
     events: &[Event],
@@ -44,10 +45,15 @@ async fn index_search_results(
     registry: &IndexerRegistry,
     msg_set: Arc<HashSet<String>>,
 ) -> anyhow::Result<()> {
+    info!("index_search_results txs: {} total_count: {}", search_results.txs.len(), search_results.total_count);
     for tx_response in search_results.txs.iter() {
         let mut events = BTreeMap::default();
-        // events.insert("tx.height".to_string(), vec![current_height.to_string()]);
+        let block_height = tx_response.height;
         map_from_events(&tx_response.tx_result.events, &mut events)?;
+        if events.get("tx.height").is_none() {
+            events.insert("tx.height".to_string(), vec![block_height.to_string()]);
+            // info!("created tx.height of {}", block_height);
+        }
         match Tx::from_bytes(tx_response.tx.as_bytes()) {
             Ok(unmarshalled_tx) => {
                 if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set.clone()) {
@@ -109,10 +115,9 @@ pub async fn load_block_transactions(
         "received {} for block {}, at {} items per page this is {} total pages",
         search_results.total_count, current_height, transaction_page_size, total_pages
     );
-    let mut indexing_futures = vec![];
     info!("indexing page 1, blocks {}-{}", current_height, last_block-1);
-    let f = index_search_results(search_results, registry, msg_set.clone());
-    indexing_futures.push(f);
+    index_search_results(search_results, registry, msg_set.clone()).await?;
+
     // Iterate through all the pages in the results:
     let mut page_futures = vec![];
     if total_pages > 1 {
@@ -126,81 +131,34 @@ pub async fn load_block_transactions(
                 page,
                 transaction_page_size,
                 tendermint_rpc::Order::Ascending,
-            );
+            ).map(|response| {
+                match response {
+                Ok(search_results) => {
+                    index_search_results(
+                        search_results,
+                        registry,
+                        msg_set.clone(),
+                    )
+                }
+                Err(e) => {
+                    error!("{:?}", e);
+                    let empty_response = TxSearchResponse {
+                        txs: vec![],
+                        total_count: 0
+                    };
+                    index_search_results(
+                        empty_response,
+                        registry,
+                        msg_set.clone(),
+                    )
+                }
+            }});
             page_futures.push(f);
         }
     }
     info!("wating for {} total_pages...", total_pages);
-    let join_results = join_all(page_futures).await;
-    info!("received {} total_pages...", total_pages);
-    let mut page = 2;
-    for response in join_results {
-        match response {
-            Ok(search_results) => {
-                info!("indexing page {}, blocks {}-{}", page, current_height, last_block-1);
-                let f = index_search_results(
-                    search_results,
-                    registry,
-                    msg_set.clone(),
-                );
-                indexing_futures.push(f);
-                page += 1;
-            }
-            Err(e) => {
-                error!("{:?}", e);
-                page += 1;
-            }
-        }
-    }
-    info!("wating to index {} results...", indexing_futures.len());
-    let join_results = join_all(indexing_futures).await;
-    println!("indexing futures returned: {:?}", join_results);
-    // let mut page = 2;
-    // for response in join_results {
-    // }
-    // let f = join_results.map(|result_vec|
-    //         result_vec.map(|response| {
-    //             match response {
-    //                 Ok(search_results) => {
-    //                     info!("indexing page {}, block {}", page, current_height);
-    //                     index_futures.push(index_search_results(
-    //                         &search_results,
-    //                         current_height,
-    //                         registry,
-    //                         msg_set,
-    //                     ));
-    //                     page += 1;
-    //                 }
-    //                 _ => {}
-    //             }
-    //         }));
-    //     }
-    //     _ => {
-    //         // error!("{:?}", e);
-    //         eprintln!("wtf goes here?");
-    //         Ok(())
-    //     }
-    // });
-    //     Ok(response) => {
-    //         match response {
-    //             Ok(search_results) => {
-    //                 info!("indexing page {}, block {}", page, current_height);
-    //                 index_futures.push(index_search_results(
-    //                     &search_results,
-    //                     current_height,
-    //                     registry,
-    //                     msg_set,
-    //                 ));
-    //             }
-    //             _ => {}
-    //         }
-    //         page += 1;
-    //     }
-    //     Err(e) => {
-    //         error!("Error fetching page {}:\n{:?}", page, e);
-    //         page += 1;
-    //     }
-    // });
+    let _ = join_all(page_futures).await;
+    info!("received {} total_pages", total_pages);
     Ok(())
 }
 
