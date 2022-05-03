@@ -2,7 +2,6 @@ use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
 use futures::future::join_all;
-// use futures::prelude::*;
 use crate::config::IndexerConfig;
 use futures::FutureExt;
 use log::{error, info, warn};
@@ -16,10 +15,11 @@ use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
+use crate::indexing::event_map::EventMap;
 
 fn map_from_events(
     events: &[Event],
-    event_map: &mut BTreeMap<String, Vec<String>>, // TODO(gavin.doughtie): type alias for the event map
+    event_map: &mut EventMap,
 ) -> anyhow::Result<()> {
     for event in events {
         let event_name = &event.type_str;
@@ -57,7 +57,6 @@ async fn index_search_results(
         map_from_events(&tx_response.tx_result.events, &mut events)?;
         if events.get("tx.height").is_none() {
             events.insert("tx.height".to_string(), vec![block_height.to_string()]);
-            // info!("created tx.height of {}", block_height);
         }
         match Tx::from_bytes(tx_response.tx.as_bytes()) {
             Ok(unmarshalled_tx) => {
@@ -97,11 +96,9 @@ async fn index_search_results(
 pub async fn load_block_transactions(
     tendermint_client: &TendermintClient,
     config: &IndexerConfig,
-    // transaction_page_size: u8,
     registry: &IndexerRegistry,
     msg_set: Arc<HashSet<String>>,
     current_height: u64,
-    // block_page_size: u64,
 ) -> anyhow::Result<()> {
     let last_block = current_height + config.block_page_size;
     info!("loading blocks {}-{}", current_height, last_block - 1);
@@ -123,7 +120,6 @@ pub async fn load_block_transactions(
                 tendermint_client,
                 query,
                 search_results,
-                // transaction_page_size,
                 registry,
                 msg_set,
                 current_height,
@@ -144,7 +140,6 @@ async fn handle_search_results(
     tendermint_client: &TendermintClient,
     query: Query,
     search_results: TxSearchResponse,
-    // transaction_page_size: u8,
     registry: &IndexerRegistry,
     msg_set: Arc<HashSet<String>>,
     current_height: u64,
@@ -231,19 +226,16 @@ pub async fn block_synchronizer(
     }
 
     let mut current_height = config.tendermint_initial_block;
-    let mut last_log_height = 0;
+    let mut last_log_height = config.tendermint_initial_block;
     let mut block_transaction_futures = vec![];
     while current_height < latest_block_height {
-        // TODO(gavin.doughtie): we should be able to run N of these
-        // load_block_transactions calls in a loop and have them run
-        // in parallel!
+        // run load_block_transactions calls in in parallel
         let f = load_block_transactions(
             &tendermint_client,
             config,
             registry,
             msg_set.clone(),
             current_height,
-            // config.block_page_size,
         );
         block_transaction_futures.push(f);
         if current_height - last_log_height > 1000 {
