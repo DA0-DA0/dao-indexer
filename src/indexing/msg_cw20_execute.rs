@@ -1,13 +1,14 @@
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
-use crate::util::debug::dump_events;
+use crate::util::debug::{dump_events, events_string};
 use crate::util::update_balance::update_balance;
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
+use log::error;
 use std::str::FromStr;
 
 impl IndexMessage for Cw20ExecuteMsg {
@@ -19,7 +20,17 @@ impl IndexMessage for Cw20ExecuteMsg {
         dump_events(event_map);
         if let Some(wasm_actions) = event_map.get("wasm.action") {
             if !wasm_actions.is_empty() && &wasm_actions[0] == "send" {
-                let tx_height = BigDecimal::from_str(&(event_map.get("tx.height").unwrap()[0]))?;
+                let tx_height = BigDecimal::from_str(
+                    &({
+                        let this = event_map.get("tx.height");
+                        if let Some(val) = this {
+                            val
+                        } else {
+                            error!("{}", events_string(event_map));
+                            panic!("called `Option::unwrap()` on a `None` value")
+                        }
+                    }[0]),
+                )?;
                 let contract_addresses = event_map
                     .get("wasm._contract_address")
                     .ok_or_else(|| anyhow!("no wasm._contract_address"))?;
@@ -47,7 +58,6 @@ impl IndexMessage for Cw20ExecuteMsg {
                 if receiving_contract_action == "stake" {
                     send_amount = action_amount;
                 }
-                println!("parsing Cw20Coin amount {}", send_amount);
                 let mut amount: Uint128 = Uint128::new(0);
                 match Uint128::from_str(send_amount) {
                     Ok(parsed_amount) => {
@@ -56,7 +66,7 @@ impl IndexMessage for Cw20ExecuteMsg {
                     Err(e) => {
                         // Try to parse as a decimal
                         let decimal_amount = BigDecimal::from_str(send_amount)?;
-                        println!("Parsed as {:?} due to error {:?}", decimal_amount, e)
+                        error!("Parsed as {:?} due to error {:?}", decimal_amount, e)
                     }
                 }
                 let balance_update: Cw20Coin = Cw20Coin {

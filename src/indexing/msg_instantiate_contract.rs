@@ -7,8 +7,9 @@ use crate::util::dao::insert_dao;
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+use cw3_dao::msg::GovTokenMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-use log::{debug, error};
+use log::{debug, error, info};
 use std::str::FromStr;
 
 impl IndexMessage for MsgInstantiateContract {
@@ -58,16 +59,50 @@ impl IndexMessage for MsgInstantiateContract {
         // Due to versioning, we can't guarantee that serde deserialization
         // will work here so we have to deal with that OR import all the
         // different contract versions and try them in a cascade.
+        // TODO(gavin.doughtie): This might be a lp contract:
+        // {
+        //   "lp_token_code_id": 1,
+        //   "token1_denom": {
+        //       "cw20": "juno17c7zyezg3m8p2tf9hqgue9jhahvle70d59e8j9nmrvhw9anrpk8qxlrghx"
+        //   },
+        //   "token2_denom": {
+        //       "native": "ibc/C4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9"
+        //   }
+        // }
         match serde_json::from_str::<Cw3DaoInstantiateMsg>(&msg_str) {
             Ok(instantiate_dao) => insert_dao(
                 registry,
-                &instantiate_dao,
+                &instantiate_dao.name,
+                &instantiate_dao.description,
+                Some(instantiate_dao.gov_token),
+                instantiate_dao.image_url.as_ref(),
                 &contract_addresses,
                 Some(&tx_height),
             ),
             Err(e) => {
-                error!("Error parsing instantiate msg:\n{}\n{:?}", &msg_str, e);
-                Ok(())
+                error!("Error parsing instantiate msg ({:?}); trying generic", e);
+                let parsed = serde_json::from_str::<serde_json::Value>(&msg_str)?;
+                info!("parsed:\n{}", serde_json::to_string_pretty(&parsed)?);
+                let mut gov_token = None;
+                if let Some(gov_token_dict) = parsed.get("gov_token") {
+                    match serde_json::from_str::<GovTokenMsg>(&gov_token_dict.to_string()) {
+                        Ok(msg) => {
+                            gov_token = Some(msg);
+                        }
+                        _ => {
+                            gov_token = None;
+                        }
+                    }
+                }
+                insert_dao(
+                    registry,
+                    &parsed["name"].to_string(),
+                    &parsed["description"].to_string(),
+                    gov_token,
+                    Some(&parsed["image_url"].to_string()),
+                    &contract_addresses,
+                    Some(&tx_height),
+                )
             }
         }
     }

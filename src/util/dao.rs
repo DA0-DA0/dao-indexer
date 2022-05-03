@@ -8,11 +8,15 @@ use diesel::prelude::*;
 
 use super::gov_token::insert_gov_token;
 
-use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+// use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+use cw3_dao::msg::GovTokenMsg;
 
 pub fn insert_dao(
     db: &IndexerRegistry,
-    instantiate_dao: &Cw3DaoInstantiateMsg,
+    dao_name: &str,
+    dao_description: &str,
+    gov_token: Option<GovTokenMsg>,
+    dao_image_url: Option<&String>,
     contract_addr: &ContractAddresses,
     height: Option<&BigDecimal>,
 ) -> anyhow::Result<()> {
@@ -20,14 +24,15 @@ pub fn insert_dao(
 
     let dao_address = contract_addr.dao_address.as_ref().unwrap();
 
-    let inserted_token_id: i32 =
-        insert_gov_token(db, &instantiate_dao.gov_token, contract_addr, height).unwrap();
+    let inserted_token_id: i32 = insert_gov_token(db, gov_token, contract_addr, height).unwrap();
 
-    let dao_model = NewDao::from_msg(
+    let dao_model = NewDao::new(
         dao_address,
-        contract_addr.staking_contract_address.as_ref().unwrap(),
+        dao_description,
         inserted_token_id,
-        instantiate_dao,
+        dao_image_url,
+        dao_name,
+        dao_address,
     );
 
     diesel::insert_into(dao)
