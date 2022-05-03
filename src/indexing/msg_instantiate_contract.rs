@@ -74,7 +74,7 @@ impl IndexMessage for MsgInstantiateContract {
                 registry,
                 &instantiate_dao.name,
                 &instantiate_dao.description,
-                &instantiate_dao.gov_token,
+                Some(instantiate_dao.gov_token),
                 instantiate_dao.image_url.as_ref(),
                 &contract_addresses,
                 Some(&tx_height),
@@ -83,12 +83,22 @@ impl IndexMessage for MsgInstantiateContract {
                 error!("Error parsing instantiate msg ({:?}); trying generic", e);
                 let parsed = serde_json::from_str::<serde_json::Value>(&msg_str)?;
                 info!("parsed:\n{}", serde_json::to_string_pretty(&parsed)?);
-                let gov_token = serde_json::from_str::<GovTokenMsg>(&parsed["gov_token"].to_string())?;
+                let mut gov_token= None;
+                if let Some(gov_token_dict) = parsed.get("gov_token") {
+                    match serde_json::from_str::<GovTokenMsg>(&gov_token_dict.to_string()) {
+                        Ok(msg) => {
+                            gov_token = Some(msg);
+                        }
+                        _ => {
+                            gov_token = None;
+                        }
+                    }
+                }
                 insert_dao(
                     registry,
                     &parsed["name"].to_string(),
                     &parsed["description"].to_string(),
-                    &gov_token,
+                    gov_token,
                     Some(&parsed["image_url"].to_string()),
                     &contract_addresses,
                     Some(&tx_height),

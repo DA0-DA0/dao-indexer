@@ -17,12 +17,13 @@ use log::{error, warn};
 
 pub fn insert_gov_token(
     db: &IndexerRegistry,
-    token_msg: &GovTokenMsg,
+    token_msg: Option<GovTokenMsg>,
     contract_addresses: &ContractAddresses,
     height: Option<&BigDecimal>,
 ) -> QueryResult<i32> {
     use crate::db::schema::gov_token::dsl::*;
     let result: QueryResult<i32>;
+    if let Some(token_msg) = &token_msg {
     match token_msg {
         GovTokenMsg::InstantiateNewCw20 {
             msg,
@@ -81,6 +82,9 @@ pub fn insert_gov_token(
             result = Ok(0);
         }
     };
+    } else {
+        result = Ok(0);
+    }
     result
 }
 

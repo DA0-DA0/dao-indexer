@@ -15,7 +15,7 @@ pub fn insert_dao(
     db: &IndexerRegistry,
     dao_name: &str,
     dao_description: &str,
-    gov_token: &GovTokenMsg,
+    gov_token: Option<GovTokenMsg>,
     dao_image_url: Option<&String>,
     contract_addr: &ContractAddresses,
     height: Option<&BigDecimal>,
@@ -23,7 +23,7 @@ pub fn insert_dao(
     use crate::db::schema::dao::dsl::*;
 
     let dao_address = contract_addr.dao_address.as_ref().unwrap();
-
+    
     let inserted_token_id: i32 =
         insert_gov_token(db, gov_token, contract_addr, height).unwrap();
 
