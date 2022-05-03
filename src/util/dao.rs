@@ -23,9 +23,8 @@ pub fn insert_dao(
     use crate::db::schema::dao::dsl::*;
 
     let dao_address = contract_addr.dao_address.as_ref().unwrap();
-    
-    let inserted_token_id: i32 =
-        insert_gov_token(db, gov_token, contract_addr, height).unwrap();
+
+    let inserted_token_id: i32 = insert_gov_token(db, gov_token, contract_addr, height).unwrap();
 
     let dao_model = NewDao::new(
         dao_address,
@@ -33,7 +32,7 @@ pub fn insert_dao(
         inserted_token_id,
         dao_image_url,
         dao_name,
-        dao_address
+        dao_address,
     );
 
     diesel::insert_into(dao)

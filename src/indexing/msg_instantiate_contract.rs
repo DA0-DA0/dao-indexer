@@ -7,10 +7,10 @@ use crate::util::dao::insert_dao;
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+use cw3_dao::msg::GovTokenMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use log::{debug, error, info};
 use std::str::FromStr;
-use cw3_dao::msg::GovTokenMsg;
 
 impl IndexMessage for MsgInstantiateContract {
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
@@ -83,7 +83,7 @@ impl IndexMessage for MsgInstantiateContract {
                 error!("Error parsing instantiate msg ({:?}); trying generic", e);
                 let parsed = serde_json::from_str::<serde_json::Value>(&msg_str)?;
                 info!("parsed:\n{}", serde_json::to_string_pretty(&parsed)?);
-                let mut gov_token= None;
+                let mut gov_token = None;
                 if let Some(gov_token_dict) = parsed.get("gov_token") {
                     match serde_json::from_str::<GovTokenMsg>(&gov_token_dict.to_string()) {
                         Ok(msg) => {

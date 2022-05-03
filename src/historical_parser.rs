@@ -1,8 +1,9 @@
+use crate::config::IndexerConfig;
+use crate::indexing::event_map::EventMap;
 use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
 use futures::future::join_all;
-use crate::config::IndexerConfig;
 use futures::FutureExt;
 use log::{error, info, warn};
 use math::round;
@@ -15,12 +16,8 @@ use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
-use crate::indexing::event_map::EventMap;
 
-fn map_from_events(
-    events: &[Event],
-    event_map: &mut EventMap,
-) -> anyhow::Result<()> {
+fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result<()> {
     for event in events {
         let event_name = &event.type_str;
         for attribute in &event.attributes {

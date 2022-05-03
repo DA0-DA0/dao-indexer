@@ -1,15 +1,15 @@
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
-use crate::util::debug::{events_string, dump_events};
+use crate::util::debug::{dump_events, events_string};
 use crate::util::update_balance::update_balance;
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
-use std::str::FromStr;
 use log::error;
+use std::str::FromStr;
 
 impl IndexMessage for Cw20ExecuteMsg {
     fn index_message(
@@ -20,15 +20,17 @@ impl IndexMessage for Cw20ExecuteMsg {
         dump_events(event_map);
         if let Some(wasm_actions) = event_map.get("wasm.action") {
             if !wasm_actions.is_empty() && &wasm_actions[0] == "send" {
-                let tx_height = BigDecimal::from_str(&({
-                    let this = event_map.get("tx.height");
-                    if let Some(val) = this {
-                        val
-                    } else {
-                        error!("{}", events_string(event_map));
-                        panic!("called `Option::unwrap()` on a `None` value")
-                    }
-                }[0]))?;
+                let tx_height = BigDecimal::from_str(
+                    &({
+                        let this = event_map.get("tx.height");
+                        if let Some(val) = this {
+                            val
+                        } else {
+                            error!("{}", events_string(event_map));
+                            panic!("called `Option::unwrap()` on a `None` value")
+                        }
+                    }[0]),
+                )?;
                 let contract_addresses = event_map
                     .get("wasm._contract_address")
                     .ok_or_else(|| anyhow!("no wasm._contract_address"))?;

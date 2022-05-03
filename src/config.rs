@@ -75,7 +75,9 @@ impl IndexerConfig {
 
 impl fmt::Display for IndexerConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "IndexerConfig: tendermint_rpc_url: {}\n\
+        write!(
+            f,
+            "IndexerConfig: tendermint_rpc_url: {}\n\
         tendermint_websocket_url: {}\n\
         tendermint_initial_block: {}\n\
         tendermint_final_block: {}\n\
@@ -94,7 +96,8 @@ impl fmt::Display for IndexerConfig {
             self.enable_indexer_env,
             self.listen,
             self.transaction_page_size,
-            self.block_page_size)
+            self.block_page_size
+        )
     }
 }
 

@@ -9,8 +9,8 @@ use log::{debug, error};
 use prost_types::Any;
 // use std::borrow::BorrowMut;
 use std::collections::HashSet;
-use tendermint_rpc::event::TxInfo;
 use std::sync::Arc;
+use tendermint_rpc::event::TxInfo;
 
 pub fn process_parsed(
     registry: &IndexerRegistry,
