@@ -17,6 +17,15 @@ pub fn registry_keys_from_iter<'a>(
     Box::new(iter)
 }
 
+fn has_all(keys: RootKeysType, msg: &Value) -> bool {
+    for key in keys {
+        if msg.get(key).is_none() {
+            return false
+        }
+    }
+    true
+}
+
 pub trait Indexer {
     type MessageType: DeserializeOwned + IndexMessage;
 
@@ -48,9 +57,19 @@ pub trait Indexer {
     // implementation
     fn root_keys(&self) -> RootKeysType;
 
+    // Iterator over the root keys in a given
+    // message, used by the default extract_message_key
+    // implementation. If a message contains ALL of these
+    // keys, then it is definitely of the required type.
+    fn required_root_keys(&self) -> RootKeysType;
+
     // Extract the key from a given message. This should be one of the keys
     // returned in registry_keys or None.
     fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+        let required_roots = self.required_root_keys();
+        if has_all(required_roots, msg) {
+            return Some(RegistryKey::new(self.id()));
+        }
         let roots = self.root_keys();
         for key in roots {
             if msg.get(key).is_some() {

@@ -43,4 +43,7 @@ impl Indexer for Cw20ExecuteMsgIndexer {
     fn root_keys(&self) -> RootKeysType {
         root_keys_from_iter(ROOT_KEYS.into_iter())
     }
+    fn required_root_keys(&self) -> RootKeysType {
+        root_keys_from_iter([].into_iter())
+    }
 }

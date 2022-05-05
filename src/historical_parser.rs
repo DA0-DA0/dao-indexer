@@ -10,6 +10,7 @@ use math::round;
 use prost::Message;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
+use std::cmp::min;
 use std::sync::Arc;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
@@ -97,10 +98,10 @@ pub async fn load_block_transactions(
     msg_set: Arc<HashSet<String>>,
     current_height: u64,
 ) -> anyhow::Result<()> {
-    let last_block = current_height + config.block_page_size;
-    info!("loading blocks {}-{}", current_height, last_block - 1);
+    let last_block = min(current_height + config.block_page_size, config.tendermint_final_block);
+    info!("loading blocks {}-{}", current_height, last_block);
     let key = "tx.height";
-    let query = Query::gte(key, current_height).and_lt(key, last_block);
+    let query = Query::gte(key, current_height).and_lt(key, last_block + 1);
     match tendermint_client
         .tx_search(
             query.clone(),
@@ -153,7 +154,7 @@ async fn handle_search_results(
     info!(
         "indexing page 1, blocks {}-{}",
         current_height,
-        last_block - 1
+        last_block
     );
     index_search_results(search_results, registry, msg_set.clone()).await?;
 
@@ -167,7 +168,7 @@ async fn handle_search_results(
                 "querying for page {}, blocks {}-{}",
                 page,
                 current_height,
-                last_block - 1
+                last_block
             );
             let f = tendermint_client
                 .tx_search(

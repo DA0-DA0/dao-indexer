@@ -1,3 +1,5 @@
+use clap::{Arg, Command};
+use dotenv::dotenv;
 use std::env;
 use std::fmt;
 
@@ -15,7 +17,53 @@ pub struct IndexerConfig {
 }
 
 impl IndexerConfig {
+    pub fn with_clap(app: Command) -> Self {
+        let matches = app
+            .arg(
+                Arg::new("config")
+                    .required(false)
+                    .long("config")
+                    .takes_value(true)
+                    .help("Optionally sets a config file to use"),
+            )
+            .arg(
+                Arg::new("database-url")
+                    .required(false)
+                    .long("database-url")
+                    .takes_value(true)
+                    .help("Postgres connection URL"),
+            )
+            .arg(
+                Arg::new("enable-indexer")
+                    .required(false)
+                    .long("enable-indexer")
+                    .takes_value(true)
+                    .help("Index historical blocks"),
+            )
+            /*
+            ENABLE_INDEXER=true
+            INDEXER_LOG_LEVEL=info
+            POSTGRES_PERSISTENCE=false
+            BLOCK_PAGE_SIZE=10
+            TRANSACTION_PAGE_SIZE=10
+             */
+            .get_matches();
+
+        let input_file = matches.value_of("config").unwrap_or("");
+        if !input_file.is_empty() {
+            dotenv::from_filename(input_file).ok();
+        } else {
+            dotenv().ok();
+        }
+        Self::init()
+    }
+
     pub fn new() -> Self {
+        dotenv().ok();
+        Self::init()
+    }
+
+    fn init() -> Self {
         let enable_indexer_env = env::var("ENABLE_INDEXER")
             .unwrap_or_else(|_| "false".to_string())
             .parse::<bool>()

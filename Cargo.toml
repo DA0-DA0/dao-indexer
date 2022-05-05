@@ -11,6 +11,7 @@ base64 = "0.13.0"
 bigdecimal = { version="0.1.2" }
 num-bigint="0.2.6"
 bincode = "1.3.3"
+clap = "3.1.15" # for command-line parsing
 cosmos-sdk-proto = "0.11.0"
 # cosmrs = {features = ["cosmwasm"], git = "https://github.com/cosmos/cosmos-rust.git", branch = "main" }
 cosmrs = {features = ["cosmwasm"], version = "0.6.1"}
