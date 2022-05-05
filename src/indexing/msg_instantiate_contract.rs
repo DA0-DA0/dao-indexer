@@ -54,6 +54,8 @@ impl IndexMessage for MsgInstantiateContract {
             error!("Error inserting contract {:?}\n{:?}", &contract_model, e);
         }
         let msg_str = String::from_utf8(self.msg.clone())?;
+        let parsed = serde_json::from_str::<serde_json::Value>(&msg_str)?;
+        registry.index_message_and_events(events, &parsed, &msg_str)?;
 
         // TODO(gavin.doughtie):
         // Due to versioning, we can't guarantee that serde deserialization
@@ -81,7 +83,6 @@ impl IndexMessage for MsgInstantiateContract {
             ),
             Err(e) => {
                 error!("Error parsing instantiate msg ({:?}); trying generic", e);
-                let parsed = serde_json::from_str::<serde_json::Value>(&msg_str)?;
                 info!("parsed:\n{}", serde_json::to_string_pretty(&parsed)?);
                 let mut gov_token = None;
                 if let Some(gov_token_dict) = parsed.get("gov_token") {

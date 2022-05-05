@@ -32,8 +32,8 @@ pub trait Indexer {
         // The decoded string value of the message
         msg_str: &'a str,
     ) -> anyhow::Result<()> {
-        let execute_contract = serde_json::from_str::<Self::MessageType>(msg_str)?;
-        execute_contract.index_message(registry, events)
+        let msg = serde_json::from_str::<Self::MessageType>(msg_str)?;
+        msg.index_message(registry, events)
     }
 
     // ID of this indexer. Used internally in indexer implementations
@@ -41,12 +41,12 @@ pub trait Indexer {
     fn id(&self) -> String;
 
     // Keys that this indexer wants to have its "index" method called for.
-    fn registry_keys(&self) -> RegistryKeysType; // Box<dyn Iterator<Item = &RegistryKey> + '_>;
+    fn registry_keys(&self) -> RegistryKeysType;
 
     // Iterator over the root keys in a given
     // message, used by the default extract_message_key
     // implementation
-    fn root_keys(&self) -> RootKeysType; //Box<dyn Iterator<Item = &'a str> + 'a>;
+    fn root_keys(&self) -> RootKeysType;
 
     // Extract the key from a given message. This should be one of the keys
     // returned in registry_keys or None.
