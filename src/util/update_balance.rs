@@ -1,4 +1,4 @@
-use super::gov_token::get_gov_token;
+use super::gov_token::get_gov_token_address;
 use crate::indexing::indexer_registry::IndexerRegistry;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
@@ -78,18 +78,21 @@ pub fn update_balance_from_events(
                 eprintln!("Error parsing amount: {} {:?}", amount, e);
             }
         }
-        let gov_token = get_gov_token(db, &from)?;
-        let balance_update = Cw20Coin {
-            address: receiver.clone(),
-            amount: parsed_amount,
-        };
-        update_balance(
-            db,
-            Some(&tx_height),
-            &gov_token.address,
-            sender,
-            &balance_update,
-        )
+        if let Some(gov_token_address) = get_gov_token_address(db, &from) {
+            let balance_update = Cw20Coin {
+                address: receiver.clone(),
+                amount: parsed_amount,
+            };
+            update_balance(
+                db,
+                Some(&tx_height),
+                &gov_token_address,
+                sender,
+                &balance_update,
+            )
+        } else {
+            Ok(0)
+        }
     } else {
         error!("No 'wasm.from' value found in event map");
         Ok(0)

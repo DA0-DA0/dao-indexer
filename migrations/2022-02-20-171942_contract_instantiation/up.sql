@@ -47,18 +47,19 @@ CREATE TABLE cw20_transactions (
 CREATE TABLE coin (id SERIAL PRIMARY KEY);
 
 CREATE TABLE dao (
-    id SERIAL PRIMARY KEY,
-    contract_address TEXT NOT NULL,
+    contract_address TEXT PRIMARY KEY,
     staking_contract_address TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     image_url TEXT,
-    gov_token_id INT NOT NULL
+    gov_token_address TEXT
 );
 
 CREATE INDEX dao_staking_address_index on dao (staking_contract_address);
 
 CREATE INDEX dao_contract_address_index on dao (contract_address);
+
+CREATE INDEX dao_gov_token_address_index on dao (gov_token_address);
 
 CREATE TABLE marketing (
     id SERIAL PRIMARY KEY,
@@ -69,8 +70,7 @@ CREATE TABLE marketing (
 );
 
 CREATE TABLE gov_token (
-    id SERIAL PRIMARY KEY,
-    address TEXT NOT NULL,
+    address TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     symbol TEXT NOT NULL,
     decimals INT,

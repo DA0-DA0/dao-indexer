@@ -55,14 +55,13 @@ table! {
 }
 
 table! {
-    dao (id) {
-        id -> Int4,
+    dao (contract_address) {
         contract_address -> Text,
         staking_contract_address -> Text,
         name -> Text,
         description -> Text,
         image_url -> Nullable<Text>,
-        gov_token_id -> Int4,
+        gov_token_address -> Nullable<Text>,
     }
 }
 
@@ -75,8 +74,7 @@ table! {
 }
 
 table! {
-    gov_token (id) {
-        id -> Int4,
+    gov_token (address) {
         address -> Text,
         name -> Text,
         symbol -> Text,

@@ -24,12 +24,25 @@ pub fn insert_dao(
 
     let dao_address = contract_addr.dao_address.as_ref().unwrap();
 
-    let inserted_token_id: i32 = insert_gov_token(db, gov_token, contract_addr, height).unwrap();
+    let mut gta_option = None;
+    let gta: String;
+    if let Some(GovTokenMsg::UseExistingCw20 { addr, label:_ }) = &gov_token {
+        gta = addr.clone();
+        gta_option = Some(&gta);
+    }
+    // if let Some(gov_token) = &gov_token {
+    //     if let GovTokenMsg::UseExistingCw20 { addr, label:_ } = gov_token {
+    //         gta = addr.clone();
+    //         gta_option = Some(&gta);
+    //     }
+    // }
+
+    let _ = insert_gov_token(db, gov_token, contract_addr, height)?;
 
     let dao_model = NewDao::new(
         dao_address,
         dao_description,
-        inserted_token_id,
+        gta_option,
         dao_image_url,
         dao_name,
         dao_address,

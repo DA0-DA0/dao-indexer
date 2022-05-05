@@ -22,7 +22,8 @@ pub fn insert_gov_token(
     height: Option<&BigDecimal>,
 ) -> QueryResult<i32> {
     use crate::db::schema::gov_token::dsl::*;
-    let result: QueryResult<i32>;
+    // let result: QueryResult<i32>;
+    // let mut gov_token_address:Option<String> = None;
     if let Some(token_msg) = &token_msg {
         match token_msg {
             GovTokenMsg::InstantiateNewCw20 {
@@ -30,16 +31,16 @@ pub fn insert_gov_token(
                 initial_dao_balance,
                 ..
             } => {
+//                gov_token_address = None;
                 let mut marketing_record_id: Option<i32> = None;
                 if let Some(marketing) = &msg.marketing {
                     marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
                 }
                 let cw20_address = contract_addresses.cw20_address.as_ref().unwrap();
                 let token_model = NewGovToken::from_msg(cw20_address, marketing_record_id, msg);
-                result = diesel::insert_into(gov_token)
+                let _ = diesel::insert_into(gov_token)
                     .values(token_model)
-                    .returning(id)
-                    .get_result(db as &PgConnection);
+                    .execute(db as &PgConnection);
                 let dao_address = contract_addresses.dao_address.as_ref().unwrap();
                 let amount;
                 if let Some(balance) = initial_dao_balance {
@@ -60,9 +61,7 @@ pub fn insert_gov_token(
                 );
                 if let Err(e) = initial_update_result {
                     error!("error updating initial balance {}", e);
-                }
-
-                if let Ok(_token_id) = result {
+                } else {
                     // This handles the initial token distributions but not the treasury.
                     for balance in &msg.initial_balances {
                         if let Err(e) =
@@ -81,19 +80,34 @@ pub fn insert_gov_token(
                 ..
             } => {
                 warn!("TODO: Use existing cw20 addr: {}, label: {},", addr, label);
-                result = Ok(0);
             }
         };
-    } else {
-        result = Ok(0);
     }
-    result
+    Ok(0)
 }
 
-pub fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Cw20> {
+pub fn get_gov_token_address(db: &PgConnection, dao_address: &str) -> Option<String> {
+    match get_dao(db, dao_address) {
+        Ok(dao) => {
+            dao.gov_token_address
+        }
+        Err(e) => {
+            error!("Error getting dao for address '{}':\n{}", dao_address, e);
+            None
+        }
+    }
+}
+
+pub fn get_gov_token(db: &PgConnection, dao_address: &str) -> diesel::QueryResult<Option<Cw20>> {
     use crate::db::schema::gov_token::dsl::*;
     match get_dao(db, dao_address) {
-        Ok(dao) => gov_token.filter(id.eq(dao.gov_token_id)).first(db),
+        Ok(dao) => {
+            if let Some(gov_token_address) = dao.gov_token_address {
+                gov_token.filter(address.eq(gov_token_address)).first(db).optional()
+            } else {
+                Ok(None)
+            }
+        }
         Err(e) => {
             error!("Error getting dao for address '{}'", dao_address);
             Err(e)
