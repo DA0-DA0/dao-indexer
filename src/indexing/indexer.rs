@@ -63,12 +63,18 @@ pub trait Indexer {
     // keys, then it is definitely of the required type.
     fn required_root_keys(&self) -> RootKeysType;
 
+    fn has_required_root_keys(&self) -> bool {
+        false
+    }
+
     // Extract the key from a given message. This should be one of the keys
     // returned in registry_keys or None.
     fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
-        let required_roots = self.required_root_keys();
-        if has_all(required_roots, msg) {
-            return Some(RegistryKey::new(self.id()));
+        if self.has_required_root_keys() {
+            let required_roots = self.required_root_keys();
+            if has_all(required_roots, msg) {
+                return Some(RegistryKey::new(self.id()));
+            }
         }
         let roots = self.root_keys();
         for key in roots {
@@ -112,7 +118,6 @@ impl<I: Indexer> IndexerDyn for I {
     }
 
     fn registry_keys_dyn(&self) -> RegistryKeysType {
-        // Box<dyn Iterator<Item = &RegistryKey> + '_> {
         self.registry_keys()
     }
 

@@ -1,12 +1,12 @@
 use super::contract_util::ContractAddresses;
+use super::gov_token::insert_gov_token;
 use crate::db::models::{Dao, NewDao};
 use crate::indexing::indexer_registry::IndexerRegistry;
+use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-
-use super::gov_token::insert_gov_token;
 
 // use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use cw3_dao::msg::GovTokenMsg;
@@ -22,20 +22,20 @@ pub fn insert_dao(
 ) -> anyhow::Result<()> {
     use crate::db::schema::dao::dsl::*;
 
-    let dao_address = contract_addr.contract_address.as_ref().unwrap();
+    let dao_address = contract_addr
+        .contract_address
+        .as_ref()
+        .ok_or_else(|| anyhow!("No contract address for DAO"))?;
 
     let mut gta_option = None;
     let gta: String;
     if let GovTokenMsg::UseExistingCw20 { addr, label: _ } = gov_token {
         gta = addr.clone();
         gta_option = Some(&gta);
+    } else if let Some(cw20_address) = &contract_addr.cw20_address {
+        gta = cw20_address.clone();
+        gta_option = Some(&gta);
     }
-    // if let Some(gov_token) = &gov_token {
-    //     if let GovTokenMsg::UseExistingCw20 { addr, label:_ } = gov_token {
-    //         gta = addr.clone();
-    //         gta_option = Some(&gta);
-    //     }
-    // }
 
     let _ = insert_gov_token(db, gov_token, contract_addr, height)?;
 

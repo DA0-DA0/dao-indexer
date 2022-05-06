@@ -10,22 +10,7 @@ use std::str::FromStr;
 
 impl IndexMessage for Cw3DaoInstantiateMsg {
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
-        // let db;
-        // match &registry.db {
-        //     Some(registry_db) => {
-        //         db = registry_db;
-        //     }
-        //     _ => return Ok(()),
-        // }
         let contract_addresses = get_contract_addresses(events);
-        // let dao_address = contract_addresses
-        //     .dao_address
-        //     .as_ref()
-        //     .ok_or_else(|| anyhow!("no dao_address in {:?}\n{:?}", contract_addresses, events))?;
-        // let staking_contract_address = contract_addresses
-        //     .staking_contract_address
-        //     .as_ref()
-        //     .ok_or_else(|| anyhow!("no staking_contract_address"))?;
         let mut tx_height_opt = None;
 
         let tx_height_strings = events

@@ -94,10 +94,10 @@ pub async fn load_block_transactions(
     msg_set: MsgSet,
     current_height: u64,
 ) -> anyhow::Result<()> {
-    let last_block = min(
-        current_height + config.block_page_size,
-        config.tendermint_final_block,
-    );
+    let mut last_block = current_height + config.block_page_size;
+    if config.tendermint_final_block > 0 {
+        last_block = min(last_block, config.tendermint_final_block);
+    }
     debug!("loading blocks {}-{}", current_height, last_block);
     let key = "tx.height";
     let query = Query::gte(key, current_height).and_lt(key, last_block + 1);
@@ -146,10 +146,8 @@ async fn handle_search_results(
     if total_count == 0 {
         return Ok(());
     }
-    let total_pages = round::ceil(
-        total_count as f64 / config.transaction_page_size as f64,
-        0,
-    ) as u32;
+    let total_pages =
+        round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
     info!(
         "received {} for block {}, at {} items per page this is {} total pages",
         search_results.total_count, current_height, config.transaction_page_size, total_pages

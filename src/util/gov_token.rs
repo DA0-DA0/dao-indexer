@@ -22,16 +22,12 @@ pub fn insert_gov_token(
     height: Option<&BigDecimal>,
 ) -> QueryResult<i32> {
     use crate::db::schema::gov_token::dsl::*;
-    // let result: QueryResult<i32>;
-    // let mut gov_token_address:Option<String> = None;
-    //if let Some(token_msg) = &token_msg {
     match token_msg {
         GovTokenMsg::InstantiateNewCw20 {
             msg,
             initial_dao_balance,
             ..
         } => {
-            //                gov_token_address = None;
             let mut marketing_record_id: Option<i32> = None;
             if let Some(marketing) = &msg.marketing {
                 marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
