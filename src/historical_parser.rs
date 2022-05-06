@@ -6,7 +6,7 @@ use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
 use futures::future::join_all;
 use futures::FutureExt;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use math::round;
 use prost::Message;
 use std::cmp::min;
@@ -98,7 +98,7 @@ pub async fn load_block_transactions(
         current_height + config.block_page_size,
         config.tendermint_final_block,
     );
-    info!("loading blocks {}-{}", current_height, last_block);
+    debug!("loading blocks {}-{}", current_height, last_block);
     let key = "tx.height";
     let query = Query::gte(key, current_height).and_lt(key, last_block + 1);
     match tendermint_client
@@ -142,8 +142,12 @@ async fn handle_search_results(
     current_height: u64,
     last_block: u64,
 ) -> anyhow::Result<()> {
+    let total_count = search_results.total_count;
+    if total_count == 0 {
+        return Ok(());
+    }
     let total_pages = round::ceil(
-        search_results.total_count as f64 / config.transaction_page_size as f64,
+        total_count as f64 / config.transaction_page_size as f64,
         0,
     ) as u32;
     info!(
