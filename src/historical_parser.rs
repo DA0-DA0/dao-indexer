@@ -234,7 +234,6 @@ pub async fn block_synchronizer(
         }
         current_height += config.block_page_size as u64;
     }
-    let results = join_all(block_transaction_futures).await;
-    info!("results: {:?}", results);
+    join_all(block_transaction_futures).await;
     Ok(())
 }
