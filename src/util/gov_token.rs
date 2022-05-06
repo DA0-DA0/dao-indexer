@@ -17,14 +17,14 @@ use log::{error, warn};
 
 pub fn insert_gov_token(
     db: &IndexerRegistry,
-    token_msg: Option<GovTokenMsg>,
+    token_msg: &GovTokenMsg,
     contract_addresses: &ContractAddresses,
     height: Option<&BigDecimal>,
 ) -> QueryResult<i32> {
     use crate::db::schema::gov_token::dsl::*;
     // let result: QueryResult<i32>;
     // let mut gov_token_address:Option<String> = None;
-    if let Some(token_msg) = &token_msg {
+    //if let Some(token_msg) = &token_msg {
         match token_msg {
             GovTokenMsg::InstantiateNewCw20 {
                 msg,
@@ -82,7 +82,7 @@ pub fn insert_gov_token(
                 warn!("TODO: Use existing cw20 addr: {}, label: {},", addr, label);
             }
         };
-    }
+    //}
     Ok(0)
 }
 

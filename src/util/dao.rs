@@ -15,7 +15,7 @@ pub fn insert_dao(
     db: &IndexerRegistry,
     dao_name: &str,
     dao_description: &str,
-    gov_token: Option<GovTokenMsg>,
+    gov_token: &GovTokenMsg,
     dao_image_url: Option<&String>,
     contract_addr: &ContractAddresses,
     height: Option<&BigDecimal>,
@@ -26,7 +26,7 @@ pub fn insert_dao(
 
     let mut gta_option = None;
     let gta: String;
-    if let Some(GovTokenMsg::UseExistingCw20 { addr, label:_ }) = &gov_token {
+    if let GovTokenMsg::UseExistingCw20 { addr, label:_ } = gov_token {
         gta = addr.clone();
         gta_option = Some(&gta);
     }
