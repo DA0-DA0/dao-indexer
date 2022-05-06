@@ -1,6 +1,7 @@
 use crate::config::IndexerConfig;
 use crate::indexing::event_map::EventMap;
 use crate::indexing::indexer_registry::IndexerRegistry;
+use crate::indexing::msg_set::MsgSet;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use cosmrs::tx::Tx;
 use futures::future::join_all;
@@ -10,8 +11,6 @@ use math::round;
 use prost::Message;
 use std::cmp::min;
 use std::collections::BTreeMap;
-use std::collections::HashSet;
-use std::sync::Arc;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
@@ -42,7 +41,7 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
 async fn index_search_results(
     search_results: TxSearchResponse,
     registry: &IndexerRegistry,
-    msg_set: Arc<HashSet<String>>,
+    msg_set: MsgSet,
 ) -> anyhow::Result<()> {
     info!(
         "index_search_results txs: {} total_count: {}",
@@ -50,6 +49,7 @@ async fn index_search_results(
         search_results.total_count
     );
     for tx_response in search_results.txs.iter() {
+        let msg_set = msg_set.clone();
         let mut events = BTreeMap::default();
         let block_height = tx_response.height;
         map_from_events(&tx_response.tx_result.events, &mut events)?;
@@ -58,8 +58,7 @@ async fn index_search_results(
         }
         match Tx::from_bytes(tx_response.tx.as_bytes()) {
             Ok(unmarshalled_tx) => {
-                if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set.clone())
-                {
+                if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set) {
                     error!("Error in process_parsed: {:?}", e);
                 }
             }
@@ -72,12 +71,9 @@ async fn index_search_results(
                 match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(tx_response.tx.as_bytes()) {
                     Ok(unmarshalled_tx) => {
                         info!("decoded response debug:\n{:?}", unmarshalled_tx);
-                        if let Err(e) = process_parsed_v1beta(
-                            registry,
-                            &unmarshalled_tx,
-                            &events,
-                            msg_set.clone(),
-                        ) {
+                        if let Err(e) =
+                            process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
+                        {
                             error!("Error in process_parsed: {:?}", e);
                         }
                     }
@@ -95,7 +91,7 @@ pub async fn load_block_transactions(
     tendermint_client: &TendermintClient,
     config: &IndexerConfig,
     registry: &IndexerRegistry,
-    msg_set: Arc<HashSet<String>>,
+    msg_set: MsgSet,
     current_height: u64,
 ) -> anyhow::Result<()> {
     let last_block = min(
@@ -142,7 +138,7 @@ async fn handle_search_results(
     query: Query,
     search_results: TxSearchResponse,
     registry: &IndexerRegistry,
-    msg_set: Arc<HashSet<String>>,
+    msg_set: MsgSet,
     current_height: u64,
     last_block: u64,
 ) -> anyhow::Result<()> {
@@ -163,6 +159,7 @@ async fn handle_search_results(
         for page in 2..=total_pages {
             // Inclusive range
             let async_query = query.clone();
+            let msg_set = msg_set.clone();
             info!(
                 "querying for page {}, blocks {}-{}",
                 page, current_height, last_block
@@ -176,16 +173,14 @@ async fn handle_search_results(
                     tendermint_rpc::Order::Ascending,
                 )
                 .map(|response| match response {
-                    Ok(search_results) => {
-                        index_search_results(search_results, registry, msg_set.clone())
-                    }
+                    Ok(search_results) => index_search_results(search_results, registry, msg_set),
                     Err(e) => {
                         error!("{:?}", e);
                         let empty_response = TxSearchResponse {
                             txs: vec![],
                             total_count: 0,
                         };
-                        index_search_results(empty_response, registry, msg_set.clone())
+                        index_search_results(empty_response, registry, msg_set)
                     }
                 });
             page_futures.push(f);
@@ -200,7 +195,7 @@ async fn handle_search_results(
 pub async fn block_synchronizer(
     registry: &IndexerRegistry,
     config: &IndexerConfig,
-    msg_set: Arc<HashSet<String>>,
+    msg_set: MsgSet,
 ) -> anyhow::Result<()> {
     let tendermint_client = TendermintClient::new::<&str>(&config.tendermint_rpc_url)?;
     let mut latest_block_height = config.tendermint_final_block;
@@ -242,37 +237,4 @@ pub async fn block_synchronizer(
     let results = join_all(block_transaction_futures).await;
     info!("results: {:?}", results);
     Ok(())
-}
-
-pub fn init_known_unknown_messages(msg_set: &mut HashSet<String>) {
-    let known = [
-        "/cosmos.authz.v1beta1.MsgExec",
-        "/cosmos.authz.v1beta1.MsgGrant",
-        "/cosmos.distribution.v1beta1.MsgSetWithdrawAddress",
-        "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
-        "/cosmos.distribution.v1beta1.MsgWithdrawValidatorCommission",
-        "/cosmos.feegrant.v1beta1.MsgGrantAllowance",
-        "/cosmos.feegrant.v1beta1.MsgRevokeAllowance",
-        "/cosmos.gov.v1beta1.MsgVote",
-        "/cosmos.slashing.v1beta1.MsgUnjail",
-        "/cosmos.staking.v1beta1.MsgBeginRedelegate",
-        "/cosmos.staking.v1beta1.MsgCreateValidator",
-        "/cosmos.staking.v1beta1.MsgDelegate",
-        "/cosmos.staking.v1beta1.MsgEditValidator",
-        "/cosmos.staking.v1beta1.MsgUndelegate",
-        "/cosmos.staking.v1beta1.MsgWithdrawDelegatorReward",
-        "/cosmos.staking.v1beta1.MsgWithdrawValidatorCommission",
-        "/cosmwasm.wasm.v1.MsgStoreCode",
-        "/ibc.applications.transfer.v1.MsgTransfer",
-        "/ibc.core.channel.v1.MsgAcknowledgement",
-        "/ibc.core.channel.v1.MsgChannelOpenInit",
-        "/ibc.core.channel.v1.MsgChannelOpenTry",
-        "/ibc.core.channel.v1.MsgRecvPacket",
-        "/ibc.core.channel.v1.MsgTimeout",
-        "/ibc.core.client.v1.MsgCreateClient",
-        "/ibc.core.client.v1.MsgUpdateClient",
-        "/ibc.core.connection.v1.MsgConnectionOpenAck",
-        "/ibc.core.connection.v1.MsgConnectionOpenInit",
-    ];
-    known.map(|msg| msg_set.insert(msg.to_string()));
 }
