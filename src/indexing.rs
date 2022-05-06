@@ -6,6 +6,7 @@ pub mod indexer_registry;
 pub mod msg_cw20_execute;
 pub mod msg_cw20_indexer;
 pub mod msg_cw3dao_indexer;
+pub mod msg_cw3dao_instantiate_contract;
 pub mod msg_dao_execute;
 pub mod msg_execute_contract;
 pub mod msg_instantiate_contract;

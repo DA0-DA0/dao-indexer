@@ -51,9 +51,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
+    let cw3dao_instantiate_indexer = Cw3DaoInstantiateMsgIndexer::default();
     let cw3dao_indexer = Cw3DaoExecuteMsgIndexer::default();
     let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
     registry.register(Box::from(cw20_indexer), None);
+    registry.register(Box::from(cw3dao_instantiate_indexer), None);
     registry.register(Box::from(cw3dao_indexer), None);
     registry.register(Box::from(cw20_stake_indexer), None);
 

@@ -3,9 +3,10 @@ use super::indexer::{
 };
 use super::indexer_registry::RegistryKey;
 use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
+use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 
-const INDEXER_KEY: &str = "Cw3DaoExecuteMsg";
-static ROOT_KEYS: [&str; 9] = [
+const EXECUTE_MSG_INDEXER_KEY: &str = "Cw3DaoExecuteMsg";
+static EXECUTE_MSG_ROOT_KEYS: [&str; 9] = [
     "propose",
     "vote",
     "execute",
@@ -17,6 +18,30 @@ static ROOT_KEYS: [&str; 9] = [
     "receive",
 ];
 
+const INSTANTIATE_MSG_INDEXER_KEY: &str = "Cw3DaoInstantiateMsg";
+static INSTANTIATE_MSG_ROOT_KEYS: [&str; 11] = [
+        // The name of the DAO.
+        "name",
+        // A description of the DAO.
+        "description",
+        // Set an existing governance token or launch a new one
+        "gov_token",
+        // Set an existing staking contract or instantiate an new one
+        "staking_contract",
+        // Voting params configuration
+        "threshold",
+        // The amount of time a proposal can be voted on before expiring
+        "max_voting_period",
+        // Deposit required to make a proposal
+        "proposal_deposit_amount",
+        // Refund a proposal if it is rejected
+        "refund_failed_proposals",
+        // Optional Image URL that is used by the contract
+        "image_url",
+        "only_members_execute",
+        "automatically_add_cw20s",
+];
+
 pub struct Cw3DaoExecuteMsgIndexer {
     registry_keys: Vec<RegistryKey>,
 }
@@ -24,7 +49,7 @@ pub struct Cw3DaoExecuteMsgIndexer {
 impl Default for Cw3DaoExecuteMsgIndexer {
     fn default() -> Self {
         Cw3DaoExecuteMsgIndexer {
-            registry_keys: vec![RegistryKey::new(INDEXER_KEY.to_string())],
+            registry_keys: vec![RegistryKey::new(EXECUTE_MSG_INDEXER_KEY.to_string())],
         }
     }
 }
@@ -32,13 +57,41 @@ impl Default for Cw3DaoExecuteMsgIndexer {
 impl Indexer for Cw3DaoExecuteMsgIndexer {
     type MessageType = Cw3DaoExecuteMsg;
     fn id(&self) -> String {
-        INDEXER_KEY.to_string()
+        EXECUTE_MSG_INDEXER_KEY.to_string()
     }
     fn registry_keys(&self) -> RegistryKeysType {
         registry_keys_from_iter(self.registry_keys.iter())
     }
     fn root_keys(&self) -> RootKeysType {
-        root_keys_from_iter(ROOT_KEYS.into_iter())
+        root_keys_from_iter(EXECUTE_MSG_ROOT_KEYS.into_iter())
+    }
+    fn required_root_keys(&self) -> RootKeysType {
+        root_keys_from_iter([].into_iter())
+    }
+}
+
+pub struct Cw3DaoInstantiateMsgIndexer {
+    registry_keys: Vec<RegistryKey>,
+}
+
+impl Default for Cw3DaoInstantiateMsgIndexer {
+    fn default() -> Self {
+        Cw3DaoInstantiateMsgIndexer {
+            registry_keys: vec![RegistryKey::new(INSTANTIATE_MSG_INDEXER_KEY.to_string())],
+        }
+    }
+}
+
+impl Indexer for Cw3DaoInstantiateMsgIndexer {
+    type MessageType = Cw3DaoInstantiateMsg;
+    fn id(&self) -> String {
+        INSTANTIATE_MSG_INDEXER_KEY.to_string()
+    }
+    fn registry_keys(&self) -> RegistryKeysType {
+        registry_keys_from_iter(self.registry_keys.iter())
+    }
+    fn root_keys(&self) -> RootKeysType {
+        root_keys_from_iter(INSTANTIATE_MSG_ROOT_KEYS.into_iter())
     }
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
