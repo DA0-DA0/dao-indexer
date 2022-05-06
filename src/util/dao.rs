@@ -22,11 +22,11 @@ pub fn insert_dao(
 ) -> anyhow::Result<()> {
     use crate::db::schema::dao::dsl::*;
 
-    let dao_address = contract_addr.dao_address.as_ref().unwrap();
+    let dao_address = contract_addr.contract_address.as_ref().unwrap();
 
     let mut gta_option = None;
     let gta: String;
-    if let GovTokenMsg::UseExistingCw20 { addr, label:_ } = gov_token {
+    if let GovTokenMsg::UseExistingCw20 { addr, label: _ } = gov_token {
         gta = addr.clone();
         gta_option = Some(&gta);
     }

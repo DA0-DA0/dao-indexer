@@ -1,10 +1,12 @@
-use clap::{Command};
+use clap::Command;
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::{block_synchronizer, init_known_unknown_messages};
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
-use dao_indexer::indexing::msg_cw3dao_indexer::{Cw3DaoInstantiateMsgIndexer, Cw3DaoExecuteMsgIndexer};
+use dao_indexer::indexing::msg_cw3dao_indexer::{
+    Cw3DaoExecuteMsgIndexer, Cw3DaoInstantiateMsgIndexer,
+};
 use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::tx::process_tx_info;
 use diesel::pg::PgConnection;

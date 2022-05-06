@@ -66,7 +66,7 @@ pub struct Dao {
     pub name: String,
     pub description: String,
     pub image_url: Option<String>,
-    pub gov_token_address: Option<String>
+    pub gov_token_address: Option<String>,
 }
 
 #[derive(Insertable)]

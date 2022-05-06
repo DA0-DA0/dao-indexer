@@ -3,13 +3,12 @@ use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use crate::db::models::NewContract;
 use crate::util::contract_util::{get_contract_addresses, insert_contract};
-use crate::util::dao::insert_dao;
+
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
-use cw3_dao::msg::GovTokenMsg;
-use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-use log::{debug, error, info};
+
+use log::{debug, error};
 use std::str::FromStr;
 
 impl IndexMessage for MsgInstantiateContract {
@@ -23,8 +22,8 @@ impl IndexMessage for MsgInstantiateContract {
         }
         debug!("Indexing MsgInstantiateContract, events: {:?}", events);
         let contract_addresses = get_contract_addresses(events);
-        let dao_address = contract_addresses
-            .dao_address
+        let contract_address = contract_addresses
+            .contract_address
             .as_ref()
             .ok_or_else(|| anyhow!("no dao_address in {:?}\n{:?}", contract_addresses, events))?;
         let staking_contract_address = contract_addresses
@@ -49,7 +48,7 @@ impl IndexMessage for MsgInstantiateContract {
         }
 
         let contract_model =
-            NewContract::from_msg(dao_address, staking_contract_address, &tx_height, self);
+            NewContract::from_msg(contract_address, staking_contract_address, &tx_height, self);
         if let Err(e) = insert_contract(db, &contract_model) {
             error!("Error inserting contract {:?}\n{:?}", &contract_model, e);
         }
@@ -57,20 +56,6 @@ impl IndexMessage for MsgInstantiateContract {
         let parsed = serde_json::from_str::<serde_json::Value>(&msg_str)?;
         registry.index_message_and_events(events, &parsed, &msg_str)?;
 
-        // TODO(gavin.doughtie):
-        // Due to versioning, we can't guarantee that serde deserialization
-        // will work here so we have to deal with that OR import all the
-        // different contract versions and try them in a cascade.
-        // TODO(gavin.doughtie): This might be a lp contract:
-        // {
-        //   "lp_token_code_id": 1,
-        //   "token1_denom": {
-        //       "cw20": "juno17c7zyezg3m8p2tf9hqgue9jhahvle70d59e8j9nmrvhw9anrpk8qxlrghx"
-        //   },
-        //   "token2_denom": {
-        //       "native": "ibc/C4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9"
-        //   }
-        // }
         Ok(())
     }
 }

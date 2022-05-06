@@ -20,26 +20,26 @@ static EXECUTE_MSG_ROOT_KEYS: [&str; 9] = [
 
 const INSTANTIATE_MSG_INDEXER_KEY: &str = "Cw3DaoInstantiateMsg";
 static INSTANTIATE_MSG_ROOT_KEYS: [&str; 11] = [
-        // The name of the DAO.
-        "name",
-        // A description of the DAO.
-        "description",
-        // Set an existing governance token or launch a new one
-        "gov_token",
-        // Set an existing staking contract or instantiate an new one
-        "staking_contract",
-        // Voting params configuration
-        "threshold",
-        // The amount of time a proposal can be voted on before expiring
-        "max_voting_period",
-        // Deposit required to make a proposal
-        "proposal_deposit_amount",
-        // Refund a proposal if it is rejected
-        "refund_failed_proposals",
-        // Optional Image URL that is used by the contract
-        "image_url",
-        "only_members_execute",
-        "automatically_add_cw20s",
+    // The name of the DAO.
+    "name",
+    // A description of the DAO.
+    "description",
+    // Set an existing governance token or launch a new one
+    "gov_token",
+    // Set an existing staking contract or instantiate an new one
+    "staking_contract",
+    // Voting params configuration
+    "threshold",
+    // The amount of time a proposal can be voted on before expiring
+    "max_voting_period",
+    // Deposit required to make a proposal
+    "proposal_deposit_amount",
+    // Refund a proposal if it is rejected
+    "refund_failed_proposals",
+    // Optional Image URL that is used by the contract
+    "image_url",
+    "only_members_execute",
+    "automatically_add_cw20s",
 ];
 
 pub struct Cw3DaoExecuteMsgIndexer {

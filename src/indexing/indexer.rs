@@ -20,7 +20,7 @@ pub fn registry_keys_from_iter<'a>(
 fn has_all(keys: RootKeysType, msg: &Value) -> bool {
     for key in keys {
         if msg.get(key).is_none() {
-            return false
+            return false;
         }
     }
     true

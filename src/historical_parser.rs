@@ -8,9 +8,9 @@ use futures::FutureExt;
 use log::{error, info, warn};
 use math::round;
 use prost::Message;
+use std::cmp::min;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
-use std::cmp::min;
 use std::sync::Arc;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
@@ -98,7 +98,10 @@ pub async fn load_block_transactions(
     msg_set: Arc<HashSet<String>>,
     current_height: u64,
 ) -> anyhow::Result<()> {
-    let last_block = min(current_height + config.block_page_size, config.tendermint_final_block);
+    let last_block = min(
+        current_height + config.block_page_size,
+        config.tendermint_final_block,
+    );
     info!("loading blocks {}-{}", current_height, last_block);
     let key = "tx.height";
     let query = Query::gte(key, current_height).and_lt(key, last_block + 1);
@@ -151,11 +154,7 @@ async fn handle_search_results(
         "received {} for block {}, at {} items per page this is {} total pages",
         search_results.total_count, current_height, config.transaction_page_size, total_pages
     );
-    info!(
-        "indexing page 1, blocks {}-{}",
-        current_height,
-        last_block
-    );
+    info!("indexing page 1, blocks {}-{}", current_height, last_block);
     index_search_results(search_results, registry, msg_set.clone()).await?;
 
     // Iterate through all the pages in the results:
@@ -166,9 +165,7 @@ async fn handle_search_results(
             let async_query = query.clone();
             info!(
                 "querying for page {}, blocks {}-{}",
-                page,
-                current_height,
-                last_block
+                page, current_height, last_block
             );
             let f = tendermint_client
                 .tx_search(
