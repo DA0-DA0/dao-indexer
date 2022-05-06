@@ -182,6 +182,10 @@ impl<'a> Indexer for TestIndexer<'a> {
     fn root_keys<'b>(&'b self) -> Box<dyn Iterator<Item = &'b str> + 'b> {
         Box::from(self.my_root_keys.iter().copied())
     }
+
+    fn required_root_keys(&self) -> super::indexer::RootKeysType {
+        Box::from([].iter().copied())
+    }
 }
 
 #[test]

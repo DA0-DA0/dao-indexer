@@ -61,13 +61,12 @@ pub struct Contract {
 
 #[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct Dao {
-    pub id: i32,
     pub contract_adress: String,
     pub staking_contract_adress: String,
     pub name: String,
     pub description: String,
     pub image_url: Option<String>,
-    pub gov_token_id: i32,
+    pub gov_token_address: Option<String>,
 }
 
 #[derive(Insertable)]
@@ -78,14 +77,14 @@ pub struct NewDao<'a> {
     pub name: &'a str,
     pub description: &'a str,
     pub image_url: Option<&'a String>,
-    pub gov_token_id: i32,
+    pub gov_token_address: Option<&'a String>,
 }
 
 impl<'a> NewDao<'a> {
     pub fn new(
         contract_address: &'a str,
         description: &'a str,
-        gov_token_id: i32,
+        gov_token_address: Option<&'a String>,
         image_url: Option<&'a String>,
         name: &'a str,
         staking_contract_address: &'a str,
@@ -93,7 +92,7 @@ impl<'a> NewDao<'a> {
         NewDao {
             contract_address,
             description,
-            gov_token_id,
+            gov_token_address,
             image_url,
             name,
             staking_contract_address,
@@ -126,7 +125,6 @@ pub struct Cw20Msg {
 // Data from the gov_token table:
 #[derive(Serialize, Deserialize, Debug, Queryable)]
 pub struct Cw20 {
-    pub id: i32,
     pub address: String,
     pub name: String,
     pub symbol: String,

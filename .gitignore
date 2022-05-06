@@ -16,3 +16,7 @@ Cargo.lock
 
 # We want to let you define your env and not override others.
 .env
+env.*
+*.log$
+*~
+data

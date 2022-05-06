@@ -17,6 +17,15 @@ pub fn registry_keys_from_iter<'a>(
     Box::new(iter)
 }
 
+fn has_all(keys: RootKeysType, msg: &Value) -> bool {
+    for key in keys {
+        if msg.get(key).is_none() {
+            return false;
+        }
+    }
+    true
+}
+
 pub trait Indexer {
     type MessageType: DeserializeOwned + IndexMessage;
 
@@ -32,8 +41,8 @@ pub trait Indexer {
         // The decoded string value of the message
         msg_str: &'a str,
     ) -> anyhow::Result<()> {
-        let execute_contract = serde_json::from_str::<Self::MessageType>(msg_str)?;
-        execute_contract.index_message(registry, events)
+        let msg = serde_json::from_str::<Self::MessageType>(msg_str)?;
+        msg.index_message(registry, events)
     }
 
     // ID of this indexer. Used internally in indexer implementations
@@ -41,16 +50,32 @@ pub trait Indexer {
     fn id(&self) -> String;
 
     // Keys that this indexer wants to have its "index" method called for.
-    fn registry_keys(&self) -> RegistryKeysType; // Box<dyn Iterator<Item = &RegistryKey> + '_>;
+    fn registry_keys(&self) -> RegistryKeysType;
 
     // Iterator over the root keys in a given
     // message, used by the default extract_message_key
     // implementation
-    fn root_keys(&self) -> RootKeysType; //Box<dyn Iterator<Item = &'a str> + 'a>;
+    fn root_keys(&self) -> RootKeysType;
+
+    // Iterator over the root keys in a given
+    // message, used by the default extract_message_key
+    // implementation. If a message contains ALL of these
+    // keys, then it is definitely of the required type.
+    fn required_root_keys(&self) -> RootKeysType;
+
+    fn has_required_root_keys(&self) -> bool {
+        false
+    }
 
     // Extract the key from a given message. This should be one of the keys
     // returned in registry_keys or None.
     fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+        if self.has_required_root_keys() {
+            let required_roots = self.required_root_keys();
+            if has_all(required_roots, msg) {
+                return Some(RegistryKey::new(self.id()));
+            }
+        }
         let roots = self.root_keys();
         for key in roots {
             if msg.get(key).is_some() {
@@ -93,7 +118,6 @@ impl<I: Indexer> IndexerDyn for I {
     }
 
     fn registry_keys_dyn(&self) -> RegistryKeysType {
-        // Box<dyn Iterator<Item = &RegistryKey> + '_> {
         self.registry_keys()
     }
 

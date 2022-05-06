@@ -7,13 +7,13 @@ use log::error;
 
 #[derive(Debug)]
 pub struct ContractAddresses {
-    pub dao_address: Option<String>,
+    pub contract_address: Option<String>,
     pub cw20_address: Option<String>,
     pub staking_contract_address: Option<String>,
 }
 
 pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresses {
-    let mut dao_address = None;
+    let mut contract_address = None;
     let mut cw20_address = None;
     let mut staking_contract_address = None;
 
@@ -25,20 +25,20 @@ pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresse
         // But if you use an existing token, you'll just get
         // DAO/staking contract
         if addr.len() == 3 {
-            dao_address = Some(addr[0].clone());
+            contract_address = Some(addr[0].clone());
             cw20_address = Some(addr[1].clone());
             staking_contract_address = Some(addr[2].clone());
         } else if addr.len() == 2 {
-            dao_address = Some(addr[0].clone());
+            contract_address = Some(addr[0].clone());
             staking_contract_address = Some(addr[1].clone());
         } else if addr.len() == 1 {
-            dao_address = Some(addr[0].clone());
+            contract_address = Some(addr[0].clone());
         } else {
             error!("unexpected addr {:?}", addr);
         }
     }
     ContractAddresses {
-        dao_address,
+        contract_address,
         cw20_address,
         staking_contract_address,
     }
