@@ -6,7 +6,7 @@ use tendermint_rpc::query::Query;
 
 pub struct TxSearchRequest {
     pub query: Query,
-    pub page: u8,
+    pub page: u32,
 }
 
 pub trait TxHelper {
@@ -27,7 +27,7 @@ impl TxSearchRequest {
         TxSearchRequest::from_query_and_page(query, 1)
     }
 
-    pub fn from_query_and_page(query: Query, page: u8) -> Self {
+    pub fn from_query_and_page(query: Query, page: u32) -> Self {
         TxSearchRequest { query, page }
     }
 }

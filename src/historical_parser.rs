@@ -3,6 +3,8 @@ use crate::indexing::event_map::EventMap;
 use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::msg_set::MsgSet;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
+use crate::util::query_stream::{QueryStream, TxSearchRequest};
+use async_std::stream::StreamExt;
 use cosmrs::tx::Tx;
 use futures::future::join_all;
 use futures::FutureExt;
@@ -11,6 +13,7 @@ use math::round;
 use prost::Message;
 use std::cmp::min;
 use std::collections::BTreeMap;
+use std::sync::Mutex;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
@@ -101,98 +104,191 @@ pub async fn load_block_transactions(
     debug!("loading blocks {}-{}", current_height, last_block);
     let key = "tx.height";
     let query = Query::gte(key, current_height).and_lt(key, last_block + 1);
-    match tendermint_client
-        .tx_search(
-            query.clone(),
-            false,
-            1,
-            config.transaction_page_size,
-            tendermint_rpc::Order::Ascending,
-        )
-        .await
-    {
-        Ok(search_results) => {
-            handle_search_results(
-                config,
-                tendermint_client,
-                query,
-                search_results,
-                registry,
-                msg_set,
-                current_height,
-                last_block,
-            )
-            .await?
-        }
-        Err(e) => {
-            error!("{:?}", e)
-        }
-    }
-    Ok(())
+    let page_one_request = TxSearchRequest::from_query_and_page(query, 1);
+    let mut queries = QueryStream::new();
+    queries.enqueue(Box::new(page_one_request));
+    let queries = Mutex::from(queries);
+    process_queries(
+        tendermint_client,
+        config,
+        registry,
+        msg_set.clone(),
+        current_height,
+        last_block,
+        queries,
+    )
+    .await
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn handle_search_results(
-    config: &IndexerConfig,
+pub async fn process_queries(
     tendermint_client: &TendermintClient,
-    query: Query,
-    search_results: TxSearchResponse,
+    config: &IndexerConfig,
     registry: &IndexerRegistry,
     msg_set: MsgSet,
     current_height: u64,
     last_block: u64,
+    queries: Mutex<QueryStream>,
 ) -> anyhow::Result<()> {
-    let total_count = search_results.total_count;
-    if total_count == 0 {
-        return Ok(());
-    }
-    let total_pages =
-        round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
-    info!(
-        "received {} for block {}, at {} items per page this is {} total pages",
-        search_results.total_count, current_height, config.transaction_page_size, total_pages
-    );
-    info!("indexing page 1, blocks {}-{}", current_height, last_block);
-    index_search_results(search_results, registry, msg_set.clone()).await?;
-
-    // Iterate through all the pages in the results:
     let mut page_futures = vec![];
-    if total_pages > 1 {
-        for page in 2..=total_pages {
-            // Inclusive range
-            let async_query = query.clone();
-            let msg_set = msg_set.clone();
-            info!(
-                "querying for page {}, blocks {}-{}",
-                page, current_height, last_block
-            );
-            let f = tendermint_client
-                .tx_search(
-                    async_query,
-                    false,
-                    page,
-                    config.transaction_page_size,
-                    tendermint_rpc::Order::Ascending,
-                )
-                .map(|response| match response {
-                    Ok(search_results) => index_search_results(search_results, registry, msg_set),
-                    Err(e) => {
-                        error!("{:?}", e);
-                        let empty_response = TxSearchResponse {
-                            txs: vec![],
-                            total_count: 0,
-                        };
-                        index_search_results(empty_response, registry, msg_set)
-                    }
-                });
-            page_futures.push(f);
+    loop {
+        let query;
+        let page;
+        let tx_request;
+        if let Some(next_tx_request) = queries.lock().unwrap().next().await {
+            tx_request = next_tx_request;
+            query = tx_request.query.clone();
+            page = tx_request.page;
+        } else {
+            break;
         }
+        let f = tendermint_client
+            .tx_search(
+                query.clone(),
+                false,
+                page,
+                config.transaction_page_size,
+                tendermint_rpc::Order::Ascending,
+            )
+            .map(|response| match response {
+                Ok(search_results) => {
+                    let total_count = search_results.total_count;
+                    // if total_count == 0 {
+                    //     return Ok(());
+                    // }
+                    let total_pages =
+                        round::ceil(total_count as f64 / config.transaction_page_size as f64, 0)
+                            as u32;
+                    info!(
+                        "received {} for block {}, at {} items per page this is {} total pages",
+                        search_results.total_count,
+                        current_height,
+                        config.transaction_page_size,
+                        total_pages
+                    );
+                    info!(
+                        "indexing page {}, blocks {}-{}",
+                        tx_request.page, current_height, last_block
+                    );
+                    // Iterate through all the pages in the results:
+                    if total_pages > 1 && tx_request.page == 1 {
+                        for page in 2..=total_pages {
+                            // Inclusive range
+                            let tx_search = TxSearchRequest::from_query_and_page(
+                                tx_request.query.clone(),
+                                page,
+                            );
+                            info!(
+                                "enqueing query for page {}, blocks {}-{}",
+                                page, current_height, last_block
+                            );
+                            queries.lock().unwrap().enqueue(Box::new(tx_search));
+                        }
+                    }
+                    index_search_results(search_results, registry, msg_set.clone())
+                }
+                Err(e) => {
+                    error!("{:?}\nRequeing tx_request", e);
+                    queries.lock().unwrap().enqueue(tx_request);
+                    let empty_response = TxSearchResponse {
+                        txs: vec![],
+                        total_count: 0,
+                    };
+                    index_search_results(empty_response, registry, msg_set.clone())
+                }
+            });
+        page_futures.push(f);
     }
-    info!("wating for {} total_pages...", total_pages);
     let _ = join_all(page_futures).await;
-    info!("received {} total_pages", total_pages);
+    //     {
+    //         Ok(search_results) => {
+    //             handle_search_results(
+    //                 config,
+    //                 tendermint_client,
+    //                 tx_request,
+    //                 queries,
+    //                 search_results,
+    //                 registry,
+    //                 msg_set.clone(),
+    //                 current_height,
+    //                 last_block,
+    //             )
+    //             .await?
+    //         }
+    //         Err(e) => {
+    //             error!("{:?}, requeuing...", e);
+    //             queries.enqueue(tx_request);
+    //             return Ok(());
+    //         }
+    //     }
+    // }
     Ok(())
 }
+
+// #[allow(clippy::too_many_arguments)]
+// async fn handle_search_results(
+//     config: &IndexerConfig,
+//     tendermint_client: &TendermintClient,
+//     tx_request: Box<TxSearchRequest>,
+//     queries: &mut QueryStream,
+//     search_results: TxSearchResponse,
+//     registry: &IndexerRegistry,
+//     msg_set: MsgSet,
+//     current_height: u64,
+//     last_block: u64,
+// ) -> anyhow::Result<()> {
+//     let total_count = search_results.total_count;
+//     if total_count == 0 {
+//         return Ok(());
+//     }
+//     let total_pages =
+//         round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
+//     info!(
+//         "received {} for block {}, at {} items per page this is {} total pages",
+//         search_results.total_count, current_height, config.transaction_page_size, total_pages
+//     );
+//     info!("indexing page {}, blocks {}-{}", tx_request.page, current_height, last_block);
+//     index_search_results(search_results, registry, msg_set.clone()).await?;
+
+//     // Iterate through all the pages in the results:
+//     if total_pages > 1 {
+//         for page in 2..=total_pages {
+//             // Inclusive range
+//             let async_query = query.clone();
+//             let tx_search = TxSearchRequest::from_query_and_page(tx_request.query.clone(), page);
+//             queries.enqueue(Box::new(tx_search));
+
+//             let msg_set = msg_set.clone();
+//             info!(
+//                 "querying for page {}, blocks {}-{}",
+//                 page, current_height, last_block
+//             );
+//             let f = tendermint_client
+//                 .tx_search(
+//                     async_query,
+//                     false,
+//                     page,
+//                     config.transaction_page_size,
+//                     tendermint_rpc::Order::Ascending,
+//                 )
+//                 .map(|response| match response {
+//                     Ok(search_results) => index_search_results(search_results, registry, msg_set),
+//                     Err(e) => {
+//                         error!("{:?}", e);
+//                         let empty_response = TxSearchResponse {
+//                             txs: vec![],
+//                             total_count: 0,
+//                         };
+//                         index_search_results(empty_response, registry, msg_set)
+//                     }
+//                 });
+//             page_futures.push(f);
+//         }
+//     }
+//     info!("wating for {} total_pages...", total_pages);
+//     let _ = join_all(page_futures).await;
+//     info!("received {} total_pages", total_pages);
+//     Ok(())
+// }
 
 pub async fn block_synchronizer(
     registry: &IndexerRegistry,
