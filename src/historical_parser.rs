@@ -162,7 +162,12 @@ async fn handle_transaction_response(
             index_search_results(search_results, registry, msg_set.clone()).await?;
         }
         Err(e) => {
-            error!("Error: {:?}\nRequeing tx_request", e);
+            error!(
+                "Error: {:?}\npage: {}, current_height:{}\nsleeping...",
+                e, tx_request.page, current_height
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+            info!("Requeing tx_request");
             match queries_mutex.lock() {
                 Ok(mut queries) => {
                     queries.enqueue(tx_request);
@@ -209,7 +214,6 @@ pub async fn load_block_transactions(
         if query.is_some() && tx_request.is_some() {
             let query = query.unwrap();
             let tx_request = tx_request.unwrap();
-            // TODO(gavin.doughtie): tendermint_client.wait_until_healthy().await;
             let f = tendermint_client
                 .tx_search(
                     query.clone(),
@@ -252,7 +256,13 @@ pub async fn block_synchronizer(
     config: &IndexerConfig,
     msg_set: MsgSet,
 ) -> anyhow::Result<()> {
+    info!("Loading RPC client for {}", &config.tendermint_rpc_url);
     let tendermint_client = TendermintClient::new::<&str>(&config.tendermint_rpc_url)?;
+    info!("Waiting for health RPC node...");
+    tendermint_client
+        .wait_until_healthy(std::time::Duration::from_millis(1000))
+        .await?;
+    info!("RPC node is healthy, starting historical indexing");
     let mut latest_block_height = config.tendermint_final_block;
     if config.tendermint_final_block == 0 {
         let latest_block_response = tendermint_client.latest_block_results().await?;

@@ -70,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
                 warn!(
                     "Messages with no handlers:\n{:?}",
                     msg_set.unregistered_msgs
-                );        
+                );
             }
         }
     } else {

@@ -18,7 +18,6 @@ pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresse
     let mut staking_contract_address = None;
 
     if let Some(addr) = transaction_events.get("instantiate._contract_address") {
-        println!("addr: {:?}", addr);
         // 0: DAO
         // 1: cw20
         // 2: staking contract
