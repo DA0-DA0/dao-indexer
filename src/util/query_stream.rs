@@ -7,6 +7,7 @@ use tendermint_rpc::query::Query;
 pub struct TxSearchRequest {
     pub query: Query,
     pub page: u32,
+    pub reque_count: i64,
 }
 
 pub trait TxHelper {
@@ -28,7 +29,11 @@ impl TxSearchRequest {
     }
 
     pub fn from_query_and_page(query: Query, page: u32) -> Self {
-        TxSearchRequest { query, page }
+        TxSearchRequest {
+            query,
+            page,
+            reque_count: -1,
+        }
     }
 }
 
@@ -48,7 +53,8 @@ impl QueryStream {
         QueryStream { queue }
     }
 
-    pub fn enqueue(&mut self, request: Box<TxSearchRequest>) {
+    pub fn enqueue(&mut self, mut request: Box<TxSearchRequest>) {
+        request.reque_count += 1;
         self.queue.push_back(request)
     }
 
@@ -106,5 +112,6 @@ async fn test_query_stream() {
 
     while let Some(tx_request) = qs.next().await {
         assert_eq!(3, tx_request.page, "Expected transaction not re-queued");
+        assert_eq!(1, tx_request.reque_count, "Expected re-queue count not set");
     }
 }
