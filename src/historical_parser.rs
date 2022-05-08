@@ -95,20 +95,6 @@ async fn index_search_results(
     Ok(())
 }
 
-// type TxF = anyhow::Result<()>;
-// type TxFut = Vec<
-//     futures::future::Map<
-//         Pin<
-//             Box<
-//                 dyn futures::Future<
-//                         Output = std::result::Result<TxSearchResponse, tendermint_rpc::Error>,
-//                     > + std::marker::Send,
-//             >,
-//         >,
-//         TxF,
-//     >,
-// >;
-
 // Process the response from calling an RPC. This can result in additional
 // RPC calls being queued.
 #[allow(clippy::too_many_arguments)]
