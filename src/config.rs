@@ -13,6 +13,7 @@ pub struct IndexerConfig {
     pub postgres_backend: bool,
     pub transaction_page_size: u8,
     pub block_page_size: u64,
+    pub max_requests: u8,
     pub listen: bool,
 }
 
@@ -106,6 +107,11 @@ impl IndexerConfig {
             .parse::<u64>()
             .unwrap_or(100);
 
+        let max_requests: u8 = env::var("MAX_REQUESTS")
+            .unwrap_or_else(|_| "10".to_string())
+            .parse::<u8>()
+            .unwrap_or(10);
+
         IndexerConfig {
             enable_indexer_env,
             tendermint_websocket_url,
@@ -117,6 +123,7 @@ impl IndexerConfig {
             listen,
             transaction_page_size,
             block_page_size,
+            max_requests
         }
     }
 }
@@ -134,7 +141,8 @@ impl fmt::Display for IndexerConfig {
         enable_indexer_env: {}\n\
         listen: {}\n\
         transaction_page_size: {}\n\
-        block_page_size: {}\n",
+        block_page_size: {}\n
+        max_requests: {}\n",
             self.tendermint_rpc_url,
             self.tendermint_websocket_url,
             self.tendermint_initial_block,
@@ -144,7 +152,8 @@ impl fmt::Display for IndexerConfig {
             self.enable_indexer_env,
             self.listen,
             self.transaction_page_size,
-            self.block_page_size
+            self.block_page_size,
+            self.max_requests
         )
     }
 }

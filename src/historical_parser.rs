@@ -283,6 +283,8 @@ pub async fn block_synchronizer(
     let mut current_height = config.tendermint_initial_block;
     let mut last_log_height = config.tendermint_initial_block;
     let mut block_transaction_futures = vec![];
+    let max_requests = config.max_requests;
+    let mut outstanding_requests = 0;
     while current_height < latest_block_height {
         // run load_block_transactions calls in in parallel
         let f = load_block_transactions(
@@ -305,6 +307,12 @@ pub async fn block_synchronizer(
             current_height += remaining as u64;
         } else {
             current_height += config.block_page_size as u64;
+        }
+        outstanding_requests += 1;
+        if outstanding_requests == max_requests {
+            join_all(block_transaction_futures).await;
+            outstanding_requests = 0;
+            block_transaction_futures = vec![];
         }
     }
     join_all(block_transaction_futures).await;
