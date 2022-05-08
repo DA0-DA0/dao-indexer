@@ -63,11 +63,16 @@ async fn main() -> anyhow::Result<()> {
     let msg_set = default_msg_set();
 
     if config.enable_indexer_env {
-        block_synchronizer(&registry, &config, msg_set.clone()).await?;
-        warn!(
-            "Messages with no handlers:\n{:?}",
-            &msg_set.lock().unwrap().unregistered_msgs
-        );
+        let sync_result = block_synchronizer(&registry, &config, msg_set.clone()).await?;
+        info!("sync_result:\n{:?}", sync_result);
+        if let Ok(msg_set) = msg_set.lock() {
+            if !msg_set.unregistered_msgs.is_empty() {
+                warn!(
+                    "Messages with no handlers:\n{:?}",
+                    msg_set.unregistered_msgs
+                );
+            }
+        }
     } else {
         info!("Indexing historical blocks disabled");
     }
