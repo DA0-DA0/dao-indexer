@@ -123,7 +123,7 @@ impl IndexerConfig {
             listen,
             transaction_page_size,
             block_page_size,
-            max_requests
+            max_requests,
         }
     }
 }
