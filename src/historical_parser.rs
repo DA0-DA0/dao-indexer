@@ -20,6 +20,8 @@ use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
 
+// This is a tech debut function that maps events into a structure
+// that's a little easier to index.
 fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result<()> {
     for event in events {
         let event_name = &event.type_str;
@@ -41,6 +43,9 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
     Ok(())
 }
 
+// Generic driver function for "put these blockchain transactions into the index".
+// This function isn't actually async, but may eventually be
+// extended to code that is, hence it being marked that way.
 async fn index_search_results(
     search_results: TxSearchResponse,
     registry: &IndexerRegistry,
@@ -90,6 +95,88 @@ async fn index_search_results(
     Ok(())
 }
 
+// type TxF = anyhow::Result<()>;
+// type TxFut = Vec<
+//     futures::future::Map<
+//         Pin<
+//             Box<
+//                 dyn futures::Future<
+//                         Output = std::result::Result<TxSearchResponse, tendermint_rpc::Error>,
+//                     > + std::marker::Send,
+//             >,
+//         >,
+//         TxF,
+//     >,
+// >;
+
+// Process the response from calling an RPC. This can result in additional
+// RPC calls being queued.
+#[allow(clippy::too_many_arguments)]
+async fn handle_transaction_response(
+    response: Result<TxSearchResponse, tendermint_rpc::error::Error>,
+    tx_request: Box<TxSearchRequest>,
+    current_height: u64,
+    last_block: u64,
+    registry: &IndexerRegistry,
+    config: &IndexerConfig,
+    msg_set: MsgSet,
+    queries_mutex: &Mutex<QueryStream>,
+) -> anyhow::Result<()> {
+    match response {
+        Ok(search_results) => {
+            let total_count = search_results.total_count;
+            let total_pages =
+                round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
+            info!(
+                "received {} for block {}, at {} items per page this is {} total pages",
+                search_results.total_count,
+                current_height,
+                config.transaction_page_size,
+                total_pages
+            );
+            info!(
+                "indexing page {}, blocks {}-{}",
+                tx_request.page, current_height, last_block
+            );
+            let _indexing_result =
+                index_search_results(search_results, registry, msg_set.clone()).await;
+            if total_pages > 1 && tx_request.page == 1 {
+                match queries_mutex.lock() {
+                    Ok(mut queries) => {
+                        for page in 2..=total_pages {
+                            // Inclusive range
+                            let tx_search = TxSearchRequest::from_query_and_page(
+                                tx_request.query.clone(),
+                                page,
+                            );
+                            info!(
+                                "enqueing query for page {}, blocks {}-{}",
+                                page, current_height, last_block
+                            );
+                            queries.enqueue(Box::new(tx_search));
+                        }
+                    }
+                    Err(e) => {
+                        error!("Error unlocking queries mutex: {:?}", e);
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            error!("Error: {:?}\nRequeing tx_request", e);
+            match queries_mutex.lock() {
+                Ok(mut queries) => {
+                    queries.enqueue(tx_request);
+                }
+                Err(e) => {
+                    error!("Error unlocking queries mutex: {:?}", e);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub async fn load_block_transactions(
     tendermint_client: &TendermintClient,
     config: &IndexerConfig,
@@ -107,40 +194,20 @@ pub async fn load_block_transactions(
     let page_one_request = TxSearchRequest::from_query_and_page(query, 1);
     let mut queries = QueryStream::new();
     queries.enqueue(Box::new(page_one_request));
-    let queries = Mutex::from(queries);
-    process_queries(
-        tendermint_client,
-        config,
-        registry,
-        msg_set.clone(),
-        current_height,
-        last_block,
-        queries,
-    )
-    .await
-}
-
-pub async fn process_queries(
-    tendermint_client: &TendermintClient,
-    config: &IndexerConfig,
-    registry: &IndexerRegistry,
-    msg_set: MsgSet,
-    current_height: u64,
-    last_block: u64,
-    queries: Mutex<QueryStream>,
-) -> anyhow::Result<()> {
-    let mut page_futures = vec![];
+    let queries_mutex = Mutex::from(queries);
     loop {
+        // let mut page_futures = vec![];
         let query;
         let page;
         let tx_request;
-        if let Some(next_tx_request) = queries.lock().unwrap().next().await {
+        if let Some(next_tx_request) = queries_mutex.lock().unwrap().next().await {
             tx_request = next_tx_request;
             query = tx_request.query.clone();
             page = tx_request.page;
         } else {
             break;
         }
+        // TODO(gavin.doughtie): tendermint_client.wait_until_healthy().await;
         let f = tendermint_client
             .tx_search(
                 query.clone(),
@@ -149,56 +216,24 @@ pub async fn process_queries(
                 config.transaction_page_size,
                 tendermint_rpc::Order::Ascending,
             )
-            .map(|response| match response {
-                Ok(search_results) => {
-                    let total_count = search_results.total_count;
-                    // if total_count == 0 {
-                    //     return Ok(());
-                    // }
-                    let total_pages =
-                        round::ceil(total_count as f64 / config.transaction_page_size as f64, 0)
-                            as u32;
-                    info!(
-                        "received {} for block {}, at {} items per page this is {} total pages",
-                        search_results.total_count,
-                        current_height,
-                        config.transaction_page_size,
-                        total_pages
-                    );
-                    info!(
-                        "indexing page {}, blocks {}-{}",
-                        tx_request.page, current_height, last_block
-                    );
-                    // Iterate through all the pages in the results:
-                    if total_pages > 1 && tx_request.page == 1 {
-                        for page in 2..=total_pages {
-                            // Inclusive range
-                            let tx_search = TxSearchRequest::from_query_and_page(
-                                tx_request.query.clone(),
-                                page,
-                            );
-                            info!(
-                                "enqueing query for page {}, blocks {}-{}",
-                                page, current_height, last_block
-                            );
-                            queries.lock().unwrap().enqueue(Box::new(tx_search));
-                        }
-                    }
-                    index_search_results(search_results, registry, msg_set.clone())
-                }
-                Err(e) => {
-                    error!("{:?}\nRequeing tx_request", e);
-                    queries.lock().unwrap().enqueue(tx_request);
-                    let empty_response = TxSearchResponse {
-                        txs: vec![],
-                        total_count: 0,
-                    };
-                    index_search_results(empty_response, registry, msg_set.clone())
-                }
+            .map(|response| {
+                handle_transaction_response(
+                    response,
+                    tx_request,
+                    current_height,
+                    last_block,
+                    registry,
+                    config,
+                    msg_set.clone(),
+                    &queries_mutex,
+                )
             });
-        page_futures.push(f);
+        f.await.await?;
+        // page_futures.push(f);
+        // join_all(page_futures).await;
     }
-    let _ = join_all(page_futures).await;
+    Ok(())
+
     //     {
     //         Ok(search_results) => {
     //             handle_search_results(
@@ -221,7 +256,7 @@ pub async fn process_queries(
     //         }
     //     }
     // }
-    Ok(())
+    // Ok(())
 }
 
 // #[allow(clippy::too_many_arguments)]
@@ -330,7 +365,14 @@ pub async fn block_synchronizer(
             info!("indexed heights {}-{}", last_log_height, current_height);
             last_log_height = current_height;
         }
-        current_height += config.block_page_size as u64;
+        let remaining: i64 = latest_block_height as i64 - current_height as i64 - config.block_page_size as i64;
+        if remaining <= 0 {
+            current_height = latest_block_height; // break out of the loop
+        } else if remaining < config.block_page_size as i64{
+            current_height += remaining as u64;
+        } else {
+            current_height += config.block_page_size as u64;
+        }
     }
     join_all(block_transaction_futures).await;
     Ok(())

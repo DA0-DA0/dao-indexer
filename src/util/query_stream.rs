@@ -51,6 +51,10 @@ impl QueryStream {
     pub fn enqueue(&mut self, request: Box<TxSearchRequest>) {
         self.queue.push_back(request)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
 }
 
 impl Default for QueryStream {
