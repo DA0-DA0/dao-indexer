@@ -138,8 +138,6 @@ async fn handle_transaction_response(
                 "indexing page {}, blocks {}-{}",
                 tx_request.page, current_height, last_block
             );
-            let _indexing_result =
-                index_search_results(search_results, registry, msg_set.clone()).await;
             if total_pages > 1 && tx_request.page == 1 {
                 match queries_mutex.lock() {
                     Ok(mut queries) => {
@@ -161,6 +159,7 @@ async fn handle_transaction_response(
                     }
                 }
             }
+            index_search_results(search_results, registry, msg_set.clone()).await?;
         }
         Err(e) => {
             error!("Error: {:?}\nRequeing tx_request", e);
@@ -195,135 +194,58 @@ pub async fn load_block_transactions(
     let mut queries = QueryStream::new();
     queries.enqueue(Box::new(page_one_request));
     let queries_mutex = Mutex::from(queries);
+    let mut page_futures = vec![];
     loop {
-        // let mut page_futures = vec![];
-        let query;
-        let page;
-        let tx_request;
-        if let Some(next_tx_request) = queries_mutex.lock().unwrap().next().await {
-            tx_request = next_tx_request;
-            query = tx_request.query.clone();
-            page = tx_request.page;
-        } else {
-            break;
+        let mut query = None;
+        let mut page = 0;
+        let mut tx_request = None;
+        if let Ok(mut queries_stream) = queries_mutex.lock() {
+            if let Some(next_tx_request) = queries_stream.next().await {
+                query = Some(next_tx_request.query.clone());
+                page = next_tx_request.page;
+                tx_request = Some(next_tx_request);
+            }
         }
-        // TODO(gavin.doughtie): tendermint_client.wait_until_healthy().await;
-        let f = tendermint_client
-            .tx_search(
-                query.clone(),
-                false,
-                page,
-                config.transaction_page_size,
-                tendermint_rpc::Order::Ascending,
-            )
-            .map(|response| {
-                handle_transaction_response(
-                    response,
-                    tx_request,
-                    current_height,
-                    last_block,
-                    registry,
-                    config,
-                    msg_set.clone(),
-                    &queries_mutex,
+        if query.is_some() && tx_request.is_some() {
+            let query = query.unwrap();
+            let tx_request = tx_request.unwrap();
+            // TODO(gavin.doughtie): tendermint_client.wait_until_healthy().await;
+            let f = tendermint_client
+                .tx_search(
+                    query.clone(),
+                    false,
+                    page,
+                    config.transaction_page_size,
+                    tendermint_rpc::Order::Ascending,
                 )
-            });
-        f.await.await?;
-        // page_futures.push(f);
-        // join_all(page_futures).await;
+                .map(|response| {
+                    handle_transaction_response(
+                        response,
+                        tx_request,
+                        current_height,
+                        last_block,
+                        registry,
+                        config,
+                        msg_set.clone(),
+                        &queries_mutex,
+                    )
+                });
+            page_futures.push(f);
+        } else {
+            info!("query stream is empty, resolving futures");
+            if page_futures.is_empty() {
+                break;
+            }
+            let results_futures = join_all(page_futures).await;
+            if results_futures.is_empty() {
+                break;
+            }
+            join_all(results_futures).await;
+            page_futures = vec![];
+        }
     }
     Ok(())
-
-    //     {
-    //         Ok(search_results) => {
-    //             handle_search_results(
-    //                 config,
-    //                 tendermint_client,
-    //                 tx_request,
-    //                 queries,
-    //                 search_results,
-    //                 registry,
-    //                 msg_set.clone(),
-    //                 current_height,
-    //                 last_block,
-    //             )
-    //             .await?
-    //         }
-    //         Err(e) => {
-    //             error!("{:?}, requeuing...", e);
-    //             queries.enqueue(tx_request);
-    //             return Ok(());
-    //         }
-    //     }
-    // }
-    // Ok(())
 }
-
-// #[allow(clippy::too_many_arguments)]
-// async fn handle_search_results(
-//     config: &IndexerConfig,
-//     tendermint_client: &TendermintClient,
-//     tx_request: Box<TxSearchRequest>,
-//     queries: &mut QueryStream,
-//     search_results: TxSearchResponse,
-//     registry: &IndexerRegistry,
-//     msg_set: MsgSet,
-//     current_height: u64,
-//     last_block: u64,
-// ) -> anyhow::Result<()> {
-//     let total_count = search_results.total_count;
-//     if total_count == 0 {
-//         return Ok(());
-//     }
-//     let total_pages =
-//         round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
-//     info!(
-//         "received {} for block {}, at {} items per page this is {} total pages",
-//         search_results.total_count, current_height, config.transaction_page_size, total_pages
-//     );
-//     info!("indexing page {}, blocks {}-{}", tx_request.page, current_height, last_block);
-//     index_search_results(search_results, registry, msg_set.clone()).await?;
-
-//     // Iterate through all the pages in the results:
-//     if total_pages > 1 {
-//         for page in 2..=total_pages {
-//             // Inclusive range
-//             let async_query = query.clone();
-//             let tx_search = TxSearchRequest::from_query_and_page(tx_request.query.clone(), page);
-//             queries.enqueue(Box::new(tx_search));
-
-//             let msg_set = msg_set.clone();
-//             info!(
-//                 "querying for page {}, blocks {}-{}",
-//                 page, current_height, last_block
-//             );
-//             let f = tendermint_client
-//                 .tx_search(
-//                     async_query,
-//                     false,
-//                     page,
-//                     config.transaction_page_size,
-//                     tendermint_rpc::Order::Ascending,
-//                 )
-//                 .map(|response| match response {
-//                     Ok(search_results) => index_search_results(search_results, registry, msg_set),
-//                     Err(e) => {
-//                         error!("{:?}", e);
-//                         let empty_response = TxSearchResponse {
-//                             txs: vec![],
-//                             total_count: 0,
-//                         };
-//                         index_search_results(empty_response, registry, msg_set)
-//                     }
-//                 });
-//             page_futures.push(f);
-//         }
-//     }
-//     info!("wating for {} total_pages...", total_pages);
-//     let _ = join_all(page_futures).await;
-//     info!("received {} total_pages", total_pages);
-//     Ok(())
-// }
 
 pub async fn block_synchronizer(
     registry: &IndexerRegistry,
@@ -365,10 +287,11 @@ pub async fn block_synchronizer(
             info!("indexed heights {}-{}", last_log_height, current_height);
             last_log_height = current_height;
         }
-        let remaining: i64 = latest_block_height as i64 - current_height as i64 - config.block_page_size as i64;
+        let remaining: i64 =
+            latest_block_height as i64 - current_height as i64 - config.block_page_size as i64;
         if remaining <= 0 {
             current_height = latest_block_height; // break out of the loop
-        } else if remaining < config.block_page_size as i64{
+        } else if remaining < config.block_page_size as i64 {
             current_height += remaining as u64;
         } else {
             current_height += config.block_page_size as u64;
