@@ -19,7 +19,6 @@ cosmrs = {features = ["cosmwasm"], version = "0.6.1"}
 cosmwasm-std = "1.0.0-beta5"
 cw20 = "0.11.1"
 cw20-base = {  version = "0.11", features = ["library"] }
-cw3-dao = { path = "../dao-contracts/contracts/cw3-dao" }
 diesel = { version = "1.4.8", features = ["postgres", "numeric"] }
 dotenv = "0.15.0"
 env_logger = "0.9.0"
@@ -32,7 +31,8 @@ prost-types = "0.9"
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0.79"
 sha2 = "0.9.1"
-stake-cw20 = { path = "../dao-contracts/contracts/stake-cw20" }
+cw3-dao = { git = "https://github.com/DA0-DA0/dao-contracts.git", tag = "v0.2.5" }
+stake-cw20 = { git = "https://github.com/DA0-DA0/dao-contracts.git", tag = "v0.2.5" }
 tendermint = "0.23.6"
 tendermint-rpc = {version = "0.23.6", features = ["websocket-client", "http-client"] }
 tokio = { version = "1.16.1", features = ["rt-multi-thread", "macros"] }
