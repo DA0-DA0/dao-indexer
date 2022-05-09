@@ -65,7 +65,7 @@ async fn index_search_results(
         match Tx::from_bytes(tx_response.tx.as_bytes()) {
             Ok(unmarshalled_tx) => {
                 if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set) {
-                    error!("Error in process_parsed: {:?}", e);
+                    error!("Error in process_parsed: {:?}\n{:?}", e, unmarshalled_tx);
                 }
             }
             Err(e) => {
