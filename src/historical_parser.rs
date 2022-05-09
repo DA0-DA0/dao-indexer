@@ -112,8 +112,8 @@ async fn handle_transaction_response(
             let total_pages =
                 round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
             if total_count > 0 && tx_request.page == 1 {
-                debug!(
-                    "received {} for blocks {}-{} (requeue: {}), at {} items per page this is {} total pages",
+                info!(
+                    "received {} for blocks {}-{} (requeue: {}); at {} items/page, {} total pages",
                     search_results.total_count,
                     current_height,
                     last_block,
