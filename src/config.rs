@@ -11,6 +11,7 @@ pub struct IndexerConfig {
     pub tendermint_final_block: u64,
     pub tendermint_save_all_blocks: bool,
     pub postgres_backend: bool,
+    pub database_url: String,
     pub transaction_page_size: u8,
     pub block_page_size: u64,
     pub max_requests: u8,
@@ -72,6 +73,8 @@ impl IndexerConfig {
             .unwrap_or(false);
         let tendermint_websocket_url = env::var("TENDERMINT_WEBSOCKET_URL")
             .unwrap_or_else(|_| "ws://127.0.0.1:26657/websocket".to_string());
+        let database_url = env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://user@localhost:5432/daodaoindexer".to_string());
         let tendermint_rpc_url =
             env::var("TENDERMINT_RPC_URL").unwrap_or_else(|_| "http://127.0.0.1:26657".to_string());
         let tendermint_initial_block = env::var("TENDERMINT_INITIAL_BLOCK_HEIGHT")
@@ -126,6 +129,7 @@ impl IndexerConfig {
             tendermint_final_block,
             tendermint_save_all_blocks,
             postgres_backend,
+            database_url,
             listen,
             transaction_page_size,
             block_page_size,
@@ -145,6 +149,7 @@ impl fmt::Display for IndexerConfig {
         tendermint_final_block: {}\n\
         tendermint_save_all_blocks: {}\n\
         postgres_backend: {}\n\
+        database_url: {}\n\
         enable_indexer_env: {}\n\
         listen: {}\n\
         transaction_page_size: {}\n\
@@ -157,6 +162,7 @@ impl fmt::Display for IndexerConfig {
             self.tendermint_final_block,
             self.tendermint_save_all_blocks,
             self.postgres_backend,
+            self.database_url,
             self.enable_indexer_env,
             self.listen,
             self.transaction_page_size,

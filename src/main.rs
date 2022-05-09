@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut registry;
     if config.postgres_backend {
-        let db: PgConnection = establish_connection();
+        let db: PgConnection = establish_connection(&config.database_url);
         registry = IndexerRegistry::new(Some(db));
     } else {
         registry = IndexerRegistry::new(None);

@@ -54,11 +54,6 @@ async fn index_search_results(
     if search_results.total_count < 1 {
         return Ok(());
     }
-    info!(
-        "index_search_results txs: {} total_count: {}",
-        search_results.txs.len(),
-        search_results.total_count
-    );
     for tx_response in search_results.txs.iter() {
         let msg_set = msg_set.clone();
         let mut events = BTreeMap::default();
@@ -116,23 +111,24 @@ async fn handle_transaction_response(
             let total_count = search_results.total_count;
             let total_pages =
                 round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
-            if tx_request.reque_count > 0 {
-                info!(
-                    "Received {} results after requeue for page {}, blocks {}-{}",
-                    total_count, tx_request.page, current_height, last_block
-                );
-            }
-            if total_count > 0 {
-                info!(
-                    "received {} for block {}, at {} items per page this is {} total pages",
+            if total_count > 0 && tx_request.page == 1 {
+                debug!(
+                    "received {} for blocks {}-{} (requeue: {}), at {} items per page this is {} total pages",
                     search_results.total_count,
                     current_height,
+                    last_block,
+                    tx_request.reque_count,
                     config.transaction_page_size,
                     total_pages
                 );
-                info!(
-                    "indexing page {}, blocks {}-{}",
-                    tx_request.page, current_height, last_block
+            } else {
+                debug!(
+                    "received page {}, blocks {}-{} (requeue: {}): {} items",
+                    tx_request.page,
+                    current_height,
+                    last_block,
+                    tx_request.reque_count,
+                    search_results.txs.len()
                 );
             }
             if total_pages > 1 && tx_request.page == 1 {
@@ -144,7 +140,7 @@ async fn handle_transaction_response(
                                 tx_request.query.clone(),
                                 page,
                             );
-                            info!(
+                            debug!(
                                 "enqueing query for page {}, blocks {}-{}",
                                 page, current_height, last_block
                             );
@@ -159,14 +155,14 @@ async fn handle_transaction_response(
             index_search_results(search_results, registry, msg_set.clone()).await?;
         }
         Err(e) => {
-            error!(
+            debug!(
                 "Error: {:?}\npage: {}, current_height:{}",
                 e, tx_request.page, current_height
             );
             if config.requeue_sleep > 0 {
                 std::thread::sleep(std::time::Duration::from_millis(config.requeue_sleep));
             }
-            info!("Requeing tx_request");
+            debug!("Requeing tx_request {:?}", &tx_request);
             match queries_mutex.lock() {
                 Ok(mut queries) => {
                     queries.enqueue(tx_request);
@@ -216,7 +212,7 @@ pub async fn load_block_transactions(
             let tx_request = tx_request.unwrap();
             let requeue_count = tx_request.reque_count;
             if requeue_count > 0 {
-                info!(
+                debug!(
                     "Attempting re-queued tx_request for page {} after {} re-queues",
                     tx_request.page, tx_request.reque_count
                 );
@@ -269,7 +265,7 @@ pub async fn block_synchronizer(
 ) -> anyhow::Result<()> {
     info!("Loading RPC client for {}", &config.tendermint_rpc_url);
     let tendermint_client = TendermintClient::new::<&str>(&config.tendermint_rpc_url)?;
-    info!("Waiting for health RPC node...");
+    info!("Waiting for healthy RPC node...");
     tendermint_client
         .wait_until_healthy(std::time::Duration::from_millis(1000))
         .await?;
@@ -307,7 +303,10 @@ pub async fn block_synchronizer(
         );
         block_transaction_futures.push(f);
         if current_height - last_log_height > 1000 {
-            info!("indexed heights {}-{}", last_log_height, current_height);
+            info!(
+                "queued blocks at heights {}-{}",
+                last_log_height, current_height
+            );
             last_log_height = current_height;
         }
         let remaining: i64 =
