@@ -6,12 +6,16 @@ use crate::util::contract_util::{get_contract_addresses, insert_contract};
 
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
-use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+// use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+use cosmrs::cosmwasm::MsgInstantiateContract;
 
 use log::{debug, error};
 use std::str::FromStr;
 
+
 impl IndexMessage for MsgInstantiateContract {
+
+
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
         let db;
         match &registry.db {
@@ -47,8 +51,17 @@ impl IndexMessage for MsgInstantiateContract {
             tx_height = BigDecimal::default();
         }
 
-        let contract_model =
-            NewContract::from_msg(contract_address, staking_contract_address, &tx_height, self);
+        let admin = if let Some(account_id) = self.admin.clone() {
+            account_id.to_string()
+        } else {
+            "".to_string()
+        };
+
+        let creator = self.sender.to_string();
+
+        let label = self.label.clone().unwrap_or_default();
+
+        let contract_model = NewContract::from_msg(contract_address, staking_contract_address, &creator, &admin, &label, &tx_height, self);
         if let Err(e) = insert_contract(db, &contract_model) {
             error!("Error inserting contract {:?}\n{:?}", &contract_model, e);
         }
@@ -57,5 +70,40 @@ impl IndexMessage for MsgInstantiateContract {
         registry.index_message_and_events(events, &parsed, &msg_str)?;
 
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use cosmrs::{cosmwasm::MsgInstantiateContract, AccountId};
+
+    use crate::indexing::event_map::EventMap;
+    use crate::indexing::index_message::IndexMessage;
+    use crate::indexing::indexer_registry::IndexerRegistry;
+    // use crate::indexing::msg_instantiate_contract;    
+
+    #[test]
+    fn it_works() {
+
+        let test_acc_id = "juno1cma4czt2jnydvrvz3lrc9jvcmhpjxtds95s3c6"
+            .parse::<AccountId>()
+            .unwrap();
+
+        let z = MsgInstantiateContract {
+            sender: test_acc_id,
+            admin: None,
+            code_id: 69 as u64,
+            label: None,
+            msg: Vec::new(),
+            funds: Vec::new(),            
+        };
+
+        let test_idx_reg = IndexerRegistry::default(); 
+
+        let omega = EventMap::new();
+    
+        let res = z.index_message(&test_idx_reg, &omega);
+        assert_eq!(2 + 2, 4);
     }
 }

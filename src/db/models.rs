@@ -1,7 +1,8 @@
 use super::schema::block;
 use super::schema::{contracts, cw20_balances, dao, gov_token};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
-use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+// use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+use cosmrs::cosmwasm::MsgInstantiateContract;
 use cw3_dao::msg::GovTokenInstantiateMsg;
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
 use serde::{Deserialize, Serialize};
@@ -24,17 +25,20 @@ impl<'a> NewContract<'a> {
     pub fn from_msg(
         address: &'a str,
         staking_contract_address: &'a str,
+        creator: &'a str,
+        admin: &'a str,
+        label: &'a str,
         tx_height: &'a BigDecimal,
         msg: &'a MsgInstantiateContract,
     ) -> NewContract<'a> {
         let code_id: i64 = msg.code_id as i64;
         NewContract {
-            address,
-            staking_contract_address,
-            admin: &msg.admin,
-            code_id,
-            creator: &msg.sender,
-            label: &msg.label,
+            address: address,
+            staking_contract_address: staking_contract_address,
+            code_id: code_id,
+            creator: creator,
+            admin: admin,
+            label: label,
             creation_time: "",
             height: tx_height,
         }
