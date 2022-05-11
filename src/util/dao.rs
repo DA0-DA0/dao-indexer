@@ -8,7 +8,6 @@ pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 
-// use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use cw3_dao::msg::GovTokenMsg;
 
 pub fn insert_dao(
@@ -29,7 +28,7 @@ pub fn insert_dao(
 
     let mut gta_option = None;
     let gta: String;
-    if let GovTokenMsg::UseExistingCw20 { addr, label: _ , ..} = gov_token {
+    if let GovTokenMsg::UseExistingCw20 { addr, label: _, .. } = gov_token {
         gta = addr.clone();
         gta_option = Some(&gta);
     } else if let Some(cw20_address) = &contract_addr.cw20_address {
@@ -50,8 +49,8 @@ pub fn insert_dao(
 
     diesel::insert_into(dao)
         .values(dao_model)
-        .execute(db as &PgConnection)
-        .expect("Error saving dao");
+        .on_conflict_do_nothing()
+        .execute(db as &PgConnection)?;
 
     Ok(())
 }
