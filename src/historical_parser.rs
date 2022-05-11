@@ -155,7 +155,7 @@ async fn handle_transaction_response(
             index_search_results(search_results, registry, msg_set.clone()).await?;
         }
         Err(e) => {
-            debug!(
+            info!(
                 "Error: {:?}\npage: {}, current_height:{}",
                 e, tx_request.page, current_height
             );
