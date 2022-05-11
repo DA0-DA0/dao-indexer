@@ -29,7 +29,7 @@ pub fn insert_dao(
 
     let mut gta_option = None;
     let gta: String;
-    if let GovTokenMsg::UseExistingCw20 { addr, label: _ } = gov_token {
+    if let GovTokenMsg::UseExistingCw20 { addr, label: _ , ..} = gov_token {
         gta = addr.clone();
         gta_option = Some(&gta);
     } else if let Some(cw20_address) = &contract_addr.cw20_address {

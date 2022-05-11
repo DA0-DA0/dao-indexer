@@ -51,6 +51,9 @@ async fn index_search_results(
     registry: &IndexerRegistry,
     msg_set: MsgSet,
 ) -> anyhow::Result<()> {
+    if search_results.total_count < 1 {
+        return Ok(());
+    }
     info!(
         "index_search_results txs: {} total_count: {}",
         search_results.txs.len(),
@@ -113,17 +116,25 @@ async fn handle_transaction_response(
             let total_count = search_results.total_count;
             let total_pages =
                 round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
-            info!(
-                "received {} for block {}, at {} items per page this is {} total pages",
-                search_results.total_count,
-                current_height,
-                config.transaction_page_size,
-                total_pages
-            );
-            info!(
-                "indexing page {}, blocks {}-{}",
-                tx_request.page, current_height, last_block
-            );
+            if tx_request.reque_count > 0 {
+                info!(
+                    "Received {} results after requeue for page {}, blocks {}-{}",
+                    total_count, tx_request.page, current_height, last_block
+                );
+            }
+            if total_count > 0 {
+                info!(
+                    "received {} for block {}, at {} items per page this is {} total pages",
+                    search_results.total_count,
+                    current_height,
+                    config.transaction_page_size,
+                    total_pages
+                );
+                info!(
+                    "indexing page {}, blocks {}-{}",
+                    tx_request.page, current_height, last_block
+                );
+            }
             if total_pages > 1 && tx_request.page == 1 {
                 match queries_mutex.lock() {
                     Ok(mut queries) => {
@@ -149,10 +160,12 @@ async fn handle_transaction_response(
         }
         Err(e) => {
             error!(
-                "Error: {:?}\npage: {}, current_height:{}\nsleeping...",
+                "Error: {:?}\npage: {}, current_height:{}",
                 e, tx_request.page, current_height
             );
-            std::thread::sleep(std::time::Duration::from_millis(1000));
+            if config.requeue_sleep > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(config.requeue_sleep));
+            }
             info!("Requeing tx_request");
             match queries_mutex.lock() {
                 Ok(mut queries) => {
@@ -186,6 +199,7 @@ pub async fn load_block_transactions(
     queries.enqueue(Box::new(page_one_request));
     let queries_mutex = Mutex::from(queries);
     let mut page_futures = vec![];
+    let max_requests = config.max_requests as usize;
     loop {
         let mut query = None;
         let mut page = 0;
@@ -200,6 +214,13 @@ pub async fn load_block_transactions(
         if query.is_some() && tx_request.is_some() {
             let query = query.unwrap();
             let tx_request = tx_request.unwrap();
+            let requeue_count = tx_request.reque_count;
+            if requeue_count > 0 {
+                info!(
+                    "Attempting re-queued tx_request for page {} after {} re-queues",
+                    tx_request.page, tx_request.reque_count
+                );
+            }
             let f = tendermint_client
                 .tx_search(
                     query.clone(),
@@ -221,8 +242,12 @@ pub async fn load_block_transactions(
                     )
                 });
             page_futures.push(f);
+            if page_futures.len() == max_requests || requeue_count > 0 {
+                let results_futures = join_all(page_futures).await;
+                join_all(results_futures).await;
+                page_futures = vec![];
+            }
         } else {
-            info!("query stream is empty, resolving futures");
             if page_futures.is_empty() {
                 break;
             }

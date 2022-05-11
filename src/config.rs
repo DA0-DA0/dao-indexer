@@ -15,6 +15,7 @@ pub struct IndexerConfig {
     pub block_page_size: u64,
     pub max_requests: u8,
     pub listen: bool,
+    pub requeue_sleep: u64,
 }
 
 impl IndexerConfig {
@@ -112,6 +113,11 @@ impl IndexerConfig {
             .parse::<u8>()
             .unwrap_or(10);
 
+        let requeue_sleep: u64 = env::var("REQUEUE_SLEEP")
+            .unwrap_or_else(|_| "0".to_string())
+            .parse::<u64>()
+            .unwrap_or(0);
+
         IndexerConfig {
             enable_indexer_env,
             tendermint_websocket_url,
@@ -124,6 +130,7 @@ impl IndexerConfig {
             transaction_page_size,
             block_page_size,
             max_requests,
+            requeue_sleep,
         }
     }
 }
@@ -141,8 +148,9 @@ impl fmt::Display for IndexerConfig {
         enable_indexer_env: {}\n\
         listen: {}\n\
         transaction_page_size: {}\n\
-        block_page_size: {}\n
-        max_requests: {}\n",
+        block_page_size: {}\n\
+        max_requests: {}\n\
+        requeue_sleep: {}\n",
             self.tendermint_rpc_url,
             self.tendermint_websocket_url,
             self.tendermint_initial_block,
@@ -153,7 +161,8 @@ impl fmt::Display for IndexerConfig {
             self.listen,
             self.transaction_page_size,
             self.block_page_size,
-            self.max_requests
+            self.max_requests,
+            self.requeue_sleep
         )
     }
 }

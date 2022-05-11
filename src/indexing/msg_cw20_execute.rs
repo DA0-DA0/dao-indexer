@@ -54,7 +54,13 @@ impl IndexMessage for Cw20ExecuteMsg {
                 } else {
                     receiving_contract_action = "";
                 }
-                let action_amount: &str = &amounts[1];
+                let action_amount: &str;
+                if amounts.len() > 1 {
+                    action_amount = &amounts[1];
+                } else {
+                    error!("Expected more than one amount, but got: {:?}", amounts);
+                    action_amount = "0";
+                }
                 if receiving_contract_action == "stake" {
                     send_amount = action_amount;
                 }
