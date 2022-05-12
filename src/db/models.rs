@@ -11,24 +11,24 @@ use std::fmt::Debug;
 #[derive(Insertable, Debug)]
 #[table_name = "contracts"]
 pub struct NewContract<'a> {
-    pub address: &'a str,
-    pub staking_contract_address: &'a str,
+    pub address: String,
+    pub staking_contract_address: String,
     pub code_id: i64,
-    pub creator: &'a str,
-    pub admin: &'a str,
-    pub label: &'a str,
+    pub creator: String,
+    pub admin: String,
+    pub label: String,
     pub creation_time: &'a str,
-    pub height: &'a BigDecimal,
+    pub height: BigDecimal,
 }
 
 impl<'a> NewContract<'a> {
     pub fn from_msg(
-        address: &'a str,
-        staking_contract_address: &'a str,
-        creator: &'a str,
-        admin: &'a str,
-        label: &'a str,
-        tx_height: &'a BigDecimal,
+        address: String,
+        staking_contract_address: String,
+        creator: String,
+        admin: String,
+        label: String,
+        tx_height: BigDecimal,
         msg: &'a MsgInstantiateContract,
     ) -> NewContract<'a> {
         let code_id: i64 = msg.code_id as i64;
