@@ -33,12 +33,12 @@ impl<'a> NewContract<'a> {
     ) -> NewContract<'a> {
         let code_id: i64 = msg.code_id as i64;
         NewContract {
-            address: address,
-            staking_contract_address: staking_contract_address,
-            code_id: code_id,
-            creator: creator,
-            admin: admin,
-            label: label,
+            address,
+            staking_contract_address,
+            code_id,
+            creator,
+            admin,
+            label,
             creation_time: "",
             height: tx_height,
         }
