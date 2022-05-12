@@ -3,11 +3,21 @@ use async_std::task::{Context, Poll};
 use std::collections::VecDeque;
 use std::pin::Pin;
 use tendermint_rpc::query::Query;
+use std::fmt::{Debug, Formatter};
 
 pub struct TxSearchRequest {
     pub query: Query,
     pub page: u32,
     pub reque_count: i64,
+}
+
+impl Debug for TxSearchRequest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TxSearchRequest")
+         .field("page", &self.page)
+         .field("reque_count", &self.reque_count)
+         .finish()
+    }
 }
 
 pub trait TxHelper {
