@@ -28,7 +28,7 @@ impl IndexMessage for MsgInstantiateContract {
         let msg_str = String::from_utf8(self.msg.clone())?;
         let parsed = serde_json::from_str::<serde_json::Value>(&msg_str)?;
         registry.index_message_and_events(events, &parsed, &msg_str)?;
-       
+
         Ok(())
     }
 }
