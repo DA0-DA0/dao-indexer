@@ -31,8 +31,8 @@ pub fn insert_dao(
     if let GovTokenMsg::UseExistingCw20 { addr, label: _, .. } = gov_token {
         gta = addr.clone();
         gta_option = Some(&gta);
-    } else if let Some(cw20_address) = &contract_addr.cw20_address {
-        gta = cw20_address.clone();
+    } else if let Some(cw20_address) = contract_addr.cw20_address {
+        gta = cw20_address.to_string();
         gta_option = Some(&gta);
     }
 

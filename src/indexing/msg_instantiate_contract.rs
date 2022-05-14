@@ -33,7 +33,10 @@ impl IndexMessage for MsgInstantiateContract {
     }
 }
 
-fn create_new_contract<'a>(msg_inst_contract: &'a MsgInstantiateContract, events: &'a std::collections::BTreeMap<String, Vec<String>>) -> Result<NewContract<'a>, anyhow::Error> {
+fn create_new_contract<'a>(
+    msg_inst_contract: &'a MsgInstantiateContract,
+    events: &'a std::collections::BTreeMap<String, Vec<String>>,
+) -> Result<NewContract<'a>, anyhow::Error> {
     let contract_addresses = get_contract_addresses(events);
     let contract_address = contract_addresses
         .contract_address
@@ -63,17 +66,28 @@ fn create_new_contract<'a>(msg_inst_contract: &'a MsgInstantiateContract, events
         "".to_string()
     };
     let creator = msg_inst_contract.sender.to_string();
-    let label = msg_inst_contract.label.clone().unwrap_or_default();
+    let mut label = "";
+    if let Some(contract_label) = &msg_inst_contract.label {
+        label = contract_label;
+    }
     // Dont need to clone contract and staking address
-    let contract_model = NewContract::from_msg(contract_address.to_string(), staking_contract_address.to_string(), creator, admin, label, tx_height, msg_inst_contract);
+    let contract_model = NewContract::from_msg(
+        contract_address,
+        staking_contract_address,
+        creator,
+        admin,
+        label,
+        tx_height,
+        msg_inst_contract,
+    );
     Ok(contract_model)
 }
 
 #[cfg(test)]
 mod tests {
-    use cosmrs::{cosmwasm::MsgInstantiateContract, AccountId};
     use crate::indexing::event_map::EventMap;
     use crate::indexing::msg_instantiate_contract::create_new_contract;
+    use cosmrs::{cosmwasm::MsgInstantiateContract, AccountId};
 
     #[test]
     fn test_new_contract_no_events_fails() {
@@ -84,10 +98,10 @@ mod tests {
         let msg_inst_contract = MsgInstantiateContract {
             sender: test_acc_id,
             admin: None,
-            code_id: 69 as u64,
+            code_id: 69,
             label: None,
             msg: Vec::new(),
-            funds: Vec::new(),            
+            funds: Vec::new(),
         };
 
         let empty_event_map = EventMap::new();

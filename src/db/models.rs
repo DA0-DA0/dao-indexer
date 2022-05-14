@@ -1,7 +1,7 @@
 use super::schema::block;
 use super::schema::{contracts, cw20_balances, dao, gov_token};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
-// use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
+                            // use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cosmrs::cosmwasm::MsgInstantiateContract;
 use cw3_dao::msg::GovTokenInstantiateMsg;
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
@@ -11,23 +11,23 @@ use std::fmt::Debug;
 #[derive(Insertable, Debug)]
 #[table_name = "contracts"]
 pub struct NewContract<'a> {
-    pub address: String,
-    pub staking_contract_address: String,
+    pub address: &'a str,
+    pub staking_contract_address: &'a str,
     pub code_id: i64,
     pub creator: String,
     pub admin: String,
-    pub label: String,
+    pub label: &'a str,
     pub creation_time: &'a str,
     pub height: BigDecimal,
 }
 
 impl<'a> NewContract<'a> {
     pub fn from_msg(
-        address: String,
-        staking_contract_address: String,
+        address: &'a str,
+        staking_contract_address: &'a str,
         creator: String,
         admin: String,
-        label: String,
+        label: &'a str,
         tx_height: BigDecimal,
         msg: &'a MsgInstantiateContract,
     ) -> NewContract<'a> {

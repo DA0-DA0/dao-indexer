@@ -3,12 +3,11 @@ use super::index_message::IndexMessage;
 use super::indexer_registry::IndexerRegistry;
 use super::msg_set::MsgSet;
 use anyhow::anyhow;
+use cosmrs::cosmwasm::MsgInstantiateContract;
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 use cosmrs::proto::cosmwasm::wasm::v1::{
-    MsgExecuteContract,
-    MsgInstantiateContract as ProtoMsgInstContrct
+    MsgExecuteContract, MsgInstantiateContract as ProtoMsgInstContrct,
 };
-use cosmrs::cosmwasm::MsgInstantiateContract;
 use cosmrs::tx::{MsgProto, Tx};
 use log::{debug, error};
 use prost_types::Any;
@@ -54,13 +53,19 @@ pub fn process_messages(
                                 return msg_inst_contract.index_message(registry, events);
                             }
                             Err(e) => {
-                                error!("error parsing MsgInstantiateContract, events: {:?}", events);
+                                error!(
+                                    "error parsing MsgInstantiateContract, events: {:?}",
+                                    events
+                                );
                                 return Err(anyhow!(e));
                             }
                         }
                     }
                     Err(e) => {
-                        error!("error parsing ProstMsgInstantiateContract, events: {:?}", events);
+                        error!(
+                            "error parsing ProstMsgInstantiateContract, events: {:?}",
+                            events
+                        );
                         return Err(anyhow!(e));
                     }
                 }
