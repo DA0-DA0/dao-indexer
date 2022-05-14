@@ -93,6 +93,26 @@ async fn index_search_results(
     Ok(())
 }
 
+fn requeue(
+    config: &IndexerConfig,
+    queries_mutex: &Mutex<QueryStream>,
+    tx_request: Box<TxSearchRequest>,
+) -> anyhow::Result<()> {
+    if config.requeue_sleep > 0 {
+        std::thread::sleep(std::time::Duration::from_millis(config.requeue_sleep));
+    }
+    debug!("Requeing tx_request {:?}", &tx_request);
+    match queries_mutex.lock() {
+        Ok(mut queries) => {
+            queries.enqueue(tx_request);
+        }
+        Err(e) => {
+            error!("Error unlocking queries mutex: {:?}", e);
+        }
+    }
+    Ok(())
+}
+
 // Process the response from calling an RPC. This can result in additional
 // RPC calls being queued.
 #[allow(clippy::too_many_arguments)]
@@ -109,6 +129,19 @@ async fn handle_transaction_response(
     match response {
         Ok(search_results) => {
             let total_count = search_results.total_count;
+            // Retry logic for empty page 1 blocks:
+            if total_count == 0 && tx_request.page == 1 {
+                // There was no error, and no results. Look again.
+                if tx_request.reque_count < config.max_empty_block_retries as i64 {
+                    return requeue(config, queries_mutex, tx_request);
+                } else {
+                    warn!(
+                        "Received empty results for request {:#?}/{:#?} after {} retries",
+                        &tx_request, &tx_request.query, tx_request.reque_count
+                    );
+                    return Ok(());
+                }
+            }
             let total_pages =
                 round::ceil(total_count as f64 / config.transaction_page_size as f64, 0) as u32;
             if total_count > 0 && tx_request.page == 1 {
@@ -155,22 +188,11 @@ async fn handle_transaction_response(
             index_search_results(search_results, registry, msg_set.clone()).await?;
         }
         Err(e) => {
-            info!(
+            debug!(
                 "Error: {:?}\npage: {}, current_height:{}",
                 e, tx_request.page, current_height
             );
-            if config.requeue_sleep > 0 {
-                std::thread::sleep(std::time::Duration::from_millis(config.requeue_sleep));
-            }
-            debug!("Requeing tx_request {:?}", &tx_request);
-            match queries_mutex.lock() {
-                Ok(mut queries) => {
-                    queries.enqueue(tx_request);
-                }
-                Err(e) => {
-                    error!("Error unlocking queries mutex: {:?}", e);
-                }
-            }
+            return requeue(config, queries_mutex, tx_request);
         }
     }
     Ok(())

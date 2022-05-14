@@ -1,6 +1,6 @@
 use super::contract_util::ContractAddresses;
 use super::gov_token::insert_gov_token;
-use crate::db::models::{Dao, NewDao};
+use crate::db::models::{Dao, NewDao, NewMultisig};
 use crate::indexing::indexer_registry::IndexerRegistry;
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
@@ -59,4 +59,34 @@ pub fn get_dao(db: &PgConnection, dao_address: &str) -> QueryResult<Dao> {
     use crate::db::schema::dao::dsl::*;
     dao.filter(contract_address.eq(dao_address))
         .first::<Dao>(db)
+}
+
+pub fn insert_multisig(
+    db: &IndexerRegistry,
+    dao_name: &str,
+    dao_description: &str,
+    dao_image_url: Option<&String>,
+    contract_addr: &ContractAddresses,
+) -> anyhow::Result<()> {
+    use crate::db::schema::dao::dsl::*;
+
+    let dao_address = contract_addr
+        .contract_address
+        .as_ref()
+        .ok_or_else(|| anyhow!("No contract address for DAO"))?;
+
+    let dao_model = NewMultisig::new(
+        dao_address,
+        dao_description,
+        dao_image_url,
+        dao_name,
+        dao_address,
+    );
+
+    diesel::insert_into(dao)
+        .values(dao_model)
+        .on_conflict_do_nothing()
+        .execute(db as &PgConnection)?;
+
+    Ok(())
 }

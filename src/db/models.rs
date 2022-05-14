@@ -71,6 +71,7 @@ pub struct Dao {
     pub description: String,
     pub image_url: Option<String>,
     pub gov_token_address: Option<String>,
+    pub is_multisig: Option<bool>,
 }
 
 #[derive(Insertable)]
@@ -100,6 +101,36 @@ impl<'a> NewDao<'a> {
             image_url,
             name,
             staking_contract_address,
+        }
+    }
+}
+
+#[derive(Insertable)]
+#[table_name = "dao"]
+pub struct NewMultisig<'a> {
+    pub contract_address: &'a str,
+    pub staking_contract_address: &'a str,
+    pub name: &'a str,
+    pub description: &'a str,
+    pub image_url: Option<&'a String>,
+    pub is_multisig: &'a bool,
+}
+
+impl<'a> NewMultisig<'a> {
+    pub fn new(
+        contract_address: &'a str,
+        description: &'a str,
+        image_url: Option<&'a String>,
+        name: &'a str,
+        staking_contract_address: &'a str,
+    ) -> NewMultisig<'a> {
+        NewMultisig {
+            contract_address,
+            description,
+            image_url,
+            name,
+            staking_contract_address,
+            is_multisig: &true,
         }
     }
 }

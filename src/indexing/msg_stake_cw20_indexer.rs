@@ -2,6 +2,8 @@ use super::indexer::{
     registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
 use super::indexer_registry::RegistryKey;
+use log::debug;
+use serde_json::Value;
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 
 const INDEXER_KEY: &str = "StakeCw20ExecuteMsg";
@@ -32,5 +34,18 @@ impl Indexer for StakeCw20ExecuteMsgIndexer {
     }
     fn required_root_keys(&self) -> super::indexer::RootKeysType {
         root_keys_from_iter([].into_iter())
+    }
+
+    // Extract the key from a given message. This should be one of the keys
+    // returned in registry_keys or None.
+    fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+        if msg.get("unstake").is_some() && msg.get("amount").is_none() {
+            debug!(
+                "msg_stake_cw20_indexer ignoring non-amount unstake message\n{:#?}",
+                msg
+            );
+            return None;
+        }
+        self.first_matching_key(msg)
     }
 }

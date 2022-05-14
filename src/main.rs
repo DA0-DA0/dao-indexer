@@ -7,6 +7,9 @@ use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
 use dao_indexer::indexing::msg_cw3dao_indexer::{
     Cw3DaoExecuteMsgIndexer, Cw3DaoInstantiateMsgIndexer,
 };
+use dao_indexer::indexing::msg_cw3multisig_indexer::{
+    Cw3MultisigExecuteMsgIndexer, Cw3MultisigInstantiateMsgIndexer,
+};
 use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::tx::process_tx_info;
@@ -47,15 +50,16 @@ async fn main() -> anyhow::Result<()> {
     } else {
         registry = IndexerRegistry::new(None);
     }
-    let (client, driver) = WebSocketClient::new::<&str>(&config.tendermint_websocket_url).await?;
-    let driver_handle = tokio::spawn(async move { driver.run().await });
-
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
     let cw3dao_instantiate_indexer = Cw3DaoInstantiateMsgIndexer::default();
     let cw3dao_indexer = Cw3DaoExecuteMsgIndexer::default();
     let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
+    let cw3multisig_instantiate_indexer = Cw3MultisigInstantiateMsgIndexer::default();
+    let cw3multisig_execute_indexer = Cw3MultisigExecuteMsgIndexer::default();
     registry.register(Box::from(cw20_indexer), None);
+    registry.register(Box::from(cw3multisig_instantiate_indexer), None);
+    registry.register(Box::from(cw3multisig_execute_indexer), None);
     registry.register(Box::from(cw3dao_instantiate_indexer), None);
     registry.register(Box::from(cw3dao_indexer), None);
     registry.register(Box::from(cw20_stake_indexer), None);
@@ -78,6 +82,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if config.listen {
+        let (client, driver) =
+            WebSocketClient::new::<&str>(&config.tendermint_websocket_url).await?;
+        let driver_handle = tokio::spawn(async move { driver.run().await });
+
         // Subscribe to transactions (can also add blocks but just Tx for now)
         let mut subs = client.subscribe(EventType::Tx.into()).await?;
 
@@ -95,15 +103,14 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        // Signal to the driver to terminate.
+        match client.close() {
+            Ok(val) => info!("closed {:?}", val),
+            Err(e) => error!("Error closing client {:?}", e),
+        }
+        // Await the driver's termination to ensure proper connection closure.
+        let _ = driver_handle.await.unwrap();
     }
-
-    // Signal to the driver to terminate.
-    match client.close() {
-        Ok(val) => info!("closed {:?}", val),
-        Err(e) => error!("Error closing client {:?}", e),
-    }
-    // Await the driver's termination to ensure proper connection closure.
-    let _ = driver_handle.await.unwrap();
 
     Ok(())
 }

@@ -52,7 +52,8 @@ CREATE TABLE dao (
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     image_url TEXT,
-    gov_token_address TEXT
+    gov_token_address TEXT,
+    is_multisig BOOLEAN
 );
 
 CREATE INDEX dao_staking_address_index on dao (staking_contract_address);

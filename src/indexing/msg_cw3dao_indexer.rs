@@ -4,6 +4,8 @@ use super::indexer::{
 use super::indexer_registry::RegistryKey;
 use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+use log::debug;
+use serde_json::Value;
 
 const EXECUTE_MSG_INDEXER_KEY: &str = "Cw3DaoExecuteMsg";
 static EXECUTE_MSG_ROOT_KEYS: [&str; 9] = [
@@ -95,5 +97,19 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
     }
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
+    }
+
+    fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+        if msg.get("threshold").is_some()
+            && msg
+                .get("threshold")
+                .unwrap()
+                .get("absolute_count")
+                .is_some()
+        {
+            debug!("msg_cw3dao_indexer ignoring multisig\n{:#?}", msg);
+            return None;
+        }
+        self.first_matching_key(msg)
     }
 }
