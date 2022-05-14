@@ -6,16 +6,16 @@ use diesel::prelude::*;
 use log::error;
 
 #[derive(Debug)]
-pub struct ContractAddresses {
-    pub contract_address: Option<String>,
-    pub cw20_address: Option<String>,
-    pub staking_contract_address: Option<String>,
+pub struct ContractAddresses<'a> {
+    pub contract_address: Option<&'a str>,
+    pub cw20_address: Option<&'a str>,
+    pub staking_contract_address: Option<&'a str>,
 }
 
-pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresses {
-    let mut contract_address = None;
-    let mut cw20_address = None;
-    let mut staking_contract_address = None;
+pub fn get_contract_addresses<'a>(transaction_events: &'a EventMap) -> ContractAddresses<'a> {
+    let mut contract_address: Option<&'a str> = None;
+    let mut cw20_address: Option<&'a str> = None;
+    let mut staking_contract_address: Option<&'a str> = None;
 
     if let Some(addr) = transaction_events.get("instantiate._contract_address") {
         // 0: DAO
@@ -24,14 +24,14 @@ pub fn get_contract_addresses(transaction_events: &EventMap) -> ContractAddresse
         // But if you use an existing token, you'll just get
         // DAO/staking contract
         if addr.len() == 3 {
-            contract_address = Some(addr[0].clone());
-            cw20_address = Some(addr[1].clone());
-            staking_contract_address = Some(addr[2].clone());
+            contract_address = Some(&addr[0]);
+            cw20_address = Some(&addr[1]);
+            staking_contract_address = Some(&addr[2]);
         } else if addr.len() == 2 {
-            contract_address = Some(addr[0].clone());
-            staking_contract_address = Some(addr[1].clone());
+            contract_address = Some(&addr[0]);
+            staking_contract_address = Some(&addr[1]);
         } else if addr.len() == 1 {
-            contract_address = Some(addr[0].clone());
+            contract_address = Some(&addr[0]);
         } else {
             error!("unexpected addr {:?}", addr);
         }
