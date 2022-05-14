@@ -91,7 +91,10 @@ impl<'a> IndexerRegistry {
                         if let Some(indexer) = self.indexers.get(*handler_id) {
                             if let Err(e) = indexer.index_dyn(self, events, msg_dictionary, msg_str)
                             {
-                                error!("Error indexing message:\n{:#?}\n{:#?}", msg_dictionary, e);
+                                error!(
+                                    "Error indexing message:\n{:#?}\n{:#?}\n{:#?}\n{:#?}",
+                                    msg_dictionary, e, msg_str, events
+                                );
                             }
                         }
                     }

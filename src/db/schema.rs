@@ -62,6 +62,7 @@ table! {
         description -> Text,
         image_url -> Nullable<Text>,
         gov_token_address -> Nullable<Text>,
+        is_multisig -> Nullable<Bool>,
     }
 }
 

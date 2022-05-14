@@ -67,6 +67,16 @@ pub trait Indexer {
         false
     }
 
+    fn first_matching_key(&self, msg: &Value) -> Option<RegistryKey> {
+        let roots = self.root_keys();
+        for key in roots {
+            if msg.get(key).is_some() {
+                return Some(RegistryKey::new(self.id()));
+            }
+        }
+        None
+    }
+
     // Extract the key from a given message. This should be one of the keys
     // returned in registry_keys or None.
     fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
@@ -76,13 +86,7 @@ pub trait Indexer {
                 return Some(RegistryKey::new(self.id()));
             }
         }
-        let roots = self.root_keys();
-        for key in roots {
-            if msg.get(key).is_some() {
-                return Some(RegistryKey::new(self.id()));
-            }
-        }
-        None
+        self.first_matching_key(msg)
     }
 }
 
