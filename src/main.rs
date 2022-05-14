@@ -7,6 +7,9 @@ use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
 use dao_indexer::indexing::msg_cw3dao_indexer::{
     Cw3DaoExecuteMsgIndexer, Cw3DaoInstantiateMsgIndexer,
 };
+use dao_indexer::indexing::msg_cw3multisig_indexer::{
+    Cw3MultisigExecuteMsgIndexer, Cw3MultisigInstantiateMsgIndexer,
+};
 use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::tx::process_tx_info;
@@ -52,7 +55,11 @@ async fn main() -> anyhow::Result<()> {
     let cw3dao_instantiate_indexer = Cw3DaoInstantiateMsgIndexer::default();
     let cw3dao_indexer = Cw3DaoExecuteMsgIndexer::default();
     let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
+    let cw3multisig_instantiate_indexer = Cw3MultisigInstantiateMsgIndexer::default();
+    let cw3multisig_execute_indexer = Cw3MultisigExecuteMsgIndexer::default();
     registry.register(Box::from(cw20_indexer), None);
+    registry.register(Box::from(cw3multisig_instantiate_indexer), None);
+    registry.register(Box::from(cw3multisig_execute_indexer), None);
     registry.register(Box::from(cw3dao_instantiate_indexer), None);
     registry.register(Box::from(cw3dao_indexer), None);
     registry.register(Box::from(cw20_stake_indexer), None);
