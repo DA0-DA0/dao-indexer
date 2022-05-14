@@ -4,6 +4,8 @@ use super::indexer::{
 
 use super::indexer_registry::RegistryKey;
 pub use cw20::Cw20ExecuteMsg;
+use log::debug;
+use serde_json::Value;
 
 const INDEXER_KEY: &str = "Cw20ExecuteMsg";
 static ROOT_KEYS: [&str; 11] = [
@@ -45,5 +47,24 @@ impl Indexer for Cw20ExecuteMsgIndexer {
     }
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
+    }
+
+    // Extract the key from a given message. This should be one of the keys
+    // returned in registry_keys or None.
+    fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+        if msg.get("mint").is_some() && msg.get("recipient").is_none() {
+            debug!(
+                "msg_cw20_indexer ignoring non-token mint message\n{:#?}",
+                msg
+            );
+            return None;
+        }
+        let roots = self.root_keys();
+        for key in roots {
+            if msg.get(key).is_some() {
+                return Some(RegistryKey::new(self.id()));
+            }
+        }
+        None
     }
 }

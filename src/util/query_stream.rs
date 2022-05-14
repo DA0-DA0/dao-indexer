@@ -1,9 +1,9 @@
 use async_std::stream::Stream;
 use async_std::task::{Context, Poll};
 use std::collections::VecDeque;
+use std::fmt::{Debug, Formatter};
 use std::pin::Pin;
 use tendermint_rpc::query::Query;
-use std::fmt::{Debug, Formatter};
 
 pub struct TxSearchRequest {
     pub query: Query,
@@ -14,9 +14,9 @@ pub struct TxSearchRequest {
 impl Debug for TxSearchRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TxSearchRequest")
-         .field("page", &self.page)
-         .field("reque_count", &self.reque_count)
-         .finish()
+            .field("page", &self.page)
+            .field("reque_count", &self.reque_count)
+            .finish()
     }
 }
 

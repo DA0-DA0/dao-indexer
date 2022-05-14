@@ -47,9 +47,6 @@ async fn main() -> anyhow::Result<()> {
     } else {
         registry = IndexerRegistry::new(None);
     }
-    let (client, driver) = WebSocketClient::new::<&str>(&config.tendermint_websocket_url).await?;
-    let driver_handle = tokio::spawn(async move { driver.run().await });
-
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
     let cw3dao_instantiate_indexer = Cw3DaoInstantiateMsgIndexer::default();
@@ -78,6 +75,10 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if config.listen {
+        let (client, driver) =
+            WebSocketClient::new::<&str>(&config.tendermint_websocket_url).await?;
+        let driver_handle = tokio::spawn(async move { driver.run().await });
+
         // Subscribe to transactions (can also add blocks but just Tx for now)
         let mut subs = client.subscribe(EventType::Tx.into()).await?;
 
@@ -95,15 +96,14 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        // Signal to the driver to terminate.
+        match client.close() {
+            Ok(val) => info!("closed {:?}", val),
+            Err(e) => error!("Error closing client {:?}", e),
+        }
+        // Await the driver's termination to ensure proper connection closure.
+        let _ = driver_handle.await.unwrap();
     }
-
-    // Signal to the driver to terminate.
-    match client.close() {
-        Ok(val) => info!("closed {:?}", val),
-        Err(e) => error!("Error closing client {:?}", e),
-    }
-    // Await the driver's termination to ensure proper connection closure.
-    let _ = driver_handle.await.unwrap();
 
     Ok(())
 }
