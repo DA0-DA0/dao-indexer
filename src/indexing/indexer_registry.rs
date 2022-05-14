@@ -1,7 +1,7 @@
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
 use diesel::pg::PgConnection;
-use log::debug;
+use log::{debug, error};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -89,7 +89,13 @@ impl<'a> IndexerRegistry {
                 if let Some(handlers) = self.indexers_for_key(message_key) {
                     for handler_id in handlers {
                         if let Some(indexer) = self.indexers.get(*handler_id) {
-                            indexer.index_dyn(self, events, msg_dictionary, msg_str)?;
+                            if let Err(e) = indexer.index_dyn(self, events, msg_dictionary, msg_str)
+                            {
+                                error!(
+                                    "Error indexing message:\n{:#?}\n{:#?}\n{:#?}\n{:#?}",
+                                    msg_dictionary, e, msg_str, events
+                                );
+                            }
                         }
                     }
                 }
