@@ -8,11 +8,51 @@ use crate::{
 };
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
-pub use cw20::Cw20ExecuteMsg;
-use cw3_dao::msg::GovTokenMsg;
+pub use cw20::{Cw20Coin, Cw20ExecuteMsg};
+use cw3_dao::msg::{GovTokenMsg, GovTokenInstantiateMsg};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use log::{error, warn};
+use serde_json::Value;
+
+pub fn cw20_coin_from_value(value_dict: &Value) -> Option<Cw20Coin> {
+    None
+}
+
+pub fn gov_token_from_instantiate(value_dict: &Value) -> Option<GovTokenInstantiateMsg> {
+    let name = value_dict.get::<&str>("name").unwrap_or_default().to_string();
+    let msg: GovTokenInstantiateMsg = {
+        name,
+        pub symbol: String,
+        pub decimals: u8,
+        pub initial_balances: Vec<Cw20Coin>,
+        pub marketing: Option<InstantiateMarketingInfo>,    
+    };
+    Some(msg)
+}
+
+pub fn gov_token_from_value(value_dict: &Value) -> Option<GovTokenMsg> {
+    if let Some(token_dict) = value_dict.get("instantiate_new_cw20") {
+        if let Some(instantiate) = gov_token_from_instantiate(token_dict) {
+            let msg: GovTokenMsg = GovTokenMsg::InstantiateNewCw20 {
+                cw20_code_id: 0,
+                label: "".to_string(),
+                initial_dao_balance: None,
+                msg: instantiate
+            };
+            return Some(msg);
+        }
+    }
+
+    None
+}
+
+pub fn gov_token_from_msg(value_dict: &Value) -> Option<GovTokenMsg> {
+    if let Some(token_dict) = value_dict.get("gov_token") {
+        return gov_token_from_value(token_dict);
+    }
+    None
+}
 
 pub fn insert_gov_token(
     db: &IndexerRegistry,

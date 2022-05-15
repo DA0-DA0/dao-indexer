@@ -28,6 +28,7 @@ static INSTANTIATE_MSG_ROOT_KEYS: [&str; 6] = [
     "max_voting_period",
     "image_url",
 ];
+static INSTANTIATE_MSG_REQUIRED_ROOT_KEYS: [&str; 1] = ["group"];
 
 pub struct Cw3MultisigExecuteMsgIndexer {
     registry_keys: Vec<RegistryKey>,
@@ -74,6 +75,9 @@ impl Indexer for Cw3MultisigInstantiateMsgIndexer {
     fn id(&self) -> String {
         INSTANTIATE_MSG_INDEXER_KEY.to_string()
     }
+    fn has_required_root_keys(&self) -> bool {
+        true
+    }
     fn registry_keys(&self) -> RegistryKeysType {
         registry_keys_from_iter(self.registry_keys.iter())
     }
@@ -81,6 +85,6 @@ impl Indexer for Cw3MultisigInstantiateMsgIndexer {
         root_keys_from_iter(INSTANTIATE_MSG_ROOT_KEYS.into_iter())
     }
     fn required_root_keys(&self) -> RootKeysType {
-        root_keys_from_iter([].into_iter())
+        root_keys_from_iter(INSTANTIATE_MSG_REQUIRED_ROOT_KEYS.into_iter())
     }
 }
