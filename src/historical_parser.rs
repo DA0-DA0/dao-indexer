@@ -211,7 +211,7 @@ pub async fn load_block_transactions(
     if config.tendermint_final_block > 0 {
         last_block = min(last_block, config.tendermint_final_block);
     }
-    debug!("loading blocks {}-{}", current_height, last_block);
+    info!("loading transactions for blocks {}-{}", current_height, last_block);
     let key = "tx.height";
     let query = Query::gte(key, current_height).and_lt(key, last_block + 1);
     let page_one_request = TxSearchRequest::from_query_and_page(query, 1);
