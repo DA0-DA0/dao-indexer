@@ -6,7 +6,6 @@ use crate::util::update_balance::update_balance;
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
-use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
 use log::error;
 use std::str::FromStr;
@@ -75,17 +74,14 @@ impl IndexMessage for Cw20ExecuteMsg {
                         error!("Parsed as {:?} due to error {:?}", decimal_amount, e)
                     }
                 }
-                let balance_update: Cw20Coin = Cw20Coin {
-                    address: staking_contract_addr,
-                    amount,
-                };
                 if registry.db.is_some() {
                     update_balance(
                         registry,
                         Some(&tx_height),
                         gov_token_address,
                         sender_addr,
-                        &balance_update,
+                        &staking_contract_addr,
+                        u128::from(amount),
                     )?;
                 }
             }

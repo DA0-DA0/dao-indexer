@@ -5,6 +5,7 @@ use crate::indexing::msg_set::MsgSet;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use crate::util::query_stream::{QueryStream, TxSearchRequest};
 use async_std::stream::StreamExt;
+use cosmos_sdk_proto::cosmos::tx::v1beta1::Tx as TxV1;
 use cosmrs::tx::Tx;
 use futures::future::join_all;
 use futures::FutureExt;
@@ -74,7 +75,8 @@ async fn index_search_results(
                     e
                 );
                 info!("tx_response:\n{:?}", tx_response);
-                match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(tx_response.tx.as_bytes()) {
+                match TxV1::decode(tx_response.tx.as_bytes()) {
+                    // match TxV1::decode(tx_response.tx.as_bytes()) {
                     Ok(unmarshalled_tx) => {
                         info!("decoded response debug:\n{:?}", unmarshalled_tx);
                         if let Err(e) =
