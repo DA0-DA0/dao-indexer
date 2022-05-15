@@ -8,7 +8,6 @@ use crate::{
 };
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
-use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
 use cw3_dao::msg::GovTokenMsg;
 use diesel::pg::PgConnection;
@@ -30,7 +29,15 @@ pub fn insert_gov_token(
         } => {
             let mut marketing_record_id: Option<i32> = None;
             if let Some(marketing) = &msg.marketing {
-                marketing_record_id = Some(insert_marketing_info(db, marketing).unwrap());
+                marketing_record_id = Some(
+                    insert_marketing_info(
+                        db,
+                        &marketing.project.unwrap_or_default(),
+                        &marketing.description.unwrap_or_default(),
+                        &marketing.marketing.unwrap_or_default(),
+                    )
+                    .unwrap(),
+                );
             }
             let cw20_address = contract_addresses.cw20_address.as_ref().unwrap();
             let token_model = NewGovToken::from_msg(cw20_address, marketing_record_id, msg);
@@ -44,23 +51,22 @@ pub fn insert_gov_token(
             } else {
                 amount = Uint128::from(0u128);
             }
-            let balance_update = Cw20Coin {
-                address: dao_address.to_string(),
-                amount,
-            };
             let initial_update_result = update_balance(
                 db,
                 height,
                 cw20_address,
-                dao_address, // As the minter the DAO is also the sender for its own initial balance (???)
-                &balance_update,
+                dao_address, 
+                dao_address,// As the minter the DAO is also the sender for its own initial balance (???)
+                u128::from(amount)
             );
             if let Err(e) = initial_update_result {
                 error!("error updating initial balance {}", e);
             } else {
                 // This handles the initial token distributions but not the treasury.
                 for balance in &msg.initial_balances {
-                    if let Err(e) = update_balance(db, height, cw20_address, dao_address, balance) {
+                    let amount = balance.amount;
+                    let recipient = &balance.address;
+                    if let Err(e) = update_balance(db, height, cw20_address, dao_address, recipient, balance) {
                         error!("Error updating balance {:?}", e);
                     }
                 }

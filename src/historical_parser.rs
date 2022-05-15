@@ -6,11 +6,11 @@ use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use crate::util::query_stream::{QueryStream, TxSearchRequest};
 use async_std::stream::StreamExt;
 use cosmrs::tx::Tx;
+use cosmos_sdk_proto::cosmos::tx::v1beta1::Tx as TxV1;
 use futures::future::join_all;
 use futures::FutureExt;
 use log::{debug, error, info, warn};
 use math::round;
-use prost::Message;
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -19,6 +19,7 @@ use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
+use prost::Message;
 
 // This is a tech debut function that maps events into a structure
 // that's a little easier to index.
@@ -74,7 +75,8 @@ async fn index_search_results(
                     e
                 );
                 info!("tx_response:\n{:?}", tx_response);
-                match cosmos_sdk_proto::cosmos::tx::v1beta1::Tx::decode(tx_response.tx.as_bytes()) {
+                match TxV1::decode(tx_response.tx.as_bytes()) {
+                // match TxV1::decode(tx_response.tx.as_bytes()) {
                     Ok(unmarshalled_tx) => {
                         info!("decoded response debug:\n{:?}", unmarshalled_tx);
                         if let Err(e) =

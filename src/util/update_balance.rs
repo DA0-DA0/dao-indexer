@@ -2,7 +2,7 @@ use super::gov_token::get_gov_token_address;
 use crate::indexing::indexer_registry::IndexerRegistry;
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
-use cw20::Cw20Coin;
+pub use cw20::Cw20Coin;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
@@ -28,10 +28,11 @@ pub fn update_balance<'a>(
     tx_height: Option<&BigDecimal>,
     token_addr: &str,
     token_sender_address: &str,
-    balance_update: &Cw20Coin,
+    recipient_address: &str,
+    balance_amount: u128,
 ) -> QueryResult<usize> {
     use crate::db::schema::cw20_transactions::dsl::*;
-    let amount_converted: BigDecimal = BigDecimal::from(BigInt::from(balance_update.amount.u128()));
+    let amount_converted: BigDecimal = BigDecimal::from(BigInt::from(balance_amount));
     let transaction_height: BigDecimal;
     if let Some(tx_height_value) = tx_height {
         transaction_height = tx_height_value.clone();
@@ -42,7 +43,7 @@ pub fn update_balance<'a>(
         .values((
             cw20_address.eq(token_addr),
             sender_address.eq(token_sender_address),
-            recipient_address.eq(&balance_update.address),
+            recipient_address.eq(recipient_address),
             height.eq(&transaction_height),
             amount.eq(amount_converted),
         ))
