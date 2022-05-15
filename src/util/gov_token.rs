@@ -32,9 +32,9 @@ pub fn insert_gov_token(
                 marketing_record_id = Some(
                     insert_marketing_info(
                         db,
-                        &marketing.project.unwrap_or_default(),
-                        &marketing.description.unwrap_or_default(),
-                        &marketing.marketing.unwrap_or_default(),
+                        marketing.project.as_deref().unwrap_or_default(),
+                        marketing.description.as_deref().unwrap_or_default(),
+                        marketing.marketing.as_deref().unwrap_or_default(),
                     )
                     .unwrap(),
                 );
@@ -55,9 +55,9 @@ pub fn insert_gov_token(
                 db,
                 height,
                 cw20_address,
-                dao_address, 
-                dao_address,// As the minter the DAO is also the sender for its own initial balance (???)
-                u128::from(amount)
+                dao_address,
+                dao_address, // As the minter the DAO is also the sender for its own initial balance (???)
+                u128::from(amount),
             );
             if let Err(e) = initial_update_result {
                 error!("error updating initial balance {}", e);
@@ -66,7 +66,14 @@ pub fn insert_gov_token(
                 for balance in &msg.initial_balances {
                     let amount = balance.amount;
                     let recipient = &balance.address;
-                    if let Err(e) = update_balance(db, height, cw20_address, dao_address, recipient, balance) {
+                    if let Err(e) = update_balance(
+                        db,
+                        height,
+                        cw20_address,
+                        dao_address,
+                        recipient,
+                        u128::from(amount),
+                    ) {
                         error!("Error updating balance {:?}", e);
                     }
                 }

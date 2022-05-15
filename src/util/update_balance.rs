@@ -28,7 +28,7 @@ pub fn update_balance<'a>(
     tx_height: Option<&BigDecimal>,
     token_addr: &str,
     token_sender_address: &str,
-    recipient_address: &str,
+    recipient: &str,
     balance_amount: u128,
 ) -> QueryResult<usize> {
     use crate::db::schema::cw20_transactions::dsl::*;
@@ -43,7 +43,7 @@ pub fn update_balance<'a>(
         .values((
             cw20_address.eq(token_addr),
             sender_address.eq(token_sender_address),
-            recipient_address.eq(recipient_address),
+            recipient_address.eq(recipient),
             height.eq(&transaction_height),
             amount.eq(amount_converted),
         ))
@@ -80,16 +80,13 @@ pub fn update_balance_from_events(
             }
         }
         if let Some(gov_token_address) = get_gov_token_address(db, &from) {
-            let balance_update = Cw20Coin {
-                address: receiver.clone(),
-                amount: parsed_amount,
-            };
             update_balance(
                 db,
                 Some(&tx_height),
                 &gov_token_address,
                 sender,
-                &balance_update,
+                receiver,
+                u128::from(parsed_amount),
             )
         } else {
             Ok(0)
