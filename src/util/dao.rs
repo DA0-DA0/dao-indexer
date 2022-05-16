@@ -1,6 +1,8 @@
 use super::contract_util::ContractAddresses;
-use super::gov_token::insert_gov_token;
+use super::gov_token::{insert_gov_token, insert_gov_token25};
 use crate::db::models::{Dao, NewDao, NewMultisig};
+use cw3_dao_2_5::msg::GovTokenMsg as GovTokenMsg25;
+
 use crate::indexing::event_map::EventMap;
 use crate::indexing::indexer_registry::IndexerRegistry;
 
@@ -50,11 +52,55 @@ pub fn get_tx_height_from_events(events: &EventMap) -> BigDecimal {
     tx_height
 }
 
+pub fn insert_dao_25(
+    db: &IndexerRegistry,
+    dao_name: &str,
+    dao_description: &str,
+    gov_token: &GovTokenMsg25,
+    dao_image_url: Option<&String>,
+    contract_addr: &ContractAddresses,
+    height: Option<&BigDecimal>,
+) -> anyhow::Result<()> {
+    let mut gta_option = None;
+    let gta: String;
+    if let GovTokenMsg25::UseExistingCw20 { addr, label: _, .. } = gov_token {
+        gta = addr.clone();
+        gta_option = Some(&gta);
+    } else if let Some(cw20_address) = contract_addr.cw20_address {
+        gta = cw20_address.to_string();
+        gta_option = Some(&gta);
+    }
+    let _ = insert_gov_token25(db, gov_token, contract_addr, height)?;
+    insert_dao_private(db, dao_name, dao_description, gta_option, dao_image_url, contract_addr, height)
+}
+
 pub fn insert_dao(
     db: &IndexerRegistry,
     dao_name: &str,
     dao_description: &str,
     gov_token: &GovTokenMsg,
+    dao_image_url: Option<&String>,
+    contract_addr: &ContractAddresses,
+    height: Option<&BigDecimal>,
+) -> anyhow::Result<()> {
+    let mut gta_option = None;
+    let gta: String;
+    if let GovTokenMsg::UseExistingCw20 { addr, label: _, .. } = gov_token {
+        gta = addr.clone();
+        gta_option = Some(&gta);
+    } else if let Some(cw20_address) = contract_addr.cw20_address {
+        gta = cw20_address.to_string();
+        gta_option = Some(&gta);
+    }
+    let _ = insert_gov_token(db, gov_token, contract_addr, height)?;
+    insert_dao_private(db, dao_name, dao_description, gta_option, dao_image_url, contract_addr, height)
+}
+
+fn insert_dao_private(
+    db: &IndexerRegistry,
+    dao_name: &str,
+    dao_description: &str,
+    gta_option: Option<&String>,
     dao_image_url: Option<&String>,
     contract_addr: &ContractAddresses,
     height: Option<&BigDecimal>,
@@ -65,18 +111,6 @@ pub fn insert_dao(
         .contract_address
         .as_ref()
         .ok_or_else(|| anyhow!("No contract address for DAO"))?;
-
-    let mut gta_option = None;
-    let gta: String;
-    if let GovTokenMsg::UseExistingCw20 { addr, label: _, .. } = gov_token {
-        gta = addr.clone();
-        gta_option = Some(&gta);
-    } else if let Some(cw20_address) = contract_addr.cw20_address {
-        gta = cw20_address.to_string();
-        gta_option = Some(&gta);
-    }
-
-    let _ = insert_gov_token(db, gov_token, contract_addr, height)?;
 
     let dao_model = NewDao::new(
         dao_address,

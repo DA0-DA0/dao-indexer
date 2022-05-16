@@ -6,15 +6,17 @@ use crate::{
     db::models::{Cw20, NewGovToken},
     indexing::indexer_registry::IndexerRegistry,
 };
+use cw3_dao_2_5::msg::GovTokenMsg as GovTokenMsg25;
+
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 pub use cw20::{Cw20Coin, Cw20ExecuteMsg};
 use cw20_011_1::Cw20Coin as Cw20Coin_11_1;
-use cw3_dao::msg::{GovTokenMsg, GovTokenInstantiateMsg};
+use cw3_dao::msg::{GovTokenInstantiateMsg, GovTokenMsg};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use log::{error, warn};
-use serde_json::{Value};
+use serde_json::Value;
 
 pub fn cw20_coin_from_value(value_dict: &Value) -> Option<Cw20Coin_11_1> {
     match serde_json::from_value::<Cw20Coin_11_1>(value_dict.clone()) {
@@ -58,12 +60,12 @@ pub fn gov_token_from_instantiate(value_dict: &Value) -> Option<GovTokenInstanti
     }
 
     let marketing = None;
-    let msg = GovTokenInstantiateMsg{
+    let msg = GovTokenInstantiateMsg {
         name,
         symbol,
         decimals,
         initial_balances,
-        marketing
+        marketing,
     };
     Some(msg)
 }
@@ -79,13 +81,16 @@ pub fn gov_token_from_value(value_dict: &Value) -> Option<GovTokenMsg> {
                 cw20_code_id: 0,
                 label: "".to_string(),
                 initial_dao_balance: None,
-                msg: instantiate
+                msg: instantiate,
             };
             return Some(msg);
         }
     }
     if let Some(token_dict) = value_dict.get("use_existing_cw20") {
-        warn!("Should be trying to parse the existing cw20 message: {:#?}", token_dict);
+        warn!(
+            "Should be trying to parse the existing cw20 message: {:#?}",
+            token_dict
+        );
     }
 
     None
@@ -96,6 +101,38 @@ pub fn gov_token_from_msg(value_dict: &Value) -> Option<GovTokenMsg> {
         return gov_token_from_value(token_dict);
     }
     None
+}
+
+fn convert_2_5_to_3(msg: &GovTokenMsg25) -> GovTokenMsg {
+    match msg {
+        GovTokenMsg25::InstantiateNewCw20 { cw20_code_id, stake_contract_code_id, label, initial_dao_balance, msg, unstaking_duration } => {
+            let msg = GovTokenInstantiateMsg {
+                name: msg.name,
+                symbol: msg.symbol,
+                decimals: msg.decimals,
+                initial_balances: msg.initial_balances,
+                marketing: msg.marketing
+            };
+            GovTokenMsg::InstantiateNewCw20 {
+                cw20_code_id: *cw20_code_id, label: label.clone(), initial_dao_balance: initial_dao_balance.clone(), msg
+            }
+        }
+        GovTokenMsg25::UseExistingCw20 { addr, label, stake_contract_code_id, unstaking_duration } => {
+            GovTokenMsg::UseExistingCw20 {
+                addr: addr.clone(),
+                label: label.clone()
+            }
+        }
+    }
+}
+
+pub fn insert_gov_token25(
+    db: &IndexerRegistry,
+    token_msg: &GovTokenMsg25,
+    contract_addresses: &ContractAddresses,
+    height: Option<&BigDecimal>,
+) -> QueryResult<i32> {
+    insert_gov_token(db, &convert_2_5_to_3(token_msg), contract_addresses, height)
 }
 
 pub fn insert_gov_token(
