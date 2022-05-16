@@ -2,12 +2,13 @@ use super::indexer::{
     registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
 use super::indexer_registry::RegistryKey;
+use crate::util::contract_util::get_contract_addresses;
+use crate::util::gov_token::gov_token_from_msg;
+use crate::util::dao::{get_single_event_item, get_tx_height_from_events, insert_dao};
 use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-use log::debug;
+use log::{debug, error};
 use serde_json::Value;
-use crate::util::contract_util::get_contract_addresses;
-use crate::util::dao::{get_single_event_item, get_tx_height_from_events, insert_dao};
 
 const EXECUTE_MSG_INDEXER_KEY: &str = "Cw3DaoExecuteMsg";
 static EXECUTE_MSG_ROOT_KEYS: [&str; 9] = [
@@ -124,20 +125,33 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
     ) -> anyhow::Result<()> {
         let contract_addresses = get_contract_addresses(events);
         let tx_height = get_tx_height_from_events(events);
-        let gov_token = get_single_event_item(events, "gov_token", "");
         let mut image_url = None;
         let image_url_str = get_single_event_item(events, "image_url", "").to_string();
         if !image_url_str.is_empty() {
             image_url = Some(&image_url_str)
         }
-        insert_dao(
-            registry,
-            get_single_event_item(events, "name", ""),
-            get_single_event_item(events, "description", ""),
-            gov_token,
-            image_url,
-            &contract_addresses,
-            Some(&tx_height),
-        )
+        let mut dao_name = &"".to_string();
+        let mut dao_description = &"".to_string();
+        if let Some(Value::String(val)) = msg_dictionary.get("name") {
+            dao_name = val;
+        }
+        if let Some(Value::String(val)) = msg_dictionary.get("description") {
+            dao_description = val;
+        }
+        // TODO: max_voting_period, proposal_deposit_amount, refund_failed_proposals, threshold, 
+        if let Some(gov_token) = gov_token_from_msg(msg_dictionary) {
+            insert_dao(
+                registry,
+                dao_name,
+                dao_description,
+                &gov_token,
+                image_url,
+                &contract_addresses,
+                Some(&tx_height),
+            )
+        } else {
+            error!("Could not parse GovTokenMsg from {:#?}", msg_dictionary);
+            Ok(())
+        }
     }
 }

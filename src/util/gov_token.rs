@@ -9,29 +9,70 @@ use crate::{
 use bigdecimal::BigDecimal;
 use cosmwasm_std::Uint128;
 pub use cw20::{Cw20Coin, Cw20ExecuteMsg};
+use cw20_011_1::Cw20Coin as Cw20Coin_11_1;
 use cw3_dao::msg::{GovTokenMsg, GovTokenInstantiateMsg};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use log::{error, warn};
-use serde_json::Value;
+use serde_json::{Value};
 
-pub fn cw20_coin_from_value(value_dict: &Value) -> Option<Cw20Coin> {
+pub fn cw20_coin_from_value(value_dict: &Value) -> Option<Cw20Coin_11_1> {
+    match serde_json::from_value::<Cw20Coin_11_1>(value_dict.clone()) {
+        Ok(coin) => {
+            return Some(coin);
+        }
+        Err(e) => {
+            error!("Error parsing coin {:#?}, {:#?}", value_dict, e);
+        }
+    }
     None
 }
 
 pub fn gov_token_from_instantiate(value_dict: &Value) -> Option<GovTokenInstantiateMsg> {
-    let name = value_dict.get::<&str>("name").unwrap_or_default().to_string();
-    let msg: GovTokenInstantiateMsg = {
+    let mut name = "".to_string();
+    let mut symbol = "".to_string();
+    let mut decimals = 0u8;
+    let mut initial_balances = vec![];
+    if let Some(name_str) = value_dict.get("name") {
+        name = name_str.to_string();
+    }
+
+    if let Some(symbol_str) = value_dict.get("symbol") {
+        symbol = symbol_str.to_string();
+    }
+
+    if let Some(decimals_value) = value_dict.get("decimals") {
+        if let Value::Number(decimals_number) = decimals_value {
+            decimals = decimals_number.as_u64().unwrap_or_default() as u8;
+        } else {
+            error!("unable to parse decimals for {:#?}", decimals_value);
+        }
+    }
+
+    if let Some(Value::Array(cw20s)) = value_dict.get("initial_balances") {
+        for cw20 in cw20s {
+            if let Some(coin) = cw20_coin_from_value(cw20) {
+                initial_balances.push(coin);
+            }
+        }
+    }
+
+    let marketing = None;
+    let msg = GovTokenInstantiateMsg{
         name,
-        pub symbol: String,
-        pub decimals: u8,
-        pub initial_balances: Vec<Cw20Coin>,
-        pub marketing: Option<InstantiateMarketingInfo>,    
+        symbol,
+        decimals,
+        initial_balances,
+        marketing
     };
     Some(msg)
 }
 
 pub fn gov_token_from_value(value_dict: &Value) -> Option<GovTokenMsg> {
+    if let Ok(gov_token) = serde_json::from_value::<GovTokenMsg>(value_dict.clone()) {
+        return Some(gov_token);
+    }
+    error!("failed to parse a GovTokenMsg from {:#?}", value_dict);
     if let Some(token_dict) = value_dict.get("instantiate_new_cw20") {
         if let Some(instantiate) = gov_token_from_instantiate(token_dict) {
             let msg: GovTokenMsg = GovTokenMsg::InstantiateNewCw20 {
@@ -42,6 +83,9 @@ pub fn gov_token_from_value(value_dict: &Value) -> Option<GovTokenMsg> {
             };
             return Some(msg);
         }
+    }
+    if let Some(token_dict) = value_dict.get("use_existing_cw20") {
+        warn!("Should be trying to parse the existing cw20 message: {:#?}", token_dict);
     }
 
     None
