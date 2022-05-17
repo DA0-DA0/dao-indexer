@@ -103,24 +103,54 @@ pub fn gov_token_from_msg(value_dict: &Value) -> Option<GovTokenMsg> {
     None
 }
 
+// fn convert_coin_2_5_to_2_1(coin_2_5: &Cw20Coin) -> Cw20Coin_11_1 {
+//     Cw20Coin_11_1 {
+//         address: coin_2_5.address,
+//         amount: coin_2_5.amount,
+//     }
+// }
+
 fn convert_2_5_to_3(msg: &GovTokenMsg25) -> GovTokenMsg {
     match msg {
-        GovTokenMsg25::InstantiateNewCw20 { cw20_code_id, stake_contract_code_id, label, initial_dao_balance, msg, unstaking_duration } => {
+        GovTokenMsg25::InstantiateNewCw20 {
+            cw20_code_id,
+            stake_contract_code_id: _,
+            label,
+            initial_dao_balance,
+            msg,
+            unstaking_duration: _,
+        } => {
+            let mut initial_balances: Vec<Cw20Coin_11_1> = vec![];
+            for coin in &msg.initial_balances {
+                let converted_coin = Cw20Coin_11_1 {
+                    address: coin.address.clone(),
+                    amount: coin.amount
+                };
+                initial_balances.push(converted_coin);
+            }
             let msg = GovTokenInstantiateMsg {
-                name: msg.name,
-                symbol: msg.symbol,
+                name: msg.name.clone(),
+                symbol: msg.symbol.clone(),
                 decimals: msg.decimals,
-                initial_balances: msg.initial_balances,
-                marketing: msg.marketing
+                initial_balances,
+                marketing: msg.marketing.clone(),
             };
             GovTokenMsg::InstantiateNewCw20 {
-                cw20_code_id: *cw20_code_id, label: label.clone(), initial_dao_balance: initial_dao_balance.clone(), msg
+                cw20_code_id: *cw20_code_id,
+                label: label.clone(),
+                initial_dao_balance: *initial_dao_balance,
+                msg,
             }
         }
-        GovTokenMsg25::UseExistingCw20 { addr, label, stake_contract_code_id, unstaking_duration } => {
+        GovTokenMsg25::UseExistingCw20 {
+            addr,
+            label,
+            stake_contract_code_id: _,
+            unstaking_duration: _,
+        } => {
             GovTokenMsg::UseExistingCw20 {
                 addr: addr.clone(),
-                label: label.clone()
+                label: label.clone(),
             }
         }
     }

@@ -134,7 +134,7 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
     ) -> anyhow::Result<()> {
         match serde_json::from_str::<Self::MessageType>(msg_str) {
             Ok(msg) => msg.index_message(registry, events),
-            Err(e) => {
+            Err(_e) => {
                 match serde_json::from_str::<Cw3DaoInstantiateMsg25>(msg_str) {
                     Ok(msg) => msg.index_message(registry, events),
                     Err(e) => {

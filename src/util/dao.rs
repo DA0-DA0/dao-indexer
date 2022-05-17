@@ -103,7 +103,7 @@ fn insert_dao_private(
     gta_option: Option<&String>,
     dao_image_url: Option<&String>,
     contract_addr: &ContractAddresses,
-    height: Option<&BigDecimal>,
+    _height: Option<&BigDecimal>,
 ) -> anyhow::Result<()> {
     use crate::db::schema::dao::dsl::*;
 

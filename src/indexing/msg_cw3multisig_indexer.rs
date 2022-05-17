@@ -42,6 +42,8 @@ impl Default for Cw3MultisigExecuteMsgIndexer {
     }
 }
 
+// TODO: not if the message is just a vote:
+// "{"vote":{"proposal_id":2,"vote":"yes"}}"
 impl Indexer for Cw3MultisigExecuteMsgIndexer {
     type MessageType = Cw3MultisigExecuteMsg;
     fn id(&self) -> String {
