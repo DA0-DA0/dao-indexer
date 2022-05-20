@@ -11,8 +11,8 @@ use bigdecimal::BigDecimal;
 pub use cw20::Cw20ExecuteMsg;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
-use std::str::FromStr;
 use log::{error, warn};
+use std::str::FromStr;
 
 use cw3_dao::msg::GovTokenMsg;
 
@@ -36,7 +36,9 @@ pub fn get_tx_height_from_events(events: &EventMap) -> BigDecimal {
             }
             let tx_height_str = &tx_height_strings[0];
             match BigDecimal::from_str(tx_height_str) {
-                Ok(tx_height) => { tx_height_opt = Some(tx_height); }
+                Ok(tx_height) => {
+                    tx_height_opt = Some(tx_height);
+                }
                 Err(e) => {
                     error!("Error parsing tx_height string {} {:?}", tx_height_str, e);
                 }
@@ -71,7 +73,15 @@ pub fn insert_dao_25(
         gta_option = Some(&gta);
     }
     let _ = insert_gov_token25(db, gov_token, contract_addr, height)?;
-    insert_dao_private(db, dao_name, dao_description, gta_option, dao_image_url, contract_addr, height)
+    insert_dao_private(
+        db,
+        dao_name,
+        dao_description,
+        gta_option,
+        dao_image_url,
+        contract_addr,
+        height,
+    )
 }
 
 pub fn insert_dao(
@@ -93,7 +103,15 @@ pub fn insert_dao(
         gta_option = Some(&gta);
     }
     let _ = insert_gov_token(db, gov_token, contract_addr, height)?;
-    insert_dao_private(db, dao_name, dao_description, gta_option, dao_image_url, contract_addr, height)
+    insert_dao_private(
+        db,
+        dao_name,
+        dao_description,
+        gta_option,
+        dao_image_url,
+        contract_addr,
+        height,
+    )
 }
 
 fn insert_dao_private(

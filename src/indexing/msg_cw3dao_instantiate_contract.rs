@@ -7,7 +7,6 @@ use crate::util::dao::{get_tx_height_from_events, insert_dao, insert_dao_25};
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 
-
 impl IndexMessage for Cw3DaoInstantiateMsg {
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
         let contract_addresses = get_contract_addresses(events);

@@ -1,12 +1,12 @@
+use super::event_map::EventMap;
+use super::index_message::IndexMessage;
 use super::indexer::{
     registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
-use super::index_message::IndexMessage;
 use super::indexer_registry::{IndexerRegistry, RegistryKey};
-use super::event_map::EventMap;
 use crate::util::contract_util::get_contract_addresses;
-use crate::util::gov_token::gov_token_from_msg;
 use crate::util::dao::{get_single_event_item, get_tx_height_from_events, insert_dao};
+use crate::util::gov_token::gov_token_from_msg;
 use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
@@ -119,7 +119,6 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
         self.first_matching_key(msg)
     }
 
-
     // Indexes a message and its transaction events
     fn index<'a>(
         &'a self,
@@ -134,18 +133,17 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
     ) -> anyhow::Result<()> {
         match serde_json::from_str::<Self::MessageType>(msg_str) {
             Ok(msg) => msg.index_message(registry, events),
-            Err(_e) => {
-                match serde_json::from_str::<Cw3DaoInstantiateMsg25>(msg_str) {
-                    Ok(msg) => msg.index_message(registry, events),
-                    Err(e) => {
-                        error!("{} Error deserializing {:#?}", self.id(), e);
-                        self.index_message_dictionary(registry, events, msg_dictionary, msg_str)        
-                    }
+            Err(_e) => match serde_json::from_str::<Cw3DaoInstantiateMsg25>(msg_str) {
+                Ok(msg) => msg.index_message(registry, events),
+                Err(e) => {
+                    error!("{} Error deserializing {:#?}", self.id(), e);
+                    self.index_message_dictionary(registry, events, msg_dictionary, msg_str)
                 }
-            }
+            },
         }
     }
 
+    // This is the fallback indexer if all the direct deserialization has failed.
     fn index_message_dictionary<'a>(
         &'a self,
         registry: &'a super::indexer_registry::IndexerRegistry,
@@ -168,7 +166,7 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
         if let Some(Value::String(val)) = msg_dictionary.get("description") {
             dao_description = val;
         }
-        // TODO: max_voting_period, proposal_deposit_amount, refund_failed_proposals, threshold, 
+        // TODO: max_voting_period, proposal_deposit_amount, refund_failed_proposals, threshold,
         if let Some(gov_token) = gov_token_from_msg(msg_dictionary) {
             insert_dao(
                 registry,

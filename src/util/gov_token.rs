@@ -124,7 +124,7 @@ fn convert_2_5_to_3(msg: &GovTokenMsg25) -> GovTokenMsg {
             for coin in &msg.initial_balances {
                 let converted_coin = Cw20Coin_11_1 {
                     address: coin.address.clone(),
-                    amount: coin.amount
+                    amount: coin.amount,
                 };
                 initial_balances.push(converted_coin);
             }
@@ -147,12 +147,10 @@ fn convert_2_5_to_3(msg: &GovTokenMsg25) -> GovTokenMsg {
             label,
             stake_contract_code_id: _,
             unstaking_duration: _,
-        } => {
-            GovTokenMsg::UseExistingCw20 {
-                addr: addr.clone(),
-                label: label.clone(),
-            }
-        }
+        } => GovTokenMsg::UseExistingCw20 {
+            addr: addr.clone(),
+            label: label.clone(),
+        },
     }
 }
 
