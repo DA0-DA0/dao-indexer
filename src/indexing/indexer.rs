@@ -1,9 +1,9 @@
 use super::event_map::EventMap;
+use super::indexer_registry::{IndexerRegistry, RegistryKey};
 use crate::indexing::index_message::IndexMessage;
+use log::{error, warn};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-
-use super::indexer_registry::{IndexerRegistry, RegistryKey};
 pub type RootKeysType<'a> = Box<dyn Iterator<Item = &'a str> + 'a>;
 pub type RegistryKeysType<'a> = Box<dyn Iterator<Item = &'a RegistryKey> + 'a>;
 
@@ -37,12 +37,36 @@ pub trait Indexer {
         // All the transaction events in a map of "event.id": Vec<String> values.
         events: &'a EventMap,
         // Generic serde-parsed value dictionary
-        _msg_dictionary: &'a Value,
+        msg_dictionary: &'a Value,
         // The decoded string value of the message
         msg_str: &'a str,
     ) -> anyhow::Result<()> {
-        let msg = serde_json::from_str::<Self::MessageType>(msg_str)?;
-        msg.index_message(registry, events)
+        match serde_json::from_str::<Self::MessageType>(msg_str) {
+            Ok(msg) => msg.index_message(registry, events),
+            Err(e) => {
+                error!("{} Error deserializing {:#?}", self.id(), e);
+                self.index_message_dictionary(registry, events, msg_dictionary, msg_str)
+            }
+        }
+    }
+
+    fn index_message_dictionary<'a>(
+        &'a self,
+        // The registry of indexers
+        _registry: &'a IndexerRegistry,
+        // All the transaction events in a map of "event.id": Vec<String> values.
+        _events: &'a EventMap,
+        // Generic serde-parsed value dictionary
+        msg_dictionary: &'a Value,
+        // The decoded string value of the message
+        _msg_str: &'a str,
+    ) -> anyhow::Result<()> {
+        warn!(
+            "{} failed to deserialize and no message dictionary handler for message\n{:#?}",
+            self.id(),
+            msg_dictionary
+        );
+        Ok(())
     }
 
     // ID of this indexer. Used internally in indexer implementations
@@ -85,6 +109,7 @@ pub trait Indexer {
             if has_all(required_roots, msg) {
                 return Some(RegistryKey::new(self.id()));
             }
+            return None;
         }
         self.first_matching_key(msg)
     }
