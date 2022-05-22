@@ -11,8 +11,8 @@ use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use log::{debug, error, warn};
+use schemars::schema::{InstanceType, RootSchema, SingleOrVec, Schema, SchemaObject, SubschemaValidation};
 use serde_json::Value;
-use schemars::schema::{InstanceType, RootSchema, SingleOrVec};
 
 const EXECUTE_MSG_INDEXER_KEY: &str = "Cw3DaoExecuteMsg";
 static EXECUTE_MSG_ROOT_KEYS: [&str; 9] = [
@@ -185,21 +185,39 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
     }
 }
 
-pub fn dump_schema(root_schema:&RootSchema, name: &str) {
-        // let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
+fn dump_subschema(subschema: &SubschemaValidation, name: &str) {
+    if let Some(all_of) = &subschema.all_of {
+        for schema in all_of {
+            match schema {
+                Schema::Object(schema_object) => {
+                    dump_schema_object(schema_object, name);        
+                }
+                Schema::Bool(bool_val) => {
+                    println!("ignoring bool_val {} for {}", bool_val, name);
+                }
+            }
+        }
+    }
+}
 
-    // if let Some(objects) = schema3.schema.object {
-    //     println!("objects:\n{:#?}", objects);
-    // }
-
-    let instance_type = root_schema.schema.instance_type.as_ref().unwrap();
+fn dump_schema_object(schema: &SchemaObject, name: &str) {
+    if schema.instance_type.is_none() {
+        if let Some(reference) = &schema.reference {
+            println!("No instance type, but ref: {}", reference);
+        } else {
+            println!("No instance or ref type for {}", name);
+        }
+        return;
+    }
+    let instance_type = schema.instance_type.as_ref().unwrap();
     let table_name = name;
+    let mut is_subschema = false;
     match instance_type {
         SingleOrVec::Single(itype) => {
             match itype.as_ref() {
                 &InstanceType::Object => {
                     // println!("Yes, it's an object, properties:\n{:#?}", &(schema3.schema.object.unwrap().properties.keys().clone()));
-                    let properties = &root_schema.schema.object.as_ref().unwrap().properties;
+                    let properties = &schema.object.as_ref().unwrap().properties;
                     let mut required_roots = vec![];
                     let mut optional_roots = vec![];
                     let mut all_property_names = vec![];
@@ -218,17 +236,26 @@ pub fn dump_schema(root_schema:&RootSchema, name: &str) {
                                                 required_roots.push(property_name);
                                                 match *single_val.as_ref() {
                                                     InstanceType::Boolean => {
-                                                        column_def = format!("{} BOOLEAN", property_name);
-
+                                                        column_def =
+                                                            format!("{} BOOLEAN", property_name);
                                                     }
                                                     InstanceType::String => {
-                                                        column_def = format!("{} TEXT NOT NULL", property_name);
+                                                        column_def = format!(
+                                                            "{} TEXT NOT NULL",
+                                                            property_name
+                                                        );
                                                     }
                                                     InstanceType::Integer => {
-                                                        column_def = format!("{} NUMERIC(78) NOT NULL", property_name);
+                                                        column_def = format!(
+                                                            "{} NUMERIC(78) NOT NULL",
+                                                            property_name
+                                                        );
                                                     }
                                                     InstanceType::Number => {
-                                                        column_def = format!("{} NUMERIC(78) NOT NULL", property_name);
+                                                        column_def = format!(
+                                                            "{} NUMERIC(78) NOT NULL",
+                                                            property_name
+                                                        );
                                                     }
                                                     _ => {
                                                         println!("{:?} Not handled", single_val);
@@ -246,22 +273,36 @@ pub fn dump_schema(root_schema:&RootSchema, name: &str) {
                                                     let optional_val = vec_val[0];
                                                     match optional_val {
                                                         InstanceType::Boolean => {
-                                                            column_def = format!("{} BOOLEAN", property_name);
-    
+                                                            column_def = format!(
+                                                                "{} BOOLEAN",
+                                                                property_name
+                                                            );
                                                         }
                                                         InstanceType::String => {
-                                                            column_def = format!("{} TEXT", property_name);
+                                                            column_def =
+                                                                format!("{} TEXT", property_name);
                                                         }
                                                         InstanceType::Integer => {
-                                                            column_def = format!("{} NUMERIC(78)", property_name);
+                                                            column_def = format!(
+                                                                "{} NUMERIC(78)",
+                                                                property_name
+                                                            );
                                                         }
                                                         InstanceType::Number => {
-                                                            column_def = format!("{} NUMERIC(78)", property_name);
+                                                            column_def = format!(
+                                                                "{} NUMERIC(78)",
+                                                                property_name
+                                                            );
                                                         }
                                                         _ => {
-                                                            println!("{:?} Not handled", optional_val);
+                                                            println!(
+                                                                "{:?} Not handled",
+                                                                optional_val
+                                                            );
                                                         }
                                                     }
+                                                } else {
+                                                    println!("unexpected");
                                                 }
                                             }
                                         }
@@ -269,6 +310,12 @@ pub fn dump_schema(root_schema:&RootSchema, name: &str) {
                                     None => {
                                         // println!("{} has no instance_type", property_name);
                                         required_roots.push(property_name);
+                                        if let Some(subschema) = &schema.subschemas {
+                                            is_subschema = true;
+                                            dump_subschema(subschema, property_name);
+                                        } else {
+                                            println!("process schema {}, {:#?}", property_name, schema);
+                                        }
                                     }
                                 }
                             }
@@ -278,11 +325,23 @@ pub fn dump_schema(root_schema:&RootSchema, name: &str) {
                         }
                         if !column_def.is_empty() {
                             column_defs.push(column_def);
+                        } else if !is_subschema {
+                            println!(
+                                "could not figure out a column def for property: {}, {:#?}",
+                                property_name, schema
+                            );
                         }
                     }
-                    println!("required roots:\n{:#?}\noptional roots:\n{:#?}\nall:\n{:#?}", required_roots, optional_roots, all_property_names);
+                    println!(
+                        "required roots:\n{:#?}\noptional roots:\n{:#?}\nall:\n{:#?}",
+                        required_roots, optional_roots, all_property_names
+                    );
                     // println!("property details:\n{:#?}", properties);
-                    let create_table_sql = format!("CREATE_TABLE {} ({});\n", table_name, column_defs.join(",\n"));
+                    let create_table_sql = format!(
+                        "CREATE_TABLE {} (\n{}\n);\n",
+                        table_name,
+                        column_defs.join(",\n")
+                    );
                     println!("SQL:\n{}", create_table_sql);
                 }
                 _ => {
@@ -294,11 +353,15 @@ pub fn dump_schema(root_schema:&RootSchema, name: &str) {
             println!("not object");
         }
     }
-    // println!(
-    //     "schema3: \n{}\nschema25:\n{}",
-    //     serde_json::to_string_pretty(&schema3).unwrap(),
-    //     serde_json::to_string_pretty(&schema25).unwrap()
-    // );
+}
+
+pub fn dump_schema(root_schema: &RootSchema, name: &str) {
+    dump_schema_object(&root_schema.schema, name);
+    // let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
+
+    // if let Some(objects) = schema3.schema.object {
+    //     println!("objects:\n{:#?}", objects);
+    // }
 }
 
 #[test]
