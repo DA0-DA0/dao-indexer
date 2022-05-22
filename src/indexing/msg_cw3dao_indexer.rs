@@ -183,3 +183,88 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
         }
     }
 }
+
+#[test]
+fn test_schema_types() {
+    use log::warn;
+    use schemars::schema::{InstanceType, SingleOrVec};
+    use schemars::schema_for;
+    let schema3 = schema_for!(Cw3DaoInstantiateMsg);
+    // let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
+
+    // if let Some(objects) = schema3.schema.object {
+    //     println!("objects:\n{:#?}", objects);
+    // }
+
+    let instance_type = &(schema3.schema.instance_type.unwrap());
+    match instance_type {
+        SingleOrVec::Single(itype) => {
+            println!("itype {:?}", itype);
+            match itype.as_ref() {
+                &InstanceType::Object => {
+                    // println!("Yes, it's an object, properties:\n{:#?}", &(schema3.schema.object.unwrap().properties.keys().clone()));
+                    let properties = &(schema3.schema.object.unwrap().properties);
+                    let mut required_roots = vec![];
+                    for (property_name, schema) in properties {
+                        println!("property_name: {}", property_name);
+                        match schema {
+                            schemars::schema::Schema::Object(schema) => {
+                                match &schema.instance_type {
+                                    Some(type_instance) =>
+                                    {
+                                        match type_instance {
+                                            SingleOrVec::Single(single_val) => {
+                                                println!("Single value");
+                                                required_roots.push(property_name);
+                                                match *single_val.as_ref() {
+                                                    InstanceType::Boolean => {
+                                                        println!("Boolean");
+                                                    }
+                                                    InstanceType::String => {
+                                                        println!("String");
+                                                    }
+                                                    _ => {
+                                                        println!("Not handled");
+                                                    }
+                                                }
+                                            }
+                                            SingleOrVec::Vec(vec_val) => {
+                                                println!("Vec value {:#?}", vec_val);
+                                            }
+                                        }
+                                    }
+                                    None => {
+                                        println!("{} has no instance_type", property_name);
+                                        required_roots.push(property_name);
+                                    }
+                                    _ => {
+                                        println!(
+                                            "Not dealing with instance type {:?} yet",
+                                            schema.instance_type
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {
+                                warn!("Not an object type: {:#?}", schema);
+                            }
+                        }
+                    }
+                    println!("required roots: {:#?}", required_roots);
+                    // println!("property details:\n{:#?}", properties);
+                }
+                _ => {
+                    println!("god only knows");
+                }
+            }
+        }
+        _ => {
+            println!("not object");
+        }
+    }
+    // println!(
+    //     "schema3: \n{}\nschema25:\n{}",
+    //     serde_json::to_string_pretty(&schema3).unwrap(),
+    //     serde_json::to_string_pretty(&schema25).unwrap()
+    // );
+}
