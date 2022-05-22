@@ -10,8 +10,9 @@ use crate::util::gov_token::gov_token_from_msg;
 use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
-use log::{debug, error};
+use log::{debug, error, warn};
 use serde_json::Value;
+use schemars::schema::{InstanceType, RootSchema, SingleOrVec};
 
 const EXECUTE_MSG_INDEXER_KEY: &str = "Cw3DaoExecuteMsg";
 static EXECUTE_MSG_ROOT_KEYS: [&str; 9] = [
@@ -184,64 +185,90 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
     }
 }
 
-#[test]
-fn test_schema_types() {
-    use log::warn;
-    use schemars::schema::{InstanceType, SingleOrVec};
-    use schemars::schema_for;
-    let schema3 = schema_for!(Cw3DaoInstantiateMsg);
-    // let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
+pub fn dump_schema(root_schema:&RootSchema, name: &str) {
+        // let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
 
     // if let Some(objects) = schema3.schema.object {
     //     println!("objects:\n{:#?}", objects);
     // }
 
-    let instance_type = &(schema3.schema.instance_type.unwrap());
+    let instance_type = root_schema.schema.instance_type.as_ref().unwrap();
+    let table_name = name;
     match instance_type {
         SingleOrVec::Single(itype) => {
-            println!("itype {:?}", itype);
             match itype.as_ref() {
                 &InstanceType::Object => {
                     // println!("Yes, it's an object, properties:\n{:#?}", &(schema3.schema.object.unwrap().properties.keys().clone()));
-                    let properties = &(schema3.schema.object.unwrap().properties);
+                    let properties = &root_schema.schema.object.as_ref().unwrap().properties;
                     let mut required_roots = vec![];
+                    let mut optional_roots = vec![];
+                    let mut all_property_names = vec![];
+                    let mut column_defs = vec![];
                     for (property_name, schema) in properties {
-                        println!("property_name: {}", property_name);
+                        // println!("property_name: {}", property_name);
+                        all_property_names.push(property_name);
+                        let mut column_def: String = "".to_string();
                         match schema {
                             schemars::schema::Schema::Object(schema) => {
                                 match &schema.instance_type {
-                                    Some(type_instance) =>
-                                    {
+                                    Some(type_instance) => {
                                         match type_instance {
                                             SingleOrVec::Single(single_val) => {
-                                                println!("Single value");
+                                                // println!("Single value");
                                                 required_roots.push(property_name);
                                                 match *single_val.as_ref() {
                                                     InstanceType::Boolean => {
-                                                        println!("Boolean");
+                                                        column_def = format!("{} BOOLEAN", property_name);
+
                                                     }
                                                     InstanceType::String => {
-                                                        println!("String");
+                                                        column_def = format!("{} TEXT NOT NULL", property_name);
+                                                    }
+                                                    InstanceType::Integer => {
+                                                        column_def = format!("{} NUMERIC(78) NOT NULL", property_name);
+                                                    }
+                                                    InstanceType::Number => {
+                                                        column_def = format!("{} NUMERIC(78) NOT NULL", property_name);
                                                     }
                                                     _ => {
-                                                        println!("Not handled");
+                                                        println!("{:?} Not handled", single_val);
                                                     }
                                                 }
                                             }
                                             SingleOrVec::Vec(vec_val) => {
-                                                println!("Vec value {:#?}", vec_val);
+                                                // println!("Vec value {:#?}", vec_val);
+                                                // This is the test for an optional type:
+                                                if vec_val.len() > 1
+                                                    && vec_val[vec_val.len() - 1]
+                                                        == InstanceType::Null
+                                                {
+                                                    optional_roots.push(property_name);
+                                                    let optional_val = vec_val[0];
+                                                    match optional_val {
+                                                        InstanceType::Boolean => {
+                                                            column_def = format!("{} BOOLEAN", property_name);
+    
+                                                        }
+                                                        InstanceType::String => {
+                                                            column_def = format!("{} TEXT", property_name);
+                                                        }
+                                                        InstanceType::Integer => {
+                                                            column_def = format!("{} NUMERIC(78)", property_name);
+                                                        }
+                                                        InstanceType::Number => {
+                                                            column_def = format!("{} NUMERIC(78)", property_name);
+                                                        }
+                                                        _ => {
+                                                            println!("{:?} Not handled", optional_val);
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                     None => {
-                                        println!("{} has no instance_type", property_name);
+                                        // println!("{} has no instance_type", property_name);
                                         required_roots.push(property_name);
-                                    }
-                                    _ => {
-                                        println!(
-                                            "Not dealing with instance type {:?} yet",
-                                            schema.instance_type
-                                        );
                                     }
                                 }
                             }
@@ -249,9 +276,14 @@ fn test_schema_types() {
                                 warn!("Not an object type: {:#?}", schema);
                             }
                         }
+                        if !column_def.is_empty() {
+                            column_defs.push(column_def);
+                        }
                     }
-                    println!("required roots: {:#?}", required_roots);
+                    println!("required roots:\n{:#?}\noptional roots:\n{:#?}\nall:\n{:#?}", required_roots, optional_roots, all_property_names);
                     // println!("property details:\n{:#?}", properties);
+                    let create_table_sql = format!("CREATE_TABLE {} ({});\n", table_name, column_defs.join(",\n"));
+                    println!("SQL:\n{}", create_table_sql);
                 }
                 _ => {
                     println!("god only knows");
@@ -267,4 +299,13 @@ fn test_schema_types() {
     //     serde_json::to_string_pretty(&schema3).unwrap(),
     //     serde_json::to_string_pretty(&schema25).unwrap()
     // );
+}
+
+#[test]
+fn test_schema_types() {
+    use schemars::schema_for;
+    let schema3 = schema_for!(Cw3DaoInstantiateMsg);
+    dump_schema(&schema3, stringify!(Cw3DaoInstantiateMsg));
+    let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
+    dump_schema(&schema25, stringify!(Cw3DaoInstantiateMsg25));
 }
