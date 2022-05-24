@@ -29,6 +29,15 @@ fn has_all(keys: RootKeysType, msg: &Value) -> bool {
 pub trait Indexer {
     type MessageType: DeserializeOwned + IndexMessage;
 
+    /// Called once at startup; indexers can create DB tables,
+    /// initialize static lookups, etc.
+    /// No calls to index will be made until all indexers
+    /// have initialized.
+    fn initialize<'a>(&'a self, _registry: &'a IndexerRegistry) -> anyhow::Result<()> {
+        println!("initialize called on {}", self.id());
+        Ok(())
+    }
+
     // Indexes a message and its transaction events
     fn index<'a>(
         &'a self,
@@ -119,6 +128,7 @@ pub trait Indexer {
 // dispatch on traits with associated types.
 // See https://users.rust-lang.org/t/dynamic-dispatch-and-associated-types/39584/2
 pub trait IndexerDyn {
+    fn initialize_dyn<'a>(&'a self, registry: &'a IndexerRegistry) -> anyhow::Result<()>;
     fn index_dyn<'a>(
         &'a self,
         registry: &'a IndexerRegistry,
@@ -140,6 +150,10 @@ impl<I: Indexer> IndexerDyn for I {
         msg_str: &'a str,
     ) -> anyhow::Result<()> {
         self.index(registry, events, msg_dictionary, msg_str)
+    }
+
+    fn initialize_dyn<'a>(&'a self, registry: &'a IndexerRegistry) -> anyhow::Result<()> {
+        self.initialize(registry)
     }
 
     fn extract_message_key_dyn(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey> {

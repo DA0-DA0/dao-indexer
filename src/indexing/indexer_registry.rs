@@ -75,6 +75,13 @@ impl<'a> IndexerRegistry {
         }
     }
 
+    pub fn initialize(&mut self) -> anyhow::Result<()> {
+        for indexer in self.indexers.iter() {
+            indexer.initialize_dyn(self)?;
+        }
+        Ok(())
+    }
+
     // This method gets handed the decoded cosmwasm message
     // and asks its registered indexers to index it if they can.
     pub fn index_message_and_events(
@@ -170,7 +177,7 @@ impl<'a> Indexer for TestIndexer<'a> {
     fn id(&self) -> String {
         self.name.clone()
     }
-
+    
     fn index<'b>(
         &self,
         _registry: &'b IndexerRegistry,

@@ -64,6 +64,8 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::from(cw3dao_indexer), None);
     registry.register(Box::from(cw20_stake_indexer), None);
 
+    registry.initialize()?;
+
     let msg_set = default_msg_set();
 
     if config.enable_indexer_env {
