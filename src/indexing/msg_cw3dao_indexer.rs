@@ -11,54 +11,35 @@ use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use log::{debug, error, warn};
-use schemars::schema::{InstanceType, RootSchema, SingleOrVec, Schema, SchemaObject, SubschemaValidation};
+use schemars::schema::{
+    InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
+};
+use schemars::schema_for;
 use serde_json::Value;
 
 const EXECUTE_MSG_INDEXER_KEY: &str = "Cw3DaoExecuteMsg";
-static EXECUTE_MSG_ROOT_KEYS: [&str; 9] = [
-    "propose",
-    "vote",
-    "execute",
-    "close",
-    "pause_d_a_o",
-    "update_config",
-    "update_cw20_token_list",
-    "update_staking_contract",
-    "receive",
-];
-
 const INSTANTIATE_MSG_INDEXER_KEY: &str = "Cw3DaoInstantiateMsg";
-static INSTANTIATE_MSG_ROOT_KEYS: [&str; 11] = [
-    // The name of the DAO.
-    "name",
-    // A description of the DAO.
-    "description",
-    // Set an existing governance token or launch a new one
-    "gov_token",
-    // Set an existing staking contract or instantiate an new one
-    "staking_contract",
-    // Voting params configuration
-    "threshold",
-    // The amount of time a proposal can be voted on before expiring
-    "max_voting_period",
-    // Deposit required to make a proposal
-    "proposal_deposit_amount",
-    // Refund a proposal if it is rejected
-    "refund_failed_proposals",
-    // Optional Image URL that is used by the contract
-    "image_url",
-    "only_members_execute",
-    "automatically_add_cw20s",
-];
 
 pub struct Cw3DaoExecuteMsgIndexer {
     registry_keys: Vec<RegistryKey>,
+    root_keys: Vec<String>,
 }
 
 impl Default for Cw3DaoExecuteMsgIndexer {
     fn default() -> Self {
         Cw3DaoExecuteMsgIndexer {
             registry_keys: vec![RegistryKey::new(EXECUTE_MSG_INDEXER_KEY.to_string())],
+            root_keys: vec![
+                "propose".to_string(),
+                "vote".to_string(),
+                "execute".to_string(),
+                "close".to_string(),
+                "pause_d_a_o".to_string(),
+                "update_config".to_string(),
+                "update_cw20_token_list".to_string(),
+                "update_staking_contract".to_string(),
+                "receive".to_string(),
+            ]
         }
     }
 }
@@ -72,7 +53,7 @@ impl Indexer for Cw3DaoExecuteMsgIndexer {
         registry_keys_from_iter(self.registry_keys.iter())
     }
     fn root_keys(&self) -> RootKeysType {
-        root_keys_from_iter(EXECUTE_MSG_ROOT_KEYS.into_iter())
+        root_keys_from_iter(self.root_keys.iter())
     }
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
@@ -80,12 +61,40 @@ impl Indexer for Cw3DaoExecuteMsgIndexer {
 }
 
 pub struct Cw3DaoInstantiateMsgIndexer {
+    schemas: Vec<RootSchema>,
     registry_keys: Vec<RegistryKey>,
+    root_keys: Vec<String>,
 }
 
 impl Default for Cw3DaoInstantiateMsgIndexer {
     fn default() -> Self {
         Cw3DaoInstantiateMsgIndexer {
+            schemas: vec![
+                schema_for!(Cw3DaoInstantiateMsg),
+                schema_for!(Cw3DaoInstantiateMsg25),
+            ],
+            root_keys: vec![
+                // The name of the DAO.
+                String::from("name"),
+                // A description of the DAO.
+                String::from("description"),
+                // Set an existing governance token or launch a new one
+                String::from("gov_token"),
+                // Set an existing staking contract or instantiate an new one
+                String::from("staking_contract"),
+                // Voting params configuration
+                String::from("threshold"),
+                // The amount of time a proposal can be voted on before expiring
+                String::from("max_voting_period"),
+                // Deposit required to make a proposal
+                String::from("proposal_deposit_amount"),
+                // Refund a proposal if it is rejected
+                String::from("refund_failed_proposals"),
+                // Optional Image URL that is used by the contract
+                String::from("image_url"),
+                String::from("only_members_execute"),
+                String::from("automatically_add_cw20s"),
+            ],
             registry_keys: vec![RegistryKey::new(INSTANTIATE_MSG_INDEXER_KEY.to_string())],
         }
     }
@@ -100,10 +109,15 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
         registry_keys_from_iter(self.registry_keys.iter())
     }
     fn root_keys(&self) -> RootKeysType {
-        root_keys_from_iter(INSTANTIATE_MSG_ROOT_KEYS.into_iter())
+        root_keys_from_iter(self.root_keys.iter())
     }
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
+    }
+
+    fn initialize_schemas(&mut self) {
+        // what to do here? Anything?
+        println!("initialize_schemas for cw3dao_indexer {:#?}", self.schemas);
     }
 
     fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
@@ -190,7 +204,7 @@ fn dump_subschema(subschema: &SubschemaValidation, name: &str) {
         for schema in all_of {
             match schema {
                 Schema::Object(schema_object) => {
-                    dump_schema_object(schema_object, name);        
+                    dump_schema_object(schema_object, name);
                 }
                 Schema::Bool(bool_val) => {
                     println!("ignoring bool_val {} for {}", bool_val, name);
@@ -314,7 +328,10 @@ fn dump_schema_object(schema: &SchemaObject, name: &str) {
                                             is_subschema = true;
                                             dump_subschema(subschema, property_name);
                                         } else {
-                                            println!("process schema {}, {:#?}", property_name, schema);
+                                            println!(
+                                                "process schema {}, {:#?}",
+                                                property_name, schema
+                                            );
                                         }
                                     }
                                 }

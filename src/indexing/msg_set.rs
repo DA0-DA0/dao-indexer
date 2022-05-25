@@ -67,10 +67,13 @@ fn init_known_unknown_messages(msg_set: &mut MsgMap) {
         "/cosmos.staking.v1beta1.MsgUndelegate",
         "/cosmos.staking.v1beta1.MsgWithdrawDelegatorReward",
         "/cosmos.staking.v1beta1.MsgWithdrawValidatorCommission",
+        "/cosmwasm.wasm.v1.MsgMigrateContract",
         "/cosmwasm.wasm.v1.MsgStoreCode",
         "/cosmwasm.wasm.v1.MsgUpdateAdmin",
         "/ibc.applications.transfer.v1.MsgTransfer",
         "/ibc.core.channel.v1.MsgAcknowledgement",
+        "/ibc.core.channel.v1.MsgChannelOpenAck",
+        "/ibc.core.channel.v1.MsgChannelOpenConfirm",
         "/ibc.core.channel.v1.MsgChannelOpenInit",
         "/ibc.core.channel.v1.MsgChannelOpenTry",
         "/ibc.core.channel.v1.MsgRecvPacket",
@@ -78,7 +81,9 @@ fn init_known_unknown_messages(msg_set: &mut MsgMap) {
         "/ibc.core.client.v1.MsgCreateClient",
         "/ibc.core.client.v1.MsgUpdateClient",
         "/ibc.core.connection.v1.MsgConnectionOpenAck",
+        "/ibc.core.connection.v1.MsgConnectionOpenConfirm",
         "/ibc.core.connection.v1.MsgConnectionOpenInit",
+        "/ibc.core.connection.v1.MsgConnectionOpenTry",
     ];
     known.map(|msg| msg_set.insert(msg.to_string()));
 }

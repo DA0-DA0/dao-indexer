@@ -4,10 +4,11 @@ use crate::indexing::index_message::IndexMessage;
 use log::{error, warn};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-pub type RootKeysType<'a> = Box<dyn Iterator<Item = &'a str> + 'a>;
+pub type RootKeyType<'a> = dyn Iterator<Item = &'a String> + 'a;
+pub type RootKeysType<'a> = Box<RootKeyType<'a>>;
 pub type RegistryKeysType<'a> = Box<dyn Iterator<Item = &'a RegistryKey> + 'a>;
 
-pub fn root_keys_from_iter<'a>(iter: impl Iterator<Item = &'a str> + 'a) -> RootKeysType<'a> {
+pub fn root_keys_from_iter<'a>(iter: impl Iterator<Item = &'a String> + 'a) -> RootKeysType<'a> {
     Box::new(iter)
 }
 
@@ -36,6 +37,10 @@ pub trait Indexer {
     fn initialize<'a>(&'a self, _registry: &'a IndexerRegistry) -> anyhow::Result<()> {
         println!("initialize called on {}", self.id());
         Ok(())
+    }
+
+    fn initialize_schemas(&mut self) {
+        // Implementors can do whatevah
     }
 
     // Indexes a message and its transaction events
