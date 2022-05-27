@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer::{
@@ -10,6 +12,7 @@ use log::warn;
 use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
+use std::collections::BTreeSet;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
@@ -36,22 +39,24 @@ pub struct SchemaIndexer {
 #[derive(Debug)]
 pub struct SchemaData {
     pub root_keys: Vec<String>,
-    pub required_roots: Vec<String>,
-    pub optional_roots: Vec<String>,
-    pub all_property_names: Vec<String>,
+    pub required_roots: BTreeSet<String>,
+    pub optional_roots: BTreeSet<String>,
+    pub all_property_names: BTreeSet<String>,
     pub column_defs: Vec<String>,
     pub table_creation_sql: Vec<String>,
+    pub ref_roots: HashMap<String, String>,
 }
 
 impl SchemaData {
     pub fn default() -> Self {
         SchemaData {
             root_keys: vec![],
-            required_roots: vec![],
-            optional_roots: vec![],
-            all_property_names: vec![],
+            required_roots: BTreeSet::new(),
+            optional_roots: BTreeSet::new(),
+            all_property_names: BTreeSet::new(),
             column_defs: vec![],
             table_creation_sql: vec![],
+            ref_roots: HashMap::new(),
         }
     }
 }
@@ -104,6 +109,8 @@ impl SchemaIndexer {
         if schema.instance_type.is_none() {
             if let Some(reference) = &schema.reference {
                 println!("No instance type, but ref: {}", reference);
+                data.required_roots.insert(name.to_string());
+                data.ref_roots.insert(name.to_string(), reference.clone());
             } else {
                 println!("No instance or ref type for {}", name);
             }
@@ -118,13 +125,15 @@ impl SchemaIndexer {
                     &InstanceType::Object => {
                         // println!("Yes, it's an object, properties:\n{:#?}", &(schema3.schema.object.unwrap().properties.keys().clone()));
                         let properties = &schema.object.as_ref().unwrap().properties;
-                        // let mut required_roots = vec![];
-                        // let mut optional_roots = vec![];
-                        // let mut all_property_names = vec![];
-                        // let mut column_defs = vec![];
+                        let required = &schema.object.as_ref().unwrap().required;
                         for (property_name, schema) in properties {
                             // println!("property_name: {}", property_name);
-                            data.all_property_names.push(property_name.clone());
+                            data.all_property_names.insert(property_name.clone());
+                            if required.contains(property_name) {
+                                data.required_roots.insert(property_name.clone());
+                            } else {
+                                data.optional_roots.insert(property_name.clone());
+                            }
                             let mut column_def: String = "".to_string();
                             match schema {
                                 schemars::schema::Schema::Object(schema) => {
@@ -133,7 +142,7 @@ impl SchemaIndexer {
                                             match type_instance {
                                                 SingleOrVec::Single(single_val) => {
                                                     // println!("Single value");
-                                                    data.required_roots.push(property_name.clone());
+                                                    // data.required_roots.push(property_name.clone());
                                                     match *single_val.as_ref() {
                                                         InstanceType::Boolean => {
                                                             column_def = format!(
@@ -174,8 +183,6 @@ impl SchemaIndexer {
                                                         && vec_val[vec_val.len() - 1]
                                                             == InstanceType::Null
                                                     {
-                                                        data.optional_roots
-                                                            .push(property_name.clone());
                                                         let optional_val = vec_val[0];
                                                         match optional_val {
                                                             InstanceType::Boolean => {
@@ -217,7 +224,7 @@ impl SchemaIndexer {
                                         }
                                         None => {
                                             // println!("{} has no instance_type", property_name);
-                                            data.required_roots.push(property_name.clone());
+                                            // data.required_roots.push(property_name.clone());
                                             if let Some(subschema) = &schema.subschemas {
                                                 is_subschema = true;
                                                 self.process_subschema(
