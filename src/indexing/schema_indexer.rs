@@ -6,10 +6,10 @@ use super::indexer::{
     registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
 use super::indexer_registry::{IndexerRegistry, RegistryKey};
-use cw3_dao::msg::GovTokenMsg;
+
 use serde::{Deserialize, Serialize};
 
-use log::warn;
+use log::{debug, warn};
 use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
@@ -81,7 +81,7 @@ impl SchemaIndexer {
             self.process_schema_object(&schema.schema.schema, &schema.name, &mut data);
             data_objects.push(data);
         }
-        println!("schemas initialized:\n{:#?}", data_objects);
+        debug!("schemas initialized:\n{:#?}", data_objects);
         self.root_keys = data_objects[0].root_keys.clone();
         Ok(())
     }
@@ -99,7 +99,7 @@ impl SchemaIndexer {
                         self.process_schema_object(schema_object, name, data);
                     }
                     Schema::Bool(bool_val) => {
-                        println!("ignoring bool_val {} for {}", bool_val, name);
+                        debug!("ignoring bool_val {} for {}", bool_val, name);
                     }
                 }
             }
@@ -108,14 +108,16 @@ impl SchemaIndexer {
 
     pub fn process_schema_object(&self, schema: &SchemaObject, name: &str, data: &mut SchemaData) {
         if schema.is_ref() {
-            println!("Processing reference schema {:#?}", schema);
+            debug!("Processing reference schema {} {}", name, &(schema.reference.unwrap()));
         }
         if schema.instance_type.is_none() {
             if let Some(reference) = &schema.reference {
-                data.required_roots.insert(name.to_string());
-                data.ref_roots.insert(name.to_string(), reference.clone());
+                if !name.is_empty() {
+                    data.required_roots.insert(name.to_string());
+                    data.ref_roots.insert(name.to_string(), reference.clone());
+                }
             } else {
-                println!("No instance or ref type for {}", name);
+                debug!("No instance or ref type for {}", name);
             }
             return;
         }
@@ -172,10 +174,7 @@ impl SchemaIndexer {
                                                             );
                                                         }
                                                         _ => {
-                                                            println!(
-                                                                "{:?} Not handled",
-                                                                single_val
-                                                            );
+                                                            warn!("{:?} Not handled", single_val);
                                                         }
                                                     }
                                                 }
@@ -213,14 +212,14 @@ impl SchemaIndexer {
                                                                 );
                                                             }
                                                             _ => {
-                                                                println!(
+                                                                warn!(
                                                                     "{:?} Not handled",
                                                                     optional_val
                                                                 );
                                                             }
                                                         }
                                                     } else {
-                                                        println!("unexpected");
+                                                        warn!("unexpected");
                                                     }
                                                 }
                                             }
@@ -236,7 +235,7 @@ impl SchemaIndexer {
                                                     data,
                                                 );
                                             } else {
-                                                eprintln!(
+                                                warn!(
                                                     "process schema {}, {:#?}",
                                                     property_name, schema
                                                 );
@@ -251,7 +250,7 @@ impl SchemaIndexer {
                             if !column_def.is_empty() {
                                 data.column_defs.push(column_def);
                             } else if !is_subschema {
-                                println!(
+                                warn!(
                                     "could not figure out a column def for property: {}, {:#?}",
                                     property_name, schema
                                 );
@@ -267,12 +266,12 @@ impl SchemaIndexer {
                         data.table_creation_sql.push(create_table_sql);
                     }
                     _ => {
-                        println!("god only knows");
+                        debug!("god only knows");
                     }
                 }
             }
             _ => {
-                println!("not object");
+                debug!("not object");
             }
         }
     }
@@ -332,9 +331,33 @@ impl SchemaVisitor {
     }
 }
 
-use schemars::visit::{visit_schema_object, Visitor};
+use schemars::visit::{visit_root_schema, visit_schema, visit_schema_object, Visitor};
 
 impl Visitor for SchemaVisitor {
+    /// Override this method to modify a [`RootSchema`] and (optionally) its subschemas.
+    ///
+    /// When overriding this method, you will usually want to call the [`visit_root_schema`] function to visit subschemas.
+    fn visit_root_schema(&mut self, root: &mut RootSchema) {
+        for (root_def_name, schema) in root.definitions.iter() {
+            println!("visting root definition {}", root_def_name);
+            if let Schema::Object(schema_object) = schema {
+              self.indexer.process_schema_object(schema_object, root_def_name, &mut self.data)
+            }
+        }
+        visit_root_schema(self, root)
+    }
+
+    /// Override this method to modify a [`Schema`] and (optionally) its subschemas.
+    ///
+    /// When overriding this method, you will usually want to call the [`visit_schema`] function to visit subschemas.
+    fn visit_schema(&mut self, schema: &mut Schema) {
+        if let Schema::Object(schema_val) = schema {
+            self.indexer
+                .process_schema_object(schema_val, "", &mut self.data);
+        }
+        visit_schema(self, schema)
+    }
+
     fn visit_schema_object(&mut self, schema: &mut SchemaObject) {
         // // First, make our change to this schema
         // schema
@@ -342,7 +365,7 @@ impl Visitor for SchemaVisitor {
         //     .insert("my_property".to_string(), serde_json::json!("hello world"));
 
         self.indexer
-            .process_schema_object(schema, "uknown", &mut self.data);
+            .process_schema_object(schema, "", &mut self.data);
         // Then delegate to default implementation to visit any subschemas
         visit_schema_object(self, schema);
     }
@@ -350,6 +373,7 @@ impl Visitor for SchemaVisitor {
 
 #[test]
 fn test_visit() {
+    use cw3_dao::msg::GovTokenMsg;
     use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
     use schemars::schema_for;
 
@@ -357,14 +381,15 @@ fn test_visit() {
     let label = stringify!(Cw3DaoInstantiateMsg);
     let indexer = SchemaIndexer::new(
         label.to_string(),
-        vec![
-          SchemaRef {
+        vec![SchemaRef {
             name: label.to_string(),
             schema: schema_for!(GovTokenMsg),
-        }
-        ],
+        }],
     );
     let mut visitor = SchemaVisitor::new(indexer);
-    visitor.visit_schema_object(&mut schema3.schema);
+    visitor.visit_root_schema(&mut schema3);
     println!("indexer after visit: {:#?}", visitor.data);
+    // let schema3 = schema_for!(Cw3DaoInstantiateMsg);
+    // let string_schema = serde_json::to_string_pretty(&schema3).unwrap();
+    // println!("string_schema:\n{}", string_schema);
 }
