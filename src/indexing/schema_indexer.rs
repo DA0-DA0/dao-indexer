@@ -6,6 +6,7 @@ use super::indexer::{
     registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
 use super::indexer_registry::{IndexerRegistry, RegistryKey};
+use cw3_dao::msg::GovTokenMsg;
 use serde::{Deserialize, Serialize};
 
 use log::warn;
@@ -105,10 +106,12 @@ impl SchemaIndexer {
         }
     }
 
-    fn process_schema_object(&self, schema: &SchemaObject, name: &str, data: &mut SchemaData) {
+    pub fn process_schema_object(&self, schema: &SchemaObject, name: &str, data: &mut SchemaData) {
+        if schema.is_ref() {
+            println!("Processing reference schema {:#?}", schema);
+        }
         if schema.instance_type.is_none() {
             if let Some(reference) = &schema.reference {
-                println!("No instance type, but ref: {}", reference);
                 data.required_roots.insert(name.to_string());
                 data.ref_roots.insert(name.to_string(), reference.clone());
             } else {
@@ -313,4 +316,55 @@ fn test_schema_indexer_init() {
         ],
     );
     println!("indexer:\n{:#?}", indexer);
+}
+
+pub struct SchemaVisitor {
+    pub data: SchemaData,
+    pub indexer: SchemaIndexer,
+}
+
+impl SchemaVisitor {
+    pub fn new(indexer: SchemaIndexer) -> Self {
+        SchemaVisitor {
+            data: SchemaData::default(),
+            indexer,
+        }
+    }
+}
+
+use schemars::visit::{visit_schema_object, Visitor};
+
+impl Visitor for SchemaVisitor {
+    fn visit_schema_object(&mut self, schema: &mut SchemaObject) {
+        // // First, make our change to this schema
+        // schema
+        //     .extensions
+        //     .insert("my_property".to_string(), serde_json::json!("hello world"));
+
+        self.indexer
+            .process_schema_object(schema, "uknown", &mut self.data);
+        // Then delegate to default implementation to visit any subschemas
+        visit_schema_object(self, schema);
+    }
+}
+
+#[test]
+fn test_visit() {
+    use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+    use schemars::schema_for;
+
+    let mut schema3 = schema_for!(Cw3DaoInstantiateMsg);
+    let label = stringify!(Cw3DaoInstantiateMsg);
+    let indexer = SchemaIndexer::new(
+        label.to_string(),
+        vec![
+          SchemaRef {
+            name: label.to_string(),
+            schema: schema_for!(GovTokenMsg),
+        }
+        ],
+    );
+    let mut visitor = SchemaVisitor::new(indexer);
+    visitor.visit_schema_object(&mut schema3.schema);
+    println!("indexer after visit: {:#?}", visitor.data);
 }
