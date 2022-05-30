@@ -88,7 +88,7 @@ impl SchemaIndexer {
         Ok(())
     }
 
-    fn get_column_def(&self, property_name: &str, schema: &Schema) -> String {
+    fn get_column_def(&self, property_name: &str, schema: &Schema, parent_name: &str) -> String {
         let mut column_def: String = "".to_string();
         let mut is_ref = false;
         let mut is_subschema = false;
@@ -100,7 +100,7 @@ impl SchemaIndexer {
                 }
                 if let Some(_subschemas) = &schema.subschemas {
                     is_subschema = true;
-                    column_def = format!("{} SUBSCHEMA", property_name);
+                    column_def = format!("{} SUBSCHEMA ({})", property_name, parent_name);
                 }
                 if let Some(type_instance) = &schema.instance_type {
                     match type_instance {
@@ -173,13 +173,14 @@ impl SchemaIndexer {
         &self,
         subschema: &SubschemaValidation,
         name: &str,
+        parent_name: &str,
         data: &mut SchemaData,
     ) {
         if let Some(all_of) = &subschema.all_of {
             for schema in all_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, name, data);
+                        self.process_schema_object(schema_object, parent_name, name, data);
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -190,7 +191,7 @@ impl SchemaIndexer {
             for schema in one_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, name, data);
+                        self.process_schema_object(schema_object, parent_name, name, data);
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -201,7 +202,7 @@ impl SchemaIndexer {
             for schema in any_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, name, data);
+                        self.process_schema_object(schema_object, parent_name, name, data);
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -214,17 +215,23 @@ impl SchemaIndexer {
     }
 
     fn add_column_def(&self, table_name: &str, data: &mut SchemaData, column_def: String) {
-      let mut column_defs = data.sql_tables.get_mut(table_name);
-      if column_defs.is_none() {
-          data.sql_tables.insert(table_name.to_string(), vec![]);
-          column_defs = data.sql_tables.get_mut(table_name);
-      }
-      if let Some(column_defs) = column_defs {
-          column_defs.push(column_def);
-      }
+        let mut column_defs = data.sql_tables.get_mut(table_name);
+        if column_defs.is_none() {
+            data.sql_tables.insert(table_name.to_string(), vec![]);
+            column_defs = data.sql_tables.get_mut(table_name);
+        }
+        if let Some(column_defs) = column_defs {
+            column_defs.push(column_def);
+        }
     }
 
-    pub fn process_schema_object(&self, schema: &SchemaObject, name: &str, data: &mut SchemaData) {
+    pub fn process_schema_object(
+        &self,
+        schema: &SchemaObject,
+        parent_name: &str,
+        name: &str,
+        data: &mut SchemaData,
+    ) {
         if let Some(ref_string) = &schema.reference {
             debug!("Processing reference schema {} {}", name, ref_string);
         }
@@ -235,7 +242,7 @@ impl SchemaIndexer {
                     data.ref_roots.insert(name.to_string(), reference.clone());
                 }
             } else if let Some(subschema) = &schema.subschemas {
-                self.process_subschema(subschema, name, data);
+                self.process_subschema(subschema, name, parent_name, data);
             } else {
                 eprintln!("No instance or ref type for {}", name);
             }
@@ -247,7 +254,7 @@ impl SchemaIndexer {
         if let Some(subschema) = &schema.subschemas {
             is_subschema = true;
             println!("{} is a subschema", name);
-            self.process_subschema(subschema, name, data);
+            self.process_subschema(subschema, name, parent_name, data);
         }
         match instance_type {
             SingleOrVec::Vec(_vtype) => {
@@ -265,11 +272,7 @@ impl SchemaIndexer {
                         } else {
                             data.optional_roots.insert(property_name.clone());
                         }
-                        // if let Schema::Object(object_ref) = schema {
-                        //   // self.process_schema_object(object_ref, property_name, data);
-                        //   continue;
-                        // }
-                        let column_def = self.get_column_def(property_name, schema);
+                        let column_def = self.get_column_def(property_name, schema, parent_name);
                         if !column_def.is_empty() {
                             self.add_column_def(table_name, data, column_def);
                         } else if !is_subschema {
@@ -281,22 +284,22 @@ impl SchemaIndexer {
                     }
                 }
                 InstanceType::String => {
-                  self.add_column_def(table_name, data, format!("{} STRING column", name));
+                    self.add_column_def(table_name, data, format!("{} STRING column", name));
                 }
                 InstanceType::Null => {
-                  self.add_column_def(table_name, data, "Null column".to_string());
+                    self.add_column_def(table_name, data, "Null column".to_string());
                 }
                 InstanceType::Boolean => {
-                  self.add_column_def(table_name, data, "BOOLEAN column".to_string());
+                    self.add_column_def(table_name, data, "BOOLEAN column".to_string());
                 }
                 InstanceType::Array => {
                     self.add_column_def(table_name, data, "Array column".to_string());
                 }
                 InstanceType::Number => {
-                  self.add_column_def(table_name, data, "Number column".to_string());
+                    self.add_column_def(table_name, data, "Number column".to_string());
                 }
                 InstanceType::Integer => {
-                  self.add_column_def(table_name, data, "Integer column".to_string());
+                    self.add_column_def(table_name, data, "Integer column".to_string());
                 }
             },
         }
@@ -355,45 +358,38 @@ impl SchemaVisitor {
             indexer,
         }
     }
-}
-
-impl Visitor for SchemaVisitor {
     /// Override this method to modify a [`RootSchema`] and (optionally) its subschemas.
     ///
     /// When overriding this method, you will usually want to call the [`visit_root_schema`] function to visit subschemas.
-    fn visit_root_schema(&mut self, root: &mut RootSchema) {
+    pub fn visit_root_schema(&mut self, root: &RootSchema) {
+        let parent_name = self.indexer.id();
         for (root_def_name, schema) in root.definitions.iter() {
             if let Schema::Object(schema_object) = schema {
-                self.indexer
-                    .process_schema_object(schema_object, root_def_name, &mut self.data)
+                self.indexer.process_schema_object(
+                    schema_object,
+                    &parent_name,
+                    root_def_name,
+                    &mut self.data,
+                )
             } else {
-              println!("Bool schema for {:#?}", schema);
+                println!("Bool schema for {:#?}", schema);
             }
         }
-        visit_root_schema(self, root)
+        self.visit_schema_object(&root.schema, &parent_name);
     }
 
     /// Override this method to modify a [`Schema`] and (optionally) its subschemas.
     ///
     /// When overriding this method, you will usually want to call the [`visit_schema`] function to visit subschemas.
-    fn visit_schema(&mut self, schema: &mut Schema) {
-        // if let Schema::Object(schema_val) = schema {
-        //     self.indexer
-        //         .process_schema_object(schema_val, &self.indexer.id(), &mut self.data);
-        // }
-        visit_schema(self, schema)
+    pub fn visit_schema(&mut self, schema: &Schema, parent_name: &str) {
+        if let Schema::Object(schema_val) = schema {
+            self.visit_schema_object(schema_val, parent_name);
+        }
     }
 
-    fn visit_schema_object(&mut self, schema: &mut SchemaObject) {
-        // // First, make our change to this schema
-        // schema
-        //     .extensions
-        //     .insert("my_property".to_string(), serde_json::json!("hello world"));
-        let name = &self.indexer.id();
+    pub fn visit_schema_object(&mut self, schema: &SchemaObject, parent_name: &str) {
         self.indexer
-            .process_schema_object(schema, name, &mut self.data);
-        // Then delegate to default implementation to visit any subschemas
-        visit_schema_object(self, schema);
+            .process_schema_object(schema, parent_name, &format!("{}_",parent_name), &mut self.data);
     }
 }
 
@@ -403,11 +399,11 @@ fn test_visit() {
     use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
     use schemars::schema_for;
 
-    let mut schema3 = schema_for!(Cw3DaoInstantiateMsg);
+    let schema3 = schema_for!(Cw3DaoInstantiateMsg);
     let label = stringify!(Cw3DaoInstantiateMsg);
     let indexer = SchemaIndexer::new(label.to_string(), vec![]);
     let mut visitor = SchemaVisitor::new(indexer);
-    visitor.visit_root_schema(&mut schema3);
+    visitor.visit_root_schema(&schema3);
     println!("indexer after visit: {:#?}", visitor.data);
     // let schema3 = schema_for!(Cw3DaoInstantiateMsg);
     // let string_schema = serde_json::to_string_pretty(&schema3).unwrap();
