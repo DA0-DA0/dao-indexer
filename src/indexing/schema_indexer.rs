@@ -14,6 +14,7 @@ use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
 use std::collections::BTreeSet;
+use schemars::visit::{visit_root_schema, visit_schema, visit_schema_object, Visitor};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
@@ -43,8 +44,7 @@ pub struct SchemaData {
     pub required_roots: BTreeSet<String>,
     pub optional_roots: BTreeSet<String>,
     pub all_property_names: BTreeSet<String>,
-    pub column_defs: Vec<String>,
-    pub table_creation_sql: Vec<String>,
+    pub sql_tables: HashMap<String, Vec<String>>,
     pub ref_roots: HashMap<String, String>,
 }
 
@@ -55,8 +55,7 @@ impl SchemaData {
             required_roots: BTreeSet::new(),
             optional_roots: BTreeSet::new(),
             all_property_names: BTreeSet::new(),
-            column_defs: vec![],
-            table_creation_sql: vec![],
+            sql_tables: HashMap::new(),
             ref_roots: HashMap::new(),
         }
     }
@@ -86,6 +85,98 @@ impl SchemaIndexer {
         Ok(())
     }
 
+    fn get_column_def(&self, property_name: &str, schema: &Schema, data: &mut SchemaData) -> String {
+        let mut column_def: String = "".to_string();
+        let mut is_ref = false;
+        match schema {
+            schemars::schema::Schema::Object(schema) => {
+              if let Some(reference) = &schema.reference {
+                is_ref = true;
+                column_def = format!("{} REFERENCE to {}", property_name, reference);
+              }
+              if let Some(subschemas) = &schema.subschemas {
+                column_def = format!("{} SUBSCHEMA", property_name);
+                self.process_subschema(
+                  subschemas,
+                  property_name,
+                  data
+                )
+              }
+                match &schema.instance_type {
+                    Some(type_instance) => {
+                        match type_instance {
+                            SingleOrVec::Single(single_val) => {
+                                // println!("Single value");
+                                // data.required_roots.push(property_name.clone());
+                                match *single_val.as_ref() {
+                                    InstanceType::Boolean => {
+                                        column_def = format!("{} BOOLEAN", property_name);
+                                    }
+                                    InstanceType::String => {
+                                        column_def = format!("{} TEXT NOT NULL", property_name);
+                                    }
+                                    InstanceType::Integer => {
+                                        column_def =
+                                            format!("{} NUMERIC(78) NOT NULL", property_name);
+                                    }
+                                    InstanceType::Number => {
+                                        column_def =
+                                            format!("{} NUMERIC(78) NOT NULL", property_name);
+                                    }
+                                    InstanceType::Object => {
+                                      column_def = format!("{} REFERENCE", property_name);
+                                    }
+                                    InstanceType::Null => {
+                                      column_def = format!("{} NULL", property_name);
+                                    }
+                                    InstanceType::Array => {
+                                      column_def = format!("{} ARRAY", property_name);
+                                    }
+                                }
+                            }
+                            SingleOrVec::Vec(vec_val) => {
+                                // println!("Vec value {:#?}", vec_val);
+                                // This is the test for an optional type:
+                                if vec_val.len() > 1
+                                    && vec_val[vec_val.len() - 1] == InstanceType::Null
+                                {
+                                    let optional_val = vec_val[0];
+                                    match optional_val {
+                                        InstanceType::Boolean => {
+                                            column_def = format!("{} BOOLEAN", property_name);
+                                        }
+                                        InstanceType::String => {
+                                            column_def = format!("{} TEXT", property_name);
+                                        }
+                                        InstanceType::Integer => {
+                                            column_def = format!("{} NUMERIC(78)", property_name);
+                                        }
+                                        InstanceType::Number => {
+                                            column_def = format!("{} NUMERIC(78)", property_name);
+                                        }
+                                        _ => {
+                                            eprintln!("{} {:?} Not handled", property_name, optional_val);
+                                        }
+                                    }
+                                } else {
+                                    warn!("unexpected");
+                                }
+                            }
+                        }
+                    }
+                    None => {
+                      println!("No instance type for {} (!schema.reference.is_none(): {}, is_ref: {})", property_name, !schema.reference.is_none(), is_ref);
+                    }
+                  }
+            }
+            schemars::schema::Schema::Bool(bool_val) => {
+              column_def = format!("{} BOOLEAN {}", property_name, bool_val);
+              println!("bool schema {} for {}", bool_val, property_name);
+            }
+        }
+        column_def
+    }
+
     fn process_subschema(
         &self,
         subschema: &SubschemaValidation,
@@ -103,12 +194,36 @@ impl SchemaIndexer {
                     }
                 }
             }
+        } else if let Some(one_of) = &subschema.one_of {
+            for schema in one_of {
+                match schema {
+                    Schema::Object(schema_object) => {
+                        self.process_schema_object(schema_object, name, data);
+                    }
+                    Schema::Bool(bool_val) => {
+                        debug!("ignoring bool_val {} for {}", bool_val, name);
+                    }
+                }
+            }
+          } else if let Some(any_of) = &subschema.any_of {
+            for schema in any_of {
+                match schema {
+                    Schema::Object(schema_object) => {
+                        self.process_schema_object(schema_object, name, data);
+                    }
+                    Schema::Bool(bool_val) => {
+                        debug!("ignoring bool_val {} for {}", bool_val, name);
+                    }
+                }
+            }
+        } else {
+          println!("not handling subschema for {}", name);
         }
     }
 
     pub fn process_schema_object(&self, schema: &SchemaObject, name: &str, data: &mut SchemaData) {
-        if schema.is_ref() {
-            debug!("Processing reference schema {} {}", name, &(schema.reference.unwrap()));
+        if let Some(ref_string) = &schema.reference {
+            debug!("Processing reference schema {} {}", name, ref_string);
         }
         if schema.instance_type.is_none() {
             if let Some(reference) = &schema.reference {
@@ -116,139 +231,53 @@ impl SchemaIndexer {
                     data.required_roots.insert(name.to_string());
                     data.ref_roots.insert(name.to_string(), reference.clone());
                 }
+            } else if let Some(subschema) = &schema.subschemas {
+                println!("{} is a subschema", name);
+                self.process_subschema(subschema, name, data);
             } else {
-                debug!("No instance or ref type for {}", name);
+                // could be a subschema, which is what defines the properties
+                eprintln!("No instance or ref type for {}", name);
             }
             return;
         }
         let instance_type = schema.instance_type.as_ref().unwrap();
         let table_name = name;
         let mut is_subschema = false;
+        if let Some(subschema) = &schema.subschemas {
+            is_subschema = true;
+            println!("{} is a subschema", name);
+            self.process_subschema(subschema, name, data);
+        }
+        //     } else {
+
         match instance_type {
+            SingleOrVec::Vec(_vtype) => {
+                println!("Vec instance for table {}", table_name);
+            }
             SingleOrVec::Single(itype) => {
                 match itype.as_ref() {
-                    &InstanceType::Object => {
+                    InstanceType::Object => {
                         // println!("Yes, it's an object, properties:\n{:#?}", &(schema3.schema.object.unwrap().properties.keys().clone()));
                         let properties = &schema.object.as_ref().unwrap().properties;
                         let required = &schema.object.as_ref().unwrap().required;
                         for (property_name, schema) in properties {
-                            // println!("property_name: {}", property_name);
+                            println!("property_name: {}", property_name);
                             data.all_property_names.insert(property_name.clone());
                             if required.contains(property_name) {
                                 data.required_roots.insert(property_name.clone());
                             } else {
                                 data.optional_roots.insert(property_name.clone());
                             }
-                            let mut column_def: String = "".to_string();
-                            match schema {
-                                schemars::schema::Schema::Object(schema) => {
-                                    match &schema.instance_type {
-                                        Some(type_instance) => {
-                                            match type_instance {
-                                                SingleOrVec::Single(single_val) => {
-                                                    // println!("Single value");
-                                                    // data.required_roots.push(property_name.clone());
-                                                    match *single_val.as_ref() {
-                                                        InstanceType::Boolean => {
-                                                            column_def = format!(
-                                                                "{} BOOLEAN",
-                                                                property_name
-                                                            );
-                                                        }
-                                                        InstanceType::String => {
-                                                            column_def = format!(
-                                                                "{} TEXT NOT NULL",
-                                                                property_name
-                                                            );
-                                                        }
-                                                        InstanceType::Integer => {
-                                                            column_def = format!(
-                                                                "{} NUMERIC(78) NOT NULL",
-                                                                property_name
-                                                            );
-                                                        }
-                                                        InstanceType::Number => {
-                                                            column_def = format!(
-                                                                "{} NUMERIC(78) NOT NULL",
-                                                                property_name
-                                                            );
-                                                        }
-                                                        _ => {
-                                                            warn!("{:?} Not handled", single_val);
-                                                        }
-                                                    }
-                                                }
-                                                SingleOrVec::Vec(vec_val) => {
-                                                    // println!("Vec value {:#?}", vec_val);
-                                                    // This is the test for an optional type:
-                                                    if vec_val.len() > 1
-                                                        && vec_val[vec_val.len() - 1]
-                                                            == InstanceType::Null
-                                                    {
-                                                        let optional_val = vec_val[0];
-                                                        match optional_val {
-                                                            InstanceType::Boolean => {
-                                                                column_def = format!(
-                                                                    "{} BOOLEAN",
-                                                                    property_name
-                                                                );
-                                                            }
-                                                            InstanceType::String => {
-                                                                column_def = format!(
-                                                                    "{} TEXT",
-                                                                    property_name
-                                                                );
-                                                            }
-                                                            InstanceType::Integer => {
-                                                                column_def = format!(
-                                                                    "{} NUMERIC(78)",
-                                                                    property_name
-                                                                );
-                                                            }
-                                                            InstanceType::Number => {
-                                                                column_def = format!(
-                                                                    "{} NUMERIC(78)",
-                                                                    property_name
-                                                                );
-                                                            }
-                                                            _ => {
-                                                                warn!(
-                                                                    "{:?} Not handled",
-                                                                    optional_val
-                                                                );
-                                                            }
-                                                        }
-                                                    } else {
-                                                        warn!("unexpected");
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        None => {
-                                            // println!("{} has no instance_type", property_name);
-                                            // data.required_roots.push(property_name.clone());
-                                            if let Some(subschema) = &schema.subschemas {
-                                                is_subschema = true;
-                                                self.process_subschema(
-                                                    subschema,
-                                                    property_name,
-                                                    data,
-                                                );
-                                            } else {
-                                                warn!(
-                                                    "process schema {}, {:#?}",
-                                                    property_name, schema
-                                                );
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    warn!("Not an object type: {:#?}", schema);
-                                }
-                            }
+                            let column_def = self.get_column_def(property_name, schema, data);
                             if !column_def.is_empty() {
-                                data.column_defs.push(column_def);
+                                let mut column_defs = data.sql_tables.get_mut(table_name);
+                                if column_defs.is_none() {
+                                    data.sql_tables.insert(table_name.to_string(), vec![]);
+                                    column_defs = data.sql_tables.get_mut(table_name);
+                                }
+                                if let Some(column_defs) = column_defs {
+                                    column_defs.push(column_def);
+                                }
                             } else if !is_subschema {
                                 warn!(
                                     "could not figure out a column def for property: {}, {:#?}",
@@ -257,21 +286,33 @@ impl SchemaIndexer {
                             }
                         }
                         // println!("property details:\n{:#?}", properties);
-                        let create_table_sql = format!(
-                            "CREATE_TABLE {} (\n{}\n);\n",
-                            table_name,
-                            data.column_defs.join(",\n")
-                        );
-                        // println!("SQL:\n{}", create_table_sql);
-                        data.table_creation_sql.push(create_table_sql);
+                        // let create_table_sql = format!(
+                        //     "CREATE_TABLE {} (\n{}\n);\n",
+                        //     table_name,
+                        //     data.column_defs.join(",\n")
+                        // );
+                        // // println!("SQL:\n{}", create_table_sql);
+                        // data.table_creation_sql.push(create_table_sql);
                     }
-                    _ => {
-                        debug!("god only knows");
+                    InstanceType::String => {
+                        println!("String instance for table {}", table_name);
+                    }
+                    InstanceType::Null => {
+                        println!("Null instance for table {}", table_name);
+                    }
+                    InstanceType::Boolean => {
+                        println!("Boolean instance for table {}", table_name);
+                    }
+                    InstanceType::Array => {
+                        println!("Array instance for table {}", table_name);
+                    }
+                    InstanceType::Number => {
+                        println!("Number instance for table {}", table_name);
+                    }
+                    InstanceType::Integer => {
+                        println!("Integer instance for table {}", table_name);
                     }
                 }
-            }
-            _ => {
-                debug!("not object");
             }
         }
     }
@@ -331,17 +372,15 @@ impl SchemaVisitor {
     }
 }
 
-use schemars::visit::{visit_root_schema, visit_schema, visit_schema_object, Visitor};
-
 impl Visitor for SchemaVisitor {
     /// Override this method to modify a [`RootSchema`] and (optionally) its subschemas.
     ///
     /// When overriding this method, you will usually want to call the [`visit_root_schema`] function to visit subschemas.
     fn visit_root_schema(&mut self, root: &mut RootSchema) {
         for (root_def_name, schema) in root.definitions.iter() {
-            println!("visting root definition {}", root_def_name);
             if let Schema::Object(schema_object) = schema {
-              self.indexer.process_schema_object(schema_object, root_def_name, &mut self.data)
+                self.indexer
+                    .process_schema_object(schema_object, root_def_name, &mut self.data)
             }
         }
         visit_root_schema(self, root)
@@ -351,10 +390,10 @@ impl Visitor for SchemaVisitor {
     ///
     /// When overriding this method, you will usually want to call the [`visit_schema`] function to visit subschemas.
     fn visit_schema(&mut self, schema: &mut Schema) {
-        if let Schema::Object(schema_val) = schema {
-            self.indexer
-                .process_schema_object(schema_val, "", &mut self.data);
-        }
+        // if let Schema::Object(schema_val) = schema {
+        //     self.indexer
+        //         .process_schema_object(schema_val, &self.indexer.id(), &mut self.data);
+        // }
         visit_schema(self, schema)
     }
 
@@ -365,7 +404,7 @@ impl Visitor for SchemaVisitor {
         //     .insert("my_property".to_string(), serde_json::json!("hello world"));
 
         self.indexer
-            .process_schema_object(schema, "", &mut self.data);
+            .process_schema_object(schema, &self.indexer.id(), &mut self.data);
         // Then delegate to default implementation to visit any subschemas
         visit_schema_object(self, schema);
     }
