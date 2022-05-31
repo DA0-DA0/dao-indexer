@@ -88,7 +88,14 @@ impl SchemaIndexer {
         Ok(())
     }
 
-    fn get_column_def(&self, property_name: &str, schema: &Schema, parent_name: &str) -> String {
+    fn get_column_def(
+        &self,
+        property_name: &str,
+        schema: &Schema,
+        schema_name: &str,
+        _parent_name: &str,
+        data: &SchemaData
+    ) -> String {
         let mut column_def: String = "".to_string();
         let mut is_ref = false;
         let mut is_subschema = false;
@@ -100,7 +107,11 @@ impl SchemaIndexer {
                 }
                 if let Some(_subschemas) = &schema.subschemas {
                     is_subschema = true;
-                    column_def = format!("{} SUBSCHEMA ({})", property_name, parent_name);
+                    let mut ref_key = "CANNOT FIND REF".to_string();
+                    if let Some(ref_value) = data.ref_roots.get(property_name) {
+                      ref_key = ref_value.to_string();
+                    }
+                    column_def = format!("{} SUBSCHEMA ({})", property_name, ref_key);
                 }
                 if let Some(type_instance) = &schema.instance_type {
                     match type_instance {
@@ -161,7 +172,7 @@ impl SchemaIndexer {
                     println!("{} is neither a ref nor a known property", property_name);
                 }
             }
-            schemars::schema::Schema::Bool(bool_val) => {
+            Schema::Bool(bool_val) => {
                 column_def = format!("{} BOOLEAN {}", property_name, bool_val);
                 println!("bool schema {} for {}", bool_val, property_name);
             }
@@ -233,7 +244,7 @@ impl SchemaIndexer {
         data: &mut SchemaData,
     ) {
         if let Some(ref_string) = &schema.reference {
-            debug!("Processing reference schema {} {}", name, ref_string);
+            println!("Processing reference schema {} {}", name, ref_string);
         }
         if schema.instance_type.is_none() {
             if let Some(reference) = &schema.reference {
@@ -265,6 +276,17 @@ impl SchemaIndexer {
                     let properties = &schema.object.as_ref().unwrap().properties;
                     let required = &schema.object.as_ref().unwrap().required;
                     for (property_name, schema) in properties {
+                        // if property_name == "gov_token" {
+                        //     debug!("Processing gov_token");
+                        //     if let Schema::Object(property_object_schema) = schema {
+                        //         println!("property_object_schema: {:#?}", property_object_schema);
+                        //     }
+                        // }
+                        if let Schema::Object(property_object_schema) = schema {
+                          if let Some(subschemas) = &property_object_schema.subschemas {
+                            self.process_subschema(subschemas, property_name, name, data);
+                          }
+                        }
                         data.current_property = property_name.clone();
                         data.all_property_names.insert(property_name.clone());
                         if required.contains(property_name) {
@@ -272,7 +294,8 @@ impl SchemaIndexer {
                         } else {
                             data.optional_roots.insert(property_name.clone());
                         }
-                        let column_def = self.get_column_def(property_name, schema, parent_name);
+                        let column_def =
+                            self.get_column_def(property_name, schema, name, parent_name, data);
                         if !column_def.is_empty() {
                             self.add_column_def(table_name, data, column_def);
                         } else if !is_subschema {
@@ -389,7 +412,7 @@ impl SchemaVisitor {
 
     pub fn visit_schema_object(&mut self, schema: &SchemaObject, parent_name: &str) {
         self.indexer
-            .process_schema_object(schema, parent_name, &format!("{}_",parent_name), &mut self.data);
+            .process_schema_object(schema, parent_name, parent_name, &mut self.data);
     }
 }
 
