@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
 
 impl RegistryKey {
@@ -73,6 +73,14 @@ impl<'a> IndexerRegistry {
             handlers: HashMap::default(),
             indexers: vec![],
         }
+    }
+
+    pub fn initialize(&mut self) -> anyhow::Result<()> {
+        let indexers = self.indexers.iter();
+        for indexer in indexers {
+            indexer.initialize_dyn(self)?;
+        }
+        Ok(())
     }
 
     // This method gets handed the decoded cosmwasm message
@@ -158,13 +166,13 @@ impl<'a> Register for IndexerRegistry {
     }
 }
 
-struct TestIndexer<'a> {
+struct TestIndexer {
     pub name: String,
     my_registry_keys: Vec<RegistryKey>,
-    my_root_keys: Box<[&'a str]>,
+    my_root_keys: Vec<String>,
 }
 
-impl<'a> Indexer for TestIndexer<'a> {
+impl<'a> Indexer for TestIndexer {
     type MessageType = ();
 
     fn id(&self) -> String {
@@ -185,8 +193,8 @@ impl<'a> Indexer for TestIndexer<'a> {
         Box::from(self.my_registry_keys.iter())
     }
 
-    fn root_keys<'b>(&'b self) -> Box<dyn Iterator<Item = &'b str> + 'b> {
-        Box::from(self.my_root_keys.iter().copied())
+    fn root_keys<'b>(&'b self) -> Box<dyn Iterator<Item = &'b String> + 'b> {
+        Box::from(self.my_root_keys.iter())
     }
 
     fn required_root_keys(&self) -> super::indexer::RootKeysType {
@@ -203,7 +211,11 @@ fn test_registry() {
             RegistryKey("key_2".to_string()),
             RegistryKey("key_5".to_string()),
         ],
-        my_root_keys: Box::from(["key_1", "key_2", "key_5"]),
+        my_root_keys: vec![
+            "key_1".to_string(),
+            "key_2".to_string(),
+            "key_5".to_string(),
+        ],
     };
     let indexer_b = TestIndexer {
         name: "indexer_b".to_string(),
@@ -211,7 +223,7 @@ fn test_registry() {
             RegistryKey("key_3".to_string()),
             RegistryKey("key_4".to_string()),
         ],
-        my_root_keys: Box::from(["key_3", "key_4"]),
+        my_root_keys: vec!["key_3".to_string(), "key_4".to_string()],
     };
     let mut registry = IndexerRegistry::default();
     registry.register(Box::from(indexer_a), None);

@@ -4,10 +4,11 @@ use crate::indexing::index_message::IndexMessage;
 use log::{error, warn};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
-pub type RootKeysType<'a> = Box<dyn Iterator<Item = &'a str> + 'a>;
+pub type RootKeyType<'a> = dyn Iterator<Item = &'a String> + 'a;
+pub type RootKeysType<'a> = Box<RootKeyType<'a>>;
 pub type RegistryKeysType<'a> = Box<dyn Iterator<Item = &'a RegistryKey> + 'a>;
 
-pub fn root_keys_from_iter<'a>(iter: impl Iterator<Item = &'a str> + 'a) -> RootKeysType<'a> {
+pub fn root_keys_from_iter<'a>(iter: impl Iterator<Item = &'a String> + 'a) -> RootKeysType<'a> {
     Box::new(iter)
 }
 
@@ -28,6 +29,19 @@ fn has_all(keys: RootKeysType, msg: &Value) -> bool {
 
 pub trait Indexer {
     type MessageType: DeserializeOwned + IndexMessage;
+
+    /// Called once at startup; indexers can create DB tables,
+    /// initialize static lookups, etc.
+    /// No calls to index will be made until all indexers
+    /// have initialized.
+    fn initialize<'a>(&'a self, _registry: &'a IndexerRegistry) -> anyhow::Result<()> {
+        println!("initialize called on {}", self.id());
+        Ok(())
+    }
+
+    fn initialize_schemas(&mut self) {
+        // Implementors can do whatevah
+    }
 
     // Indexes a message and its transaction events
     fn index<'a>(
@@ -119,6 +133,7 @@ pub trait Indexer {
 // dispatch on traits with associated types.
 // See https://users.rust-lang.org/t/dynamic-dispatch-and-associated-types/39584/2
 pub trait IndexerDyn {
+    fn initialize_dyn<'a>(&'a self, registry: &'a IndexerRegistry) -> anyhow::Result<()>;
     fn index_dyn<'a>(
         &'a self,
         registry: &'a IndexerRegistry,
@@ -140,6 +155,10 @@ impl<I: Indexer> IndexerDyn for I {
         msg_str: &'a str,
     ) -> anyhow::Result<()> {
         self.index(registry, events, msg_dictionary, msg_str)
+    }
+
+    fn initialize_dyn<'a>(&'a self, registry: &'a IndexerRegistry) -> anyhow::Result<()> {
+        self.initialize(registry)
     }
 
     fn extract_message_key_dyn(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey> {

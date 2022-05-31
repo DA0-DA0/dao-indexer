@@ -21,6 +21,9 @@ use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 
+use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+use schemars::schema_for;
+
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
 #[tokio::main]
@@ -50,6 +53,9 @@ async fn main() -> anyhow::Result<()> {
     } else {
         registry = IndexerRegistry::new(None);
     }
+    let schema3 = schema_for!(Cw3DaoInstantiateMsg);
+    println!("definitions:\n{:#?}", &schema3.definitions);
+
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
     let cw3dao_instantiate_indexer = Cw3DaoInstantiateMsgIndexer::default();
@@ -63,6 +69,8 @@ async fn main() -> anyhow::Result<()> {
     registry.register(Box::from(cw3dao_instantiate_indexer), None);
     registry.register(Box::from(cw3dao_indexer), None);
     registry.register(Box::from(cw20_stake_indexer), None);
+
+    registry.initialize()?;
 
     let msg_set = default_msg_set();
 

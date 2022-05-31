@@ -18,4 +18,5 @@ pub mod msg_set;
 pub mod msg_stake_cw20_execute;
 pub mod msg_stake_cw20_indexer;
 pub mod parse;
+pub mod schema_indexer;
 pub mod tx;
