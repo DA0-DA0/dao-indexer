@@ -15,6 +15,8 @@ use schemars::schema::{
 };
 use std::collections::BTreeSet;
 
+use cosmwasm_schema_gen::cosmwasm_schema_gen;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
 impl IndexMessage for SchemaIndexerGenericMessage {
@@ -285,6 +287,30 @@ impl SchemaIndexer {
                             if let Some(subschemas) = &property_object_schema.subschemas {
                                 self.process_subschema(subschemas, property_name, name, data);
                             }
+
+                            if let Some(type_instance) = &property_object_schema.instance_type {
+                                match type_instance {
+                                    SingleOrVec::Single(single_val) => {
+                                        eprintln!("single_val: {:#?}", single_val);
+                                        match **single_val {
+                                            InstanceType::Object => {
+                                                self.process_schema_object(
+                                                    property_object_schema,
+                                                    name,
+                                                    property_name,
+                                                    data,
+                                                );
+                                            }
+                                            _ => {
+                                                println!("no idea");
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        debug!("Not worred about type {:?}", type_instance)
+                                    }
+                                }
+                            }
                         }
                         data.current_property = property_name.clone();
                         data.all_property_names.insert(property_name.clone());
@@ -430,4 +456,11 @@ fn test_visit() {
     // let schema3 = schema_for!(Cw3DaoInstantiateMsg);
     // let string_schema = serde_json::to_string_pretty(&schema3).unwrap();
     // println!("string_schema:\n{}", string_schema);
+}
+
+#[cosmwasm_schema_gen(toml?)]
+#[test]
+fn test_schema_gen() {
+    use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+    cosmwasm_schema_gen!(Cw3DaoInstantiateMsg);
 }
