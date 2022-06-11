@@ -56,6 +56,13 @@ async fn index_search_results(
         return Ok(());
     }
     for tx_response in search_results.txs.iter() {
+        // Instead of storing this shit, just do it here.
+        let some_database = &registry.clone().db;
+        let xt = some_database.as_ref().unwrap();
+        // we're going to store the tx_response object, with all of its contents
+
+        // Store sequence of binary[]
+        // Store events
         let msg_set = msg_set.clone();
         let mut events = BTreeMap::default();
         let block_height = tx_response.height;

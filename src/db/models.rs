@@ -221,3 +221,16 @@ pub struct Block {
     // pub total_gas: BigInt,
     // pub proposer_address: Text
 }
+
+#[derive(Queryable)]
+pub struct TendermintTransaction {
+    pub id: i32,
+    pub title: String,
+    pub body: String,
+    pub published: bool,
+}
+
+
+pub struct DecipheredTx {
+    pub messages: Binary
+}
