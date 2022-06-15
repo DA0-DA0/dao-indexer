@@ -15,11 +15,14 @@ use prost::Message;
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
+use anyhow::anyhow;
+use diesel::RunQueryDsl;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
+use crate::db::models::NewTransaction;
 
 // This is a tech debut function that maps events into a structure
 // that's a little easier to index.
@@ -64,6 +67,22 @@ async fn index_search_results(
         let hash_of_tx= tx_response.hash.to_string();
         let tx_response_as_string = serde_json::to_string(&tx_response).unwrap();
 
+        use crate::db::schema::transaction::dsl::*;
+        use diesel::pg::PgConnection;
+        use diesel::prelude::*;
+
+        let new_transaction = NewTransaction {
+            hash: hash_of_tx,
+            height: tx_response.height.value() as i64,
+            response: tx_response_as_string
+        };
+
+        match diesel::insert_into(transaction)
+            .values(new_transaction)
+            .execute(xt) {
+            Ok(_) => { Ok(())}
+            Err(e) => { Err(anyhow!("Error: {:?}", e))}
+        }?;
 
         // Store sequence of binary[]
         // Store events
