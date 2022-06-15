@@ -1,7 +1,5 @@
-use super::schema::block;
-use super::schema::{contracts, cw20_balances, dao, gov_token};
+use super::schema::{block, transaction, contracts, cw20_balances, dao, gov_token};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
-                            // use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cosmrs::cosmwasm::MsgInstantiateContract;
 use cw3_dao::msg::GovTokenInstantiateMsg;
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
@@ -193,6 +191,15 @@ impl<'a> NewGovToken<'a> {
     }
 }
 
+#[derive(Queryable)]
+pub struct Block {
+    pub height: i64,
+    pub hash: String,
+    pub num_txs: Option<i64>,
+    // pub total_gas: BigInt,
+    // pub proposer_address: Text
+}
+
 #[derive(Insertable)]
 #[table_name = "block"]
 pub struct NewBlock<'a> {
@@ -214,23 +221,18 @@ impl<'a> NewBlock<'a> {
 }
 
 #[derive(Queryable)]
-pub struct Block {
+pub struct Transaction {
     pub height: i64,
     pub hash: String,
     pub num_txs: Option<i64>,
-    // pub total_gas: BigInt,
-    // pub proposer_address: Text
-}
-
-#[derive(Queryable)]
-pub struct TendermintTransaction {
-    pub id: i32,
-    pub title: String,
-    pub body: String,
-    pub published: bool,
 }
 
 
-pub struct DecipheredTx {
-    pub messages: Binary
+#[derive(Insertable)]
+#[table_name = "transaction"]
+pub struct NewTransaction {
+    pub hash: String,
+    pub height: i64,
+    pub response: String
 }
+

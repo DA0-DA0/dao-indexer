@@ -61,6 +61,10 @@ async fn index_search_results(
         let xt = some_database.as_ref().unwrap();
         // we're going to store the tx_response object, with all of its contents
 
+        let hash_of_tx= tx_response.hash.to_string();
+        let tx_response_as_string = serde_json::to_string(&tx_response).unwrap();
+
+
         // Store sequence of binary[]
         // Store events
         let msg_set = msg_set.clone();

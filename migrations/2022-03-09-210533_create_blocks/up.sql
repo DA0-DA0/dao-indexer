@@ -4,11 +4,8 @@ CREATE TABLE block (
     num_txs BIGINT DEFAULT 0
 );
 
--- events are in events, map of sequences
--- messages are in events, map of sequences
-CREATE TABLE tx (
-    hash TEXT UNIQUE PRIMARY KEY
-    height BIGINT
-    messages BYTEA[]
-    events JSON NOT NULL
-)
+CREATE TABLE transaction (
+    hash TEXT UNIQUE PRIMARY KEY,
+    height BIGINT,
+    response TEXT
+);

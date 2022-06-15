@@ -4,12 +4,11 @@ use super::indexer_registry::IndexerRegistry;
 use super::msg_set::MsgSet;
 use anyhow::anyhow;
 use cosmrs::cosmwasm::MsgInstantiateContract;
-// use cosmrs::proto::cosmos::base::tendermint::*;
-// use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
-// use cosmrs::proto::cosmwasm::wasm::v1::{
-//     MsgExecuteContract, MsgInstantiateContract as ProtoMsgInstContrct,
-// };
-// use cosmrs::tx::{MsgProto, Tx};
+use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
+use cosmrs::proto::cosmwasm::wasm::v1::{
+    MsgExecuteContract, MsgInstantiateContract as ProtoMsgInstContrct,
+};
+use cosmrs::tx::{MsgProto, Tx};
 use log::{debug, error};
 use prost_types::Any;
 use tendermint_rpc::event::TxInfo;
