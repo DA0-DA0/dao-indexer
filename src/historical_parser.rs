@@ -84,43 +84,6 @@ async fn index_search_results(
             Err(e) => { Err(anyhow!("Error: {:?}", e))}
         }?;
 
-        // Store sequence of binary[]
-        // Store events
-        let msg_set = msg_set.clone();
-        let mut events = BTreeMap::default();
-        let block_height = tx_response.height;
-        map_from_events(&tx_response.tx_result.events, &mut events)?;
-        if events.get("tx.height").is_none() {
-            events.insert("tx.height".to_string(), vec![block_height.to_string()]);
-        }
-        match Tx::from_bytes(tx_response.tx.as_bytes()) {
-            Ok(unmarshalled_tx) => {
-                if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set) {
-                    error!("Error in process_parsed: {:?}\n{:?}", e, unmarshalled_tx);
-                }
-            }
-            Err(e) => {
-                warn!(
-                    "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
-                    e
-                );
-                info!("tx_response:\n{:?}", tx_response);
-                match TxV1::decode(tx_response.tx.as_bytes()) {
-                    // match TxV1::decode(tx_response.tx.as_bytes()) {
-                    Ok(unmarshalled_tx) => {
-                        info!("decoded response debug:\n{:?}", unmarshalled_tx);
-                        if let Err(e) =
-                            process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
-                        {
-                            error!("Error in process_parsed: {:?}", e);
-                        }
-                    }
-                    Err(e) => {
-                        error!("Error decoding: {:?}", e);
-                    }
-                }
-            }
-        }
     }
     Ok(())
 }
