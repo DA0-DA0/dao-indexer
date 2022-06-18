@@ -15,8 +15,6 @@ use schemars::schema::{
 };
 use std::collections::BTreeSet;
 
-use cosmwasm_schema_gen::cosmwasm_schema_gen;
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
 impl IndexMessage for SchemaIndexerGenericMessage {
@@ -39,12 +37,14 @@ pub struct SchemaIndexer {
     id: String,
 }
 
+type RootMap = HashMap<String, BTreeSet<String>>;
+
 #[derive(Debug)]
 pub struct SchemaData {
-    pub root_keys: Vec<String>,
-    pub required_roots: BTreeSet<String>,
-    pub optional_roots: BTreeSet<String>,
-    pub all_property_names: BTreeSet<String>,
+    pub root_keys: RootMap,
+    pub required_roots: RootMap,
+    pub optional_roots: RootMap,
+    pub all_property_names: RootMap,
     pub sql_tables: HashMap<String, Vec<String>>,
     pub ref_roots: HashMap<String, String>,
     pub current_property: String,
@@ -53,15 +53,25 @@ pub struct SchemaData {
 impl SchemaData {
     pub fn default() -> Self {
         SchemaData {
-            root_keys: vec![],
-            required_roots: BTreeSet::new(),
-            optional_roots: BTreeSet::new(),
-            all_property_names: BTreeSet::new(),
+            root_keys: HashMap::new(),
+            required_roots: HashMap::new(),
+            optional_roots: HashMap::new(),
+            all_property_names: HashMap::new(),
             sql_tables: HashMap::new(),
             ref_roots: HashMap::new(),
             current_property: "".to_string(),
         }
     }
+}
+
+fn insert_table_set_value(table_values: &mut HashMap<String, BTreeSet<String>>, table_name: &str, value: &str) {
+    if let Some(value_set) = table_values.get_mut(table_name) {
+        value_set.insert(value.to_string());
+        return;
+    }
+    let mut value_set = BTreeSet::new();
+    value_set.insert(value.to_string());
+    table_values.insert(table_name.to_string(), value_set);
 }
 
 impl SchemaIndexer {
@@ -93,7 +103,7 @@ impl SchemaIndexer {
         &self,
         property_name: &str,
         schema: &Schema,
-        _schema_name: &str,
+        schema_name: &str,
         _parent_name: &str,
         data: &SchemaData,
     ) -> String {
@@ -130,7 +140,8 @@ impl SchemaIndexer {
                                 column_def = format!("{} NUMERIC(78) NOT NULL", property_name);
                             }
                             InstanceType::Object => {
-                                column_def = format!("{} REFERENCE OBJECT", property_name);
+                                column_def =
+                                    format!("{}_{} REFERENCE OBJECT", schema_name, property_name);
                             }
                             InstanceType::Null => {
                                 column_def = format!("{} NULL", property_name);
@@ -237,6 +248,15 @@ impl SchemaIndexer {
         }
     }
 
+    fn update_root_map(&self, root_map: &mut RootMap, key: &str, value: &str) {
+        if !root_map.contains_key(key) {
+            root_map.insert(key.to_string(), BTreeSet::new());
+        }
+        if let Some(root) = root_map.get_mut(key) {
+            root.insert(value.to_string());
+        }
+    }
+
     pub fn process_schema_object(
         &self,
         schema: &SchemaObject,
@@ -244,20 +264,16 @@ impl SchemaIndexer {
         name: &str,
         data: &mut SchemaData,
     ) {
-        if let Some(ref_string) = &schema.reference {
-            println!("Processing reference schema {} {}", name, ref_string);
+        if let Some(reference) = &schema.reference {
+            if !name.is_empty() {
+                self.update_root_map(&mut data.required_roots, parent_name, name);
+                data.ref_roots.insert(name.to_string(), reference.clone());
+            }
+        } else if let Some(subschema) = &schema.subschemas {
+            self.process_subschema(subschema, name, parent_name, data);
         }
         if schema.instance_type.is_none() {
-            if let Some(reference) = &schema.reference {
-                if !name.is_empty() {
-                    data.required_roots.insert(name.to_string());
-                    data.ref_roots.insert(name.to_string(), reference.clone());
-                }
-            } else if let Some(subschema) = &schema.subschemas {
-                self.process_subschema(subschema, name, parent_name, data);
-            } else {
-                eprintln!("No instance or ref type for {}", name);
-            }
+            eprintln!("No instance or ref type for {}", name);
             return;
         }
         let instance_type = schema.instance_type.as_ref().unwrap();
@@ -277,35 +293,28 @@ impl SchemaIndexer {
                     let properties = &schema.object.as_ref().unwrap().properties;
                     let required = &schema.object.as_ref().unwrap().required;
                     for (property_name, schema) in properties {
-                        // if property_name == "gov_token" {
-                        //     debug!("Processing gov_token");
-                        //     if let Schema::Object(property_object_schema) = schema {
-                        //         println!("property_object_schema: {:#?}", property_object_schema);
-                        //     }
-                        // }
                         if let Schema::Object(property_object_schema) = schema {
                             if let Some(subschemas) = &property_object_schema.subschemas {
                                 self.process_subschema(subschemas, property_name, name, data);
                             }
-
                             if let Some(type_instance) = &property_object_schema.instance_type {
                                 match type_instance {
-                                    SingleOrVec::Single(single_val) => {
-                                        eprintln!("single_val: {:#?}", single_val);
-                                        match **single_val {
-                                            InstanceType::Object => {
-                                                self.process_schema_object(
-                                                    property_object_schema,
-                                                    name,
-                                                    property_name,
-                                                    data,
-                                                );
-                                            }
-                                            _ => {
-                                                println!("no idea");
-                                            }
+                                    SingleOrVec::Single(single_val) => match **single_val {
+                                        InstanceType::Object => {
+                                            self.process_schema_object(
+                                                property_object_schema,
+                                                name,
+                                                property_name,
+                                                data,
+                                            );
                                         }
-                                    }
+                                        _ => {
+                                            eprintln!(
+                                                "not handling single_val: {}/{}[{:#?}]",
+                                                table_name, property_name, single_val
+                                            );
+                                        }
+                                    },
                                     _ => {
                                         debug!("Not worred about type {:?}", type_instance)
                                     }
@@ -313,15 +322,17 @@ impl SchemaIndexer {
                             }
                         }
                         data.current_property = property_name.clone();
-                        data.all_property_names.insert(property_name.clone());
+                        self.update_root_map(&mut data.all_property_names, parent_name, property_name);
+                        insert_table_set_value(&mut data.all_property_names, table_name, property_name);
                         if required.contains(property_name) {
-                            data.required_roots.insert(property_name.clone());
+                            insert_table_set_value(&mut data.required_roots, table_name, property_name);
                         } else {
-                            data.optional_roots.insert(property_name.clone());
+                            insert_table_set_value(&mut data.optional_roots, table_name, property_name);
                         }
                         let column_def =
                             self.get_column_def(property_name, schema, name, parent_name, data);
                         if !column_def.is_empty() {
+                            // let formatted_table_name = format!("{}_{}", parent_name, table_name);
                             self.add_column_def(table_name, data, column_def);
                         } else if !is_subschema {
                             warn!(
@@ -443,7 +454,6 @@ impl SchemaVisitor {
 
 #[test]
 fn test_visit() {
-    // use cw3_dao::msg::GovTokenMsg;
     use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
     use schemars::schema_for;
 
@@ -453,14 +463,4 @@ fn test_visit() {
     let mut visitor = SchemaVisitor::new(indexer);
     visitor.visit_root_schema(&schema3);
     println!("indexer after visit: {:#?}", visitor.data);
-    // let schema3 = schema_for!(Cw3DaoInstantiateMsg);
-    // let string_schema = serde_json::to_string_pretty(&schema3).unwrap();
-    // println!("string_schema:\n{}", string_schema);
-}
-
-#[cosmwasm_schema_gen(toml?)]
-#[test]
-fn test_schema_gen() {
-    use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-    cosmwasm_schema_gen!(Cw3DaoInstantiateMsg);
 }
