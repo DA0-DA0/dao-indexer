@@ -41,7 +41,6 @@ pub fn process_messages(
     events: &EventMap,
     msg_set: MsgSet,
 ) -> anyhow::Result<()> {
-
     for msg in messages.iter() {
         let type_url: &str = &msg.type_url;
         debug!("processing msg {:?}", msg);
