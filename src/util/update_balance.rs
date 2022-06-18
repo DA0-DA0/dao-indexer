@@ -33,6 +33,7 @@ pub fn update_balance<'a>(
 ) -> QueryResult<usize> {
     use crate::db::schema::cw20_transactions::dsl::*;
     let amount_converted: BigDecimal = BigDecimal::from(BigInt::from(balance_amount));
+    #[allow(clippy::needless_late_init)]
     let transaction_height: BigDecimal;
     if let Some(tx_height_value) = tx_height {
         transaction_height = tx_height_value.clone();
@@ -60,6 +61,7 @@ pub fn update_balance_from_events(
     let amount = &event_map.get("wasm.amount").unwrap()[i];
     let receiver = &event_map.get("wasm.to").unwrap()[i];
     let sender = &event_map.get("wasm.sender").unwrap()[0];
+    #[allow(clippy::needless_late_init)]
     let from;
     match event_map.get("wasm.from") {
         Some(wasm_from) => {

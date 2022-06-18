@@ -46,13 +46,12 @@ impl IndexMessage for Cw20ExecuteMsg {
                     .ok_or_else(|| anyhow!("no wasm.from"))?;
                 let sender_addr = &senders[0];
                 let mut send_amount: &str = &amounts[0];
+                let receiving_contract_action: &str = match wasm_actions.len() > 1 {
+                    true => &(wasm_actions[1]),
+                    _ => "",
+                };
 
-                let receiving_contract_action: &str;
-                if wasm_actions.len() > 1 {
-                    receiving_contract_action = &wasm_actions[1];
-                } else {
-                    receiving_contract_action = "";
-                }
+                #[allow(clippy::needless_late_init)]
                 let action_amount: &str;
                 if amounts.len() > 1 {
                     action_amount = &amounts[1];

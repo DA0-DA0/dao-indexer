@@ -27,6 +27,7 @@ pub fn get_single_event_item<'a>(events: &'a EventMap, key: &str, default: &'a s
 
 pub fn get_tx_height_from_events(events: &EventMap) -> BigDecimal {
     let mut tx_height_opt = None;
+    #[allow(clippy::needless_late_init)]
     let tx_height: BigDecimal;
 
     if let Some(tx_height_strings) = events.get("tx.height") {

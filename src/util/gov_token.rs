@@ -194,6 +194,7 @@ pub fn insert_gov_token(
                 .values(token_model)
                 .execute(db as &PgConnection);
             let dao_address = contract_addresses.contract_address.as_ref().unwrap();
+            #[allow(clippy::needless_late_init)]
             let amount;
             if let Some(balance) = initial_dao_balance {
                 amount = *balance;

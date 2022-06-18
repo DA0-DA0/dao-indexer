@@ -46,6 +46,7 @@ async fn main() -> anyhow::Result<()> {
         warn!("Running indexer without a postgres backend!");
     }
 
+    #[allow(clippy::needless_late_init)]
     let mut registry;
     if config.postgres_backend {
         let db: PgConnection = establish_connection(&config.database_url);

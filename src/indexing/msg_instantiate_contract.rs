@@ -11,6 +11,7 @@ use std::str::FromStr;
 
 impl IndexMessage for MsgInstantiateContract {
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
+        #[allow(clippy::needless_late_init)]
         let db;
         match &registry.db {
             Some(registry_db) => {
@@ -54,6 +55,7 @@ fn create_new_contract<'a>(
         let tx_height_str = &tx_height_strings[0];
         tx_height_opt = Some(BigDecimal::from_str(tx_height_str)?);
     }
+    #[allow(clippy::needless_late_init)]
     let tx_height: BigDecimal;
     if let Some(height) = tx_height_opt {
         tx_height = height;
