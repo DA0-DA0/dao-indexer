@@ -191,15 +191,6 @@ impl<'a> NewGovToken<'a> {
     }
 }
 
-#[derive(Queryable)]
-pub struct Block {
-    pub height: i64,
-    pub hash: String,
-    pub num_txs: Option<i64>,
-    // pub total_gas: BigInt,
-    // pub proposer_address: Text
-}
-
 #[derive(Insertable)]
 #[table_name = "block"]
 pub struct NewBlock<'a> {
@@ -218,6 +209,15 @@ impl<'a> NewBlock<'a> {
             num_txs: block.data.iter().len() as i64,
         }
     }
+}
+
+#[derive(Queryable)]
+pub struct Block {
+    pub height: i64,
+    pub hash: String,
+    pub num_txs: Option<i64>,
+    // pub total_gas: BigInt,
+    // pub proposer_address: Text
 }
 
 #[derive(Queryable)]
