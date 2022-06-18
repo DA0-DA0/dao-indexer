@@ -33,12 +33,13 @@ pub fn update_balance<'a>(
 ) -> QueryResult<usize> {
     use crate::db::schema::cw20_transactions::dsl::*;
     let amount_converted: BigDecimal = BigDecimal::from(BigInt::from(balance_amount));
-    let transaction_height: BigDecimal;
-    if let Some(tx_height_value) = tx_height {
-        transaction_height = tx_height_value.clone();
+
+    let transaction_height: BigDecimal = if let Some(tx_height_value) = tx_height {
+        tx_height_value.clone()
     } else {
-        transaction_height = BigDecimal::default();
-    }
+        BigDecimal::default()
+    };
+
     diesel::insert_into(cw20_transactions)
         .values((
             cw20_address.eq(token_addr),
@@ -60,15 +61,16 @@ pub fn update_balance_from_events(
     let amount = &event_map.get("wasm.amount").unwrap()[i];
     let receiver = &event_map.get("wasm.to").unwrap()[i];
     let sender = &event_map.get("wasm.sender").unwrap()[0];
-    let from;
-    match event_map.get("wasm.from") {
+
+    let from = match event_map.get("wasm.from") {
         Some(wasm_from) => {
-            from = wasm_from[0].to_string();
+            wasm_from[0].to_string()
         }
         _ => {
-            from = "".to_string();
+            "".to_string()
         }
-    }
+    };
+
     if !from.is_empty() {
         let mut parsed_amount: Uint128 = Uint128::new(0);
         match Uint128::from_str(amount) {

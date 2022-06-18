@@ -15,18 +15,11 @@ use prost::Message;
 use std::cmp::min;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
-use anyhow::anyhow;
-use diesel::RunQueryDsl;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
-use crate::db::models::NewTransaction;
-use crate::db::schema::transaction::dsl::*;
-use diesel::pg::PgConnection;
-use diesel::prelude::*;
-use tendermint_rpc::endpoint::tx::Response;
 use crate::util::transaction_util::insert_transaction;
 
 // This is a tech debut function that maps events into a structure
@@ -65,10 +58,9 @@ async fn index_search_results(
     }
     for tx_response in search_results.txs.iter() {
 
-
         let some_database = &registry.clone().db;
         let xt = some_database.as_ref().unwrap();
-        insert_transaction(&tx_response, xt);
+        insert_transaction(&tx_response, xt)?;
 
         let msg_set = msg_set.clone();
         let mut events = BTreeMap::default();

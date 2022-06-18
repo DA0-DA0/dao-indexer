@@ -47,11 +47,11 @@ pub fn get_tx_height_from_events(events: &EventMap) -> BigDecimal {
     }
 
     if let Some(height) = tx_height_opt {
-        tx_height = height;
+        height
     } else {
-        tx_height = BigDecimal::default();
+        BigDecimal::default()
     }
-    tx_height
+
 }
 
 pub fn insert_dao_25(

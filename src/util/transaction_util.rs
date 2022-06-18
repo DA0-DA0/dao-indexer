@@ -7,7 +7,7 @@ use crate::db::models::NewTransaction;
 
 use crate::db::schema::transaction::dsl::*;
 
-pub fn insert_transaction(tx_response: &&Response, xt: &PgConnection) {
+pub fn insert_transaction(tx_response: &&Response, xt: &PgConnection) -> anyhow::Result<()>{
     let hash_of_tx = tx_response.hash.to_string();
     let tx_response_as_string = serde_json::to_string(&tx_response).unwrap();
 
@@ -22,5 +22,5 @@ pub fn insert_transaction(tx_response: &&Response, xt: &PgConnection) {
         .execute(xt) {
         Ok(_) => { Ok(()) }
         Err(e) => { Err(anyhow!("Error: {:?}", e)) }
-    }?;
+    }
 }
