@@ -1,5 +1,6 @@
 use super::event_map::EventMap;
 use super::indexer_registry::{IndexerRegistry, RegistryKey};
+use crate::db::db_builder::DatabaseBuilder;
 use crate::indexing::index_message::IndexMessage;
 use log::{error, warn};
 use serde::de::DeserializeOwned;
@@ -39,8 +40,9 @@ pub trait Indexer {
         Ok(())
     }
 
-    fn initialize_schemas(&mut self) {
+    fn initialize_schemas(&mut self, _builder: &mut DatabaseBuilder) -> anyhow::Result<()> {
         // Implementors can do whatevah
+        Ok(())
     }
 
     // Indexes a message and its transaction events
@@ -141,6 +143,7 @@ pub trait IndexerDyn {
         msg_dictionary: &'a Value,
         msg_str: &'a str,
     ) -> anyhow::Result<()>;
+    fn initialize_schemas_dyn<'a>(&'a mut self, builder: &'a mut DatabaseBuilder) -> anyhow::Result<()>;
     fn extract_message_key_dyn(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey>;
     fn registry_keys_dyn(&self) -> RegistryKeysType;
     fn id(&self) -> String;
@@ -159,6 +162,10 @@ impl<I: Indexer> IndexerDyn for I {
 
     fn initialize_dyn<'a>(&'a self, registry: &'a IndexerRegistry) -> anyhow::Result<()> {
         self.initialize(registry)
+    }
+
+    fn initialize_schemas_dyn<'a>(&'a mut self, builder: &'a mut DatabaseBuilder) -> anyhow::Result<()> {
+        self.initialize_schemas(builder)
     }
 
     fn extract_message_key_dyn(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey> {

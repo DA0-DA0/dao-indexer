@@ -61,6 +61,7 @@ impl Indexer for Cw3DaoExecuteMsgIndexer {
 }
 
 pub struct Cw3DaoInstantiateMsgIndexer {
+    #[allow(dead_code)]
     schemas: Vec<RootSchema>,
     registry_keys: Vec<RegistryKey>,
     root_keys: Vec<String>,
@@ -113,11 +114,6 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
     }
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
-    }
-
-    fn initialize_schemas(&mut self) {
-        // what to do here? Anything?
-        println!("initialize_schemas for cw3dao_indexer {:#?}", self.schemas);
     }
 
     fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {

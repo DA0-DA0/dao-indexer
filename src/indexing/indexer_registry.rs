@@ -80,10 +80,14 @@ impl<'a> IndexerRegistry {
     }
 
     pub fn initialize(&mut self) -> anyhow::Result<()> {
-        let indexers = self.indexers.iter();
-        for indexer in indexers {
+        for indexer in self.indexers.iter() {
             indexer.initialize_dyn(self)?;
         }
+        for indexer in self.indexers.iter_mut() {
+            indexer.initialize_schemas_dyn(&mut self.db_builder)?;
+        }
+        self.db_builder.finalize_columns();
+        println!("database tables:\n{:#?}", self.db_builder);
         Ok(())
     }
 

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::db::db_builder::DatabaseBuilder;
+
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
 use super::indexer::{
@@ -13,6 +15,7 @@ use log::{debug, warn};
 use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
+// use tendermint::abci::transaction::Data;
 use std::collections::BTreeSet;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -23,10 +26,11 @@ impl IndexMessage for SchemaIndexerGenericMessage {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SchemaRef {
     pub name: String,
     pub schema: RootSchema,
+    pub version: &'static str
 }
 
 #[derive(Debug)]
@@ -99,7 +103,7 @@ impl SchemaIndexer {
         Ok(())
     }
 
-    fn get_column_def(
+    pub fn get_column_def_unused(
         &self,
         property_name: &str,
         schema: &Schema,
@@ -198,12 +202,13 @@ impl SchemaIndexer {
         name: &str,
         parent_name: &str,
         data: &mut SchemaData,
+        db_builder: &mut DatabaseBuilder,
     ) {
         if let Some(all_of) = &subschema.all_of {
             for schema in all_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, parent_name, name, data);
+                        self.process_schema_object(schema_object, parent_name, name, data, db_builder);
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -214,7 +219,7 @@ impl SchemaIndexer {
             for schema in one_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, parent_name, name, data);
+                        self.process_schema_object(schema_object, parent_name, name, data, db_builder);
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -225,7 +230,7 @@ impl SchemaIndexer {
             for schema in any_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, parent_name, name, data);
+                        self.process_schema_object(schema_object, parent_name, name, data, db_builder);
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -237,16 +242,16 @@ impl SchemaIndexer {
         }
     }
 
-    fn add_column_def(&self, table_name: &str, data: &mut SchemaData, column_def: String) {
-        let mut column_defs = data.sql_tables.get_mut(table_name);
-        if column_defs.is_none() {
-            data.sql_tables.insert(table_name.to_string(), vec![]);
-            column_defs = data.sql_tables.get_mut(table_name);
-        }
-        if let Some(column_defs) = column_defs {
-            column_defs.push(column_def);
-        }
-    }
+    // fn add_column_def(&self, table_name: &str, data: &mut SchemaData, column_def: String) {
+    //     let mut column_defs = data.sql_tables.get_mut(table_name);
+    //     if column_defs.is_none() {
+    //         data.sql_tables.insert(table_name.to_string(), vec![]);
+    //         column_defs = data.sql_tables.get_mut(table_name);
+    //     }
+    //     if let Some(column_defs) = column_defs {
+    //         column_defs.push(column_def);
+    //     }
+    // }
 
     fn update_root_map(&self, root_map: &mut RootMap, key: &str, value: &str) {
         if !root_map.contains_key(key) {
@@ -263,6 +268,7 @@ impl SchemaIndexer {
         parent_name: &str,
         name: &str,
         data: &mut SchemaData,
+        db_builder: &mut DatabaseBuilder
     ) {
         if let Some(reference) = &schema.reference {
             if !name.is_empty() {
@@ -270,7 +276,7 @@ impl SchemaIndexer {
                 data.ref_roots.insert(name.to_string(), reference.clone());
             }
         } else if let Some(subschema) = &schema.subschemas {
-            self.process_subschema(subschema, name, parent_name, data);
+            self.process_subschema(subschema, name, parent_name, data, db_builder);
         }
         if schema.instance_type.is_none() {
             eprintln!("No instance or ref type for {}", name);
@@ -278,11 +284,9 @@ impl SchemaIndexer {
         }
         let instance_type = schema.instance_type.as_ref().unwrap();
         let table_name = name;
-        let mut is_subschema = false;
         if let Some(subschema) = &schema.subschemas {
-            is_subschema = true;
             println!("{} is a subschema", name);
-            self.process_subschema(subschema, name, parent_name, data);
+            self.process_subschema(subschema, name, parent_name, data, db_builder);
         }
         match instance_type {
             SingleOrVec::Vec(_vtype) => {
@@ -295,7 +299,7 @@ impl SchemaIndexer {
                     for (property_name, schema) in properties {
                         if let Schema::Object(property_object_schema) = schema {
                             if let Some(subschemas) = &property_object_schema.subschemas {
-                                self.process_subschema(subschemas, property_name, name, data);
+                                self.process_subschema(subschemas, property_name, name, data, db_builder);
                             }
                             if let Some(type_instance) = &property_object_schema.instance_type {
                                 match type_instance {
@@ -306,7 +310,14 @@ impl SchemaIndexer {
                                                 name,
                                                 property_name,
                                                 data,
+                                                db_builder,
                                             );
+                                        }
+                                        InstanceType::String => {
+                                            db_builder.column(table_name, property_name).string();
+                                        }
+                                        InstanceType::Integer => {
+                                            db_builder.column(table_name, property_name).integer();
                                         }
                                         _ => {
                                             eprintln!(
@@ -329,36 +340,43 @@ impl SchemaIndexer {
                         } else {
                             insert_table_set_value(&mut data.optional_roots, table_name, property_name);
                         }
-                        let column_def =
-                            self.get_column_def(property_name, schema, name, parent_name, data);
-                        if !column_def.is_empty() {
-                            // let formatted_table_name = format!("{}_{}", parent_name, table_name);
-                            self.add_column_def(table_name, data, column_def);
-                        } else if !is_subschema {
-                            warn!(
-                                "could not figure out a column def for property: {}, {:#?}",
-                                property_name, schema
-                            );
-                        }
+                        // TODO:recurse??
+                        // db_builder.column(table_name, column_name).
+                            // self.add_column_def(property_name, schema, name, parent_name, data, db_builder)?;
+                        // if !column_def.is_empty() {
+                        //     // let formatted_table_name = format!("{}_{}", parent_name, table_name);
+                        //     self.add_column_def(table_name, data, column_def);
+                        // } else if !is_subschema {
+                        //     warn!(
+                        //         "could not figure out a column def for property: {}, {:#?}",
+                        //         property_name, schema
+                        //     );
+                        // }
                     }
                 }
                 InstanceType::String => {
-                    self.add_column_def(table_name, data, format!("{} STRING column", name));
+                    // self.add_column_def(table_name, data, format!("{} STRING column", name));
+                    db_builder.column(table_name, name).string();
                 }
                 InstanceType::Null => {
-                    self.add_column_def(table_name, data, "Null column".to_string());
+                    warn!("Null instance type for {}/{}", table_name, name);
+                    // self.add_column_def(table_name, data, "Null column".to_string());
                 }
                 InstanceType::Boolean => {
-                    self.add_column_def(table_name, data, "BOOLEAN column".to_string());
+                    // self.add_column_def(table_name, data, "BOOLEAN column".to_string());
+                    db_builder.column(table_name, name).boolean();
                 }
                 InstanceType::Array => {
-                    self.add_column_def(table_name, data, "Array column".to_string());
+                    // self.add_column_def(table_name, data, "Array column".to_string());
+                    warn!("Not handling Array instance type for {}/{}", table_name, name);
                 }
                 InstanceType::Number => {
-                    self.add_column_def(table_name, data, "Number column".to_string());
+                    // self.add_column_def(table_name, data, "Number column".to_string());
+                    db_builder.column(table_name, name).float();
                 }
                 InstanceType::Integer => {
-                    self.add_column_def(table_name, data, "Integer column".to_string());
+                    // self.add_column_def(table_name, data, "Integer column".to_string());
+                    db_builder.column(table_name, name).integer();
                 }
             },
         }
@@ -379,8 +397,14 @@ impl Indexer for SchemaIndexer {
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
     }
-    fn initialize<'a>(&'a self, _registry: &'a IndexerRegistry) -> anyhow::Result<()> {
-        println!("initialize called on {}", self.id());
+    fn initialize_schemas<'a>(&'a mut self, builder: &'a mut DatabaseBuilder) -> anyhow::Result<()>{
+        println!("initialize_schemas for schema_indexer {}", self.id);
+        // let builder = &mut registry.db_builder;
+        let schemas = self.schemas.clone();
+        let mut visitor = SchemaVisitor::new(self, builder);
+        for schema in schemas.iter() {
+            visitor.visit_root_schema(&schema.schema);
+        }
         Ok(())
     }
 }
@@ -399,26 +423,30 @@ fn test_schema_indexer_init() {
             SchemaRef {
                 name: "Cw3DaoInstantiateMsg".to_string(),
                 schema: schema3,
+                version: "0.2.6"
             },
             SchemaRef {
                 name: "Cw3DaoInstantiateMsg25".to_string(),
                 schema: schema25,
+                version: "0.2.5"
             },
         ],
     );
     println!("indexer:\n{:#?}", indexer);
 }
 
-pub struct SchemaVisitor {
+pub struct SchemaVisitor<'a> {
     pub data: SchemaData,
-    pub indexer: SchemaIndexer,
+    pub indexer: &'a mut SchemaIndexer,
+    pub db_builder: &'a mut DatabaseBuilder
 }
 
-impl SchemaVisitor {
-    pub fn new(indexer: SchemaIndexer) -> Self {
+impl<'a> SchemaVisitor<'a> {
+    pub fn new(indexer: &'a mut SchemaIndexer, db_builder: &'a mut DatabaseBuilder) -> Self {
         SchemaVisitor {
             data: SchemaData::default(),
             indexer,
+            db_builder
         }
     }
     /// Override this method to modify a [`RootSchema`] and (optionally) its subschemas.
@@ -433,6 +461,7 @@ impl SchemaVisitor {
                     &parent_name,
                     root_def_name,
                     &mut self.data,
+                    self.db_builder
                 )
             } else {
                 println!("Bool schema for {:#?}", schema);
@@ -452,7 +481,7 @@ impl SchemaVisitor {
 
     pub fn visit_schema_object(&mut self, schema: &SchemaObject, parent_name: &str) {
         self.indexer
-            .process_schema_object(schema, parent_name, parent_name, &mut self.data);
+            .process_schema_object(schema, parent_name, parent_name, &mut self.data, self.db_builder);
     }
 }
 
@@ -463,8 +492,9 @@ fn test_visit() {
 
     let schema3 = schema_for!(Cw3DaoInstantiateMsg);
     let label = stringify!(Cw3DaoInstantiateMsg);
-    let indexer = SchemaIndexer::new(label.to_string(), vec![]);
-    let mut visitor = SchemaVisitor::new(indexer);
+    let mut indexer = SchemaIndexer::new(label.to_string(), vec![]);
+    let mut builder = DatabaseBuilder::new();
+    let mut visitor = SchemaVisitor::new(&mut indexer, &mut builder);
     visitor.visit_root_schema(&schema3);
     println!("indexer after visit: {:#?}", visitor.data);
 }
