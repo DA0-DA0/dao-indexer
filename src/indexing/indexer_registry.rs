@@ -1,3 +1,5 @@
+use crate::db::db_builder::DatabaseBuilder;
+
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
 use diesel::pg::PgConnection;
@@ -41,9 +43,10 @@ pub trait Register {
 
 pub struct IndexerRegistry {
     pub db: Option<PgConnection>,
+    pub db_builder: DatabaseBuilder,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
-    indexers: Vec<Box<dyn IndexerDyn>>,
+    indexers: Vec<Box<dyn IndexerDyn>>,    
 }
 
 impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
@@ -70,6 +73,7 @@ impl<'a> IndexerRegistry {
     pub fn new(db: Option<PgConnection>) -> Self {
         IndexerRegistry {
             db,
+            db_builder: DatabaseBuilder::default(),
             handlers: HashMap::default(),
             indexers: vec![],
         }

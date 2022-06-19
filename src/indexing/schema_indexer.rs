@@ -379,6 +379,10 @@ impl Indexer for SchemaIndexer {
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
     }
+    fn initialize<'a>(&'a self, _registry: &'a IndexerRegistry) -> anyhow::Result<()> {
+        println!("initialize called on {}", self.id());
+        Ok(())
+    }
 }
 
 #[test]
