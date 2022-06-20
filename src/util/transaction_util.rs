@@ -4,7 +4,6 @@ use diesel::prelude::*;
 use tendermint_rpc::endpoint::tx::Response;
 
 use crate::db::models::NewTransaction;
-
 use crate::db::schema::transaction::dsl::*;
 use crate::indexing::indexer_registry::IndexerRegistry;
 
