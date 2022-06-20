@@ -7,5 +7,5 @@ CREATE TABLE block (
 CREATE TABLE transaction (
     hash TEXT UNIQUE PRIMARY KEY,
     height BIGINT,
-    response TEXT
+    response Jsonb NOT NULL
 );

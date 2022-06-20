@@ -224,7 +224,7 @@ pub struct Block {
 pub struct Transaction {
     pub height: i64,
     pub hash: String,
-    pub response: String,
+    pub response: serde_json::Value,
 }
 
 
@@ -233,6 +233,6 @@ pub struct Transaction {
 pub struct NewTransaction {
     pub hash: String,
     pub height: i64,
-    pub response: String
+    pub response: serde_json::Value
 }
 
