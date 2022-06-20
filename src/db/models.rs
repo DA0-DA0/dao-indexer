@@ -224,7 +224,7 @@ pub struct Block {
 pub struct Transaction {
     pub height: i64,
     pub hash: String,
-    pub num_txs: Option<i64>,
+    pub response: String,
 }
 
 
