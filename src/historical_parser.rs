@@ -28,17 +28,15 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
     for event in events {
         let event_name = &event.type_str;
         for attribute in &event.attributes {
-            let attributes;
             let attribute_key: &str = &attribute.key.to_string();
             let event_key = format!("{}.{}", event_name, attribute_key);
-            if let Some(existing_attributes) = event_map.get_mut(&event_key) {
-                attributes = existing_attributes;
+            let attributes= if let Some(existing_attributes) = event_map.get_mut(&event_key) {
+                existing_attributes
             } else {
                 event_map.insert(event_key.clone(), vec![]);
-                attributes = event_map
-                    .get_mut(&event_key)
-                    .ok_or_else(|| anyhow::anyhow!("no attribute {} found", event_key))?;
-            }
+                event_map.get_mut(&event_key)
+                    .ok_or_else(|| anyhow::anyhow!("no attribute {} found", event_key))?
+            };
             attributes.push(attribute.value.to_string());
         }
     }

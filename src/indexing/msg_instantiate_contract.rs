@@ -11,13 +11,13 @@ use std::str::FromStr;
 
 impl IndexMessage for MsgInstantiateContract {
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
-        let db;
-        match &registry.db {
+        let db= match &registry.db {
             Some(registry_db) => {
-                db = registry_db;
+                registry_db
             }
             _ => return Ok(()),
-        }
+        };
+
         debug!("Indexing MsgInstantiateContract, events: {:?}", events);
         let contract_model = create_new_contract(self, events)?;
 
