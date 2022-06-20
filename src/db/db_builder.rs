@@ -72,10 +72,6 @@ impl DatabaseBuilder {
         self
     }
 
-    pub fn get_sql(&self) -> String {
-        "".to_string()
-    }
-
     pub async fn create_tables(&self, seaql_db: &DatabaseConnection) -> anyhow::Result<()> {
         let builder = seaql_db.get_database_backend();
         for (_table_name, table_def) in self.tables.iter() {

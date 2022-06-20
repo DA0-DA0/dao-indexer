@@ -30,7 +30,7 @@ impl IndexMessage for SchemaIndexerGenericMessage {
 pub struct SchemaRef {
     pub name: String,
     pub schema: RootSchema,
-    pub version: &'static str
+    pub version: &'static str,
 }
 
 #[derive(Debug)]
@@ -68,7 +68,11 @@ impl SchemaData {
     }
 }
 
-fn insert_table_set_value(table_values: &mut HashMap<String, BTreeSet<String>>, table_name: &str, value: &str) {
+fn insert_table_set_value(
+    table_values: &mut HashMap<String, BTreeSet<String>>,
+    table_name: &str,
+    value: &str,
+) {
     if let Some(value_set) = table_values.get_mut(table_name) {
         value_set.insert(value.to_string());
         return;
@@ -208,7 +212,17 @@ impl SchemaIndexer {
             for schema in all_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, parent_name, name, data, db_builder);
+                        db_builder
+                            .column(parent_name, &format!("{}_id", name))
+                            .integer();
+                        self.process_schema_object(
+                            schema_object,
+                            parent_name,
+                            name,
+                            data,
+                            db_builder,
+                        );
+                        // TODO(gavindoughtie): self.mapper.add_all_required(parent_name, name)
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -219,7 +233,17 @@ impl SchemaIndexer {
             for schema in one_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, parent_name, name, data, db_builder);
+                        db_builder
+                            .column(parent_name, &format!("{}_id", name))
+                            .integer();
+                        self.process_schema_object(
+                            schema_object,
+                            parent_name,
+                            name,
+                            data,
+                            db_builder,
+                        );
+                        // TODO(gavindoughtie): self.mapper.add_one_required(parent_name, name)
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -230,7 +254,16 @@ impl SchemaIndexer {
             for schema in any_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        self.process_schema_object(schema_object, parent_name, name, data, db_builder);
+                        db_builder
+                            .column(parent_name, &format!("{}_id", name))
+                            .integer();
+                        self.process_schema_object(
+                            schema_object,
+                            parent_name,
+                            name,
+                            data,
+                            db_builder,
+                        );
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -268,12 +301,13 @@ impl SchemaIndexer {
         parent_name: &str,
         name: &str,
         data: &mut SchemaData,
-        db_builder: &mut DatabaseBuilder
+        db_builder: &mut DatabaseBuilder,
     ) {
         if let Some(reference) = &schema.reference {
             if !name.is_empty() {
                 self.update_root_map(&mut data.required_roots, parent_name, name);
                 data.ref_roots.insert(name.to_string(), reference.clone());
+                // db_builder.column(parent_name, "id").integer();
             }
         } else if let Some(subschema) = &schema.subschemas {
             self.process_subschema(subschema, name, parent_name, data, db_builder);
@@ -298,8 +332,20 @@ impl SchemaIndexer {
                     let required = &schema.object.as_ref().unwrap().required;
                     for (property_name, schema) in properties {
                         if let Schema::Object(property_object_schema) = schema {
+                            // println!("property_object_schema:\n{:#?}", property_object_schema);
                             if let Some(subschemas) = &property_object_schema.subschemas {
-                                self.process_subschema(subschemas, property_name, name, data, db_builder);
+                                self.process_subschema(
+                                    subschemas,
+                                    property_name,
+                                    name,
+                                    data,
+                                    db_builder,
+                                );
+                            }
+                            if let Some(ref_property) = &property_object_schema.reference {
+                                db_builder.column(table_name, &format!("{}_id", property_name)).integer();
+                                let backpointer_table_name = &ref_property[14..]; // Clip off "#/definitions/"
+                                println!("TODO: add index from {}.{} back to {}", table_name, property_name, backpointer_table_name);
                             }
                             if let Some(type_instance) = &property_object_schema.instance_type {
                                 match type_instance {
@@ -311,6 +357,10 @@ impl SchemaIndexer {
                                                 property_name,
                                                 data,
                                                 db_builder,
+                                            );
+                                            println!(
+                                                "{}.{} is the ID of a {}",
+                                                name, property_name, property_name
                                             );
                                         }
                                         InstanceType::Boolean => {
@@ -328,42 +378,63 @@ impl SchemaIndexer {
                                             db_builder.column(table_name, property_name).float();
                                         }
                                         InstanceType::Array => {
-                                            println!("not handling array instance for {}:{}", table_name, property_name);
+                                            println!(
+                                                "not handling array instance for {}:{}",
+                                                table_name, property_name
+                                            );
                                         }
                                         InstanceType::Null => {
-                                            println!("not handling Null instance for {}:{}", table_name, property_name);
+                                            println!(
+                                                "not handling Null instance for {}:{}",
+                                                table_name, property_name
+                                            );
                                         }
-                                        // _ => {
-                                        //     eprintln!(
-                                        //         "not handling single_val: {}/{}[{:#?}]",
-                                        //         table_name, property_name, single_val
-                                        //     );
-                                        // }
                                     },
                                     SingleOrVec::Vec(vec_val) => {
                                         // Here we handle the case where we have a nullable field,
                                         // where vec_val[0] is the instance type and vec_val[1] is Null
-                                        if vec_val.len() > 1 && vec_val[vec_val.len() - 1] == InstanceType::Null
+                                        if vec_val.len() > 1
+                                            && vec_val[vec_val.len() - 1] == InstanceType::Null
                                         {
                                             let optional_val = vec_val[0];
                                             match optional_val {
                                                 InstanceType::Boolean => {
-                                                    db_builder.column(table_name, property_name).boolean();
+                                                    db_builder
+                                                        .column(table_name, property_name)
+                                                        .boolean();
                                                 }
                                                 InstanceType::String => {
                                                     // column_def = format!("{} TEXT", property_name);
-                                                    db_builder.column(table_name, property_name).text();
+                                                    db_builder
+                                                        .column(table_name, property_name)
+                                                        .text();
                                                 }
                                                 InstanceType::Integer => {
-                                                    db_builder.column(table_name, property_name).big_integer_len(78);
+                                                    db_builder
+                                                        .column(table_name, property_name)
+                                                        .big_integer_len(78);
                                                 }
                                                 InstanceType::Number => {
-                                                    db_builder.column(table_name, property_name).big_integer_len(78);
+                                                    db_builder
+                                                        .column(table_name, property_name)
+                                                        .big_integer_len(78);
                                                 }
-                                                _ => {
+                                                InstanceType::Null => {
                                                     println!(
-                                                        "{} {:?} Not handled",
-                                                        property_name, optional_val
+                                                        "Not handling Null type for {}",
+                                                        property_name
+                                                    );
+                                                }
+                                                InstanceType::Object => {
+                                                    println!(
+                                                        "Not handling Object type for {}",
+                                                        property_name
+                                                    );
+                                                }
+                                                InstanceType::Array => {
+                                                    println!(
+                                                        "Not handling Array type for {}",
+                                                        property_name
                                                     );
                                                 }
                                             }
@@ -371,32 +442,33 @@ impl SchemaIndexer {
                                             warn!("unexpected");
                                         }
                                     }
-                                    // _ => {
-                                    //     debug!("Not worred about type {:?}", type_instance)
-                                    // }
                                 }
                             }
                         }
                         data.current_property = property_name.clone();
-                        self.update_root_map(&mut data.all_property_names, parent_name, property_name);
-                        insert_table_set_value(&mut data.all_property_names, table_name, property_name);
+                        self.update_root_map(
+                            &mut data.all_property_names,
+                            parent_name,
+                            property_name,
+                        );
+                        insert_table_set_value(
+                            &mut data.all_property_names,
+                            table_name,
+                            property_name,
+                        );
                         if required.contains(property_name) {
-                            insert_table_set_value(&mut data.required_roots, table_name, property_name);
+                            insert_table_set_value(
+                                &mut data.required_roots,
+                                table_name,
+                                property_name,
+                            );
                         } else {
-                            insert_table_set_value(&mut data.optional_roots, table_name, property_name);
+                            insert_table_set_value(
+                                &mut data.optional_roots,
+                                table_name,
+                                property_name,
+                            );
                         }
-                        // TODO:recurse??
-                        // db_builder.column(table_name, column_name).
-                            // self.add_column_def(property_name, schema, name, parent_name, data, db_builder)?;
-                        // if !column_def.is_empty() {
-                        //     // let formatted_table_name = format!("{}_{}", parent_name, table_name);
-                        //     self.add_column_def(table_name, data, column_def);
-                        // } else if !is_subschema {
-                        //     warn!(
-                        //         "could not figure out a column def for property: {}, {:#?}",
-                        //         property_name, schema
-                        //     );
-                        // }
                     }
                 }
                 InstanceType::String => {
@@ -405,6 +477,9 @@ impl SchemaIndexer {
                 }
                 InstanceType::Null => {
                     warn!("Null instance type for {}/{}", table_name, name);
+                    db_builder
+                        .column(table_name, &format!("{}_id", name))
+                        .integer();
                     // self.add_column_def(table_name, data, "Null column".to_string());
                 }
                 InstanceType::Boolean => {
@@ -413,7 +488,10 @@ impl SchemaIndexer {
                 }
                 InstanceType::Array => {
                     // self.add_column_def(table_name, data, "Array column".to_string());
-                    warn!("Not handling Array instance type for {}/{}", table_name, name);
+                    warn!(
+                        "Not handling Array instance type for {}/{}",
+                        table_name, name
+                    );
                 }
                 InstanceType::Number => {
                     // self.add_column_def(table_name, data, "Number column".to_string());
@@ -442,7 +520,10 @@ impl Indexer for SchemaIndexer {
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
     }
-    fn initialize_schemas<'a>(&'a mut self, builder: &'a mut DatabaseBuilder) -> anyhow::Result<()>{
+    fn initialize_schemas<'a>(
+        &'a mut self,
+        builder: &'a mut DatabaseBuilder,
+    ) -> anyhow::Result<()> {
         println!("initialize_schemas for schema_indexer {}", self.id);
         // let builder = &mut registry.db_builder;
         let schemas = self.schemas.clone();
@@ -468,12 +549,12 @@ fn test_schema_indexer_init() {
             SchemaRef {
                 name: "Cw3DaoInstantiateMsg".to_string(),
                 schema: schema3,
-                version: "0.2.6"
+                version: "0.2.6",
             },
             SchemaRef {
                 name: "Cw3DaoInstantiateMsg25".to_string(),
                 schema: schema25,
-                version: "0.2.5"
+                version: "0.2.5",
             },
         ],
     );
@@ -483,7 +564,7 @@ fn test_schema_indexer_init() {
 pub struct SchemaVisitor<'a> {
     pub data: SchemaData,
     pub indexer: &'a mut SchemaIndexer,
-    pub db_builder: &'a mut DatabaseBuilder
+    pub db_builder: &'a mut DatabaseBuilder,
 }
 
 impl<'a> SchemaVisitor<'a> {
@@ -491,7 +572,7 @@ impl<'a> SchemaVisitor<'a> {
         SchemaVisitor {
             data: SchemaData::default(),
             indexer,
-            db_builder
+            db_builder,
         }
     }
     /// Override this method to modify a [`RootSchema`] and (optionally) its subschemas.
@@ -503,10 +584,10 @@ impl<'a> SchemaVisitor<'a> {
             if let Schema::Object(schema_object) = schema {
                 self.indexer.process_schema_object(
                     schema_object,
-                    &parent_name,
+                    root_def_name,
                     root_def_name,
                     &mut self.data,
-                    self.db_builder
+                    self.db_builder,
                 )
             } else {
                 println!("Bool schema for {:#?}", schema);
@@ -525,9 +606,74 @@ impl<'a> SchemaVisitor<'a> {
     }
 
     pub fn visit_schema_object(&mut self, schema: &SchemaObject, parent_name: &str) {
-        self.indexer
-            .process_schema_object(schema, parent_name, parent_name, &mut self.data, self.db_builder);
+        self.indexer.process_schema_object(
+            schema,
+            parent_name,
+            parent_name,
+            &mut self.data,
+            self.db_builder,
+        );
     }
+}
+
+use schemars::JsonSchema;
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+struct SimpleMessage {
+    simple_field_one: String,
+    simple_field_two: u128,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+struct SimpleRelatedMessage {
+    title: String,
+    message: SimpleMessage,
+}
+
+#[allow(dead_code)]
+fn get_test_registry(name: &str, schema: RootSchema) -> IndexerRegistry {
+    use crate::indexing::indexer_registry::Register;
+    let indexer = SchemaIndexer::new(
+        name.to_string(),
+        vec![SchemaRef {
+            name: name.to_string(),
+            schema,
+            version: "0.0.0",
+        }],
+    );
+    let mut registry = IndexerRegistry::default();
+    registry.register(Box::from(indexer), None);
+    registry
+}
+
+#[test]
+fn test_simple_message() {
+    use schemars::schema_for;
+    let name = stringify!(SimpleMessage);
+    let schema = schema_for!(SimpleMessage);
+    let mut registry = get_test_registry(name, schema);
+    assert!(registry.initialize().is_ok(), "failed to init indexer");
+    assert_eq!(
+        r#"CREATE TABLE IF NOT EXISTS "simple_message" ( "simple_field_one" text, "simple_field_two" integer )"#,
+        registry.db_builder.sql_string()
+    );
+}
+
+#[test]
+fn test_simple_related_message() {
+    use schemars::schema_for;
+    let name = stringify!(SimpleRelatedMessage);
+    let schema = schema_for!(SimpleRelatedMessage);
+    let mut registry = get_test_registry(name, schema);
+    assert!(registry.initialize().is_ok(), "failed to init indexer");
+    let actual = registry.db_builder.sql_string();
+    println!("{}", actual);
+    // let expected = r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ( "title" text, "message_id" integer )"#;
+    // assert_eq!(
+    //     expected,
+    //     actual
+    // );
 }
 
 #[test]

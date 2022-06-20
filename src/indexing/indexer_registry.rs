@@ -90,7 +90,6 @@ impl<'a> IndexerRegistry {
             indexer.initialize_schemas_dyn(&mut self.db_builder)?;
         }
         self.db_builder.finalize_columns();
-        println!("database tables:\n{:#?}", self.db_builder);
         Ok(())
     }
 
