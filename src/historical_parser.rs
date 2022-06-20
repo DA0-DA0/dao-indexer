@@ -51,6 +51,7 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
 async fn index_search_results(
     search_results: TxSearchResponse,
     registry: &IndexerRegistry,
+    config: &IndexerConfig,
     msg_set: MsgSet,
 ) -> anyhow::Result<()> {
     if search_results.total_count < 1 {
@@ -58,9 +59,9 @@ async fn index_search_results(
     }
     for tx_response in search_results.txs.iter() {
 
-        let some_database = &registry.clone().db;
-        let xt = some_database.as_ref().unwrap();
-        insert_transaction(&tx_response, xt)?;
+        if config.write_transactions_in_database {
+            insert_transaction(&tx_response, &registry.clone().db)?;
+        }
 
         let msg_set = msg_set.clone();
         let mut events = BTreeMap::default();
@@ -194,7 +195,7 @@ async fn handle_transaction_response(
                     }
                 }
             }
-            index_search_results(search_results, registry, msg_set.clone()).await?;
+            index_search_results(search_results, registry, config, msg_set.clone()).await?;
         }
         Err(e) => {
             debug!(

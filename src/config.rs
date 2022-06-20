@@ -18,6 +18,7 @@ pub struct IndexerConfig {
     pub max_empty_block_retries: u32,
     pub listen: bool,
     pub requeue_sleep: u64,
+    pub write_transactions_in_database: bool
 }
 
 impl IndexerConfig {
@@ -127,6 +128,11 @@ impl IndexerConfig {
             .parse::<u64>()
             .unwrap_or(0);
 
+        let write_transactions_in_database: bool = env::var("STORE_TRANSACTIONS")
+            .unwrap_or_else(|_| "true".to_string())
+            .parse::<bool>()
+            .unwrap_or(true);
+
         IndexerConfig {
             enable_indexer_env,
             tendermint_websocket_url,
@@ -142,6 +148,7 @@ impl IndexerConfig {
             max_requests,
             max_empty_block_retries,
             requeue_sleep,
+            write_transactions_in_database
         }
     }
 }
@@ -164,7 +171,9 @@ impl fmt::Display for IndexerConfig {
         block_page_size: {}\n\
         max_requests: {}\n\
         max_empty_block_retries: {}\n\
-        requeue_sleep: {}\n",
+        requeue_sleep: {}\n\
+        write_transactions_in_db: {}\n\
+       ",
             self.tendermint_rpc_url,
             self.tendermint_websocket_url,
             self.tendermint_initial_block,
@@ -178,7 +187,8 @@ impl fmt::Display for IndexerConfig {
             self.block_page_size,
             self.max_requests,
             self.max_empty_block_retries,
-            self.requeue_sleep
+            self.requeue_sleep,
+            self.write_transactions_in_database
         )
     }
 }
