@@ -11,7 +11,7 @@ services:
       - "POSTGRES_USER=postgres"
       - "POSTGRES_PASSWORD=postgres123"
   indexer:
-    image: docker.io/securitydao/dao-indexer:latest
+    image: bmorphism/dao-indexer:v0.0.1-alfalfa
     env:
       - "POSTGRES_NAME=postgres"
       - "POSTGRES_USER=postgres"
