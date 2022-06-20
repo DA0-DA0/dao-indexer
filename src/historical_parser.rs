@@ -58,7 +58,7 @@ async fn index_search_results(
     for tx_response in search_results.txs.iter() {
 
         if config.write_transactions_in_database {
-            insert_transaction(&tx_response, &registry.clone().db)?;
+            insert_transaction(&tx_response, &registry)?;
         }
 
         let msg_set = msg_set.clone();
