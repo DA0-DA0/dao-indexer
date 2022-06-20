@@ -25,13 +25,18 @@ services:
       - "TENDERMINT_SAVE_ALL_BLOCKS=true"
       - "RUST_BACKTRACE=full"
       - "DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres"
+    expose:
+      - port: 9999
+        as: 9999
+        to:
+          - global: true
     depends_on:
       - service: postgres
 
 
 profiles:
   compute:
-    dao-indexer:
+    indexer:
       resources:
         cpu:
           units: 2
@@ -47,12 +52,12 @@ profiles:
         anyOf:
           - "akash1365yvmc4s7awdyj3n2sav7xfx76adc6dnmlx63"
       pricing:
-        dao-indexer: 
+        indexer: 
           denom: uakt
           amount: 100000
 
 deployment:
-  dao-indexer:
+  indexer:
     akash:
-      profile: dao-indexer
+      profile: indexer
       count: 1

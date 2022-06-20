@@ -37,3 +37,35 @@ Below will run the actual program.
 ```
 cargo run
 ```
+
+# Akash Deployment
+
+## Prerequisites
+- `akash` CLI tool installed locally
+- funded wallet with sufficient `$AKT`
+
+## Preparing a deployment
+[[./akash.yaml]]
+## Steps to deploy using CLI
+This follows an adjusted https://docs.akash.network/guides/cli/streamlined-steps
+0. Ensure all the images referenced by deployment are in the registries
+1. Add keys to funded wallet to `akash` - can be checked with `akash keys list`
+2. Generate one-time certificate for the keys using `akash tx cert`
+```
+akash tx cert generate client --from $AKASH_KEY_NAME
+akash tx cert publish client --chain-id akashnet-2 --from $AKASH_WALLET --gas-prices="0.025uakt" --gas="auto" --gas-adjustment=1.15
+```
+3. Create deployment
+```
+akash tx --chain-id akashnet-2 --node "http://akash.c29r3.xyz:80/rpc" --from akash1rj4kqeayjz0cls95jj6jf8uzay7pnj4244zjaz  deployment create indexer-akash.yaml
+```
+
+4. Examine bids for hosting the workload
+```
+akash query --chain-id akashnet-2 --node "http://akash.c29r3.xyz:80/rpc" market bid list  > bids.txt
+```
+
+5. After identifying `provider` that meets needs, create a lease:
+```
+akash --chain-id akashnet-2 --dseq 1337 --node "http://akash.c29r3.xyz:80/rpc" tx market lease create --provider akash1vppf2922vuzgxc2jgetxtx7uxqfss59e7gha3g
+```
