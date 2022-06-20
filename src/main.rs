@@ -22,7 +22,7 @@ use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 
-use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg_026;
+use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg_030;
 use schemars::schema_for;
 use sea_orm::{Database, DatabaseConnection};
 
@@ -67,13 +67,13 @@ async fn main() -> anyhow::Result<()> {
     // let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
     // let cw3multisig_instantiate_indexer = Cw3MultisigInstantiateMsgIndexer::default();
     // let cw3multisig_execute_indexer = Cw3MultisigExecuteMsgIndexer::default();
-    let instantiate_msg_schema = schema_for!(Cw3DaoInstantiateMsg_026);
-    let instantiate_msg_label = stringify!(Cw3DaoInstantiateMsg);
+    let instantiate_msg_schema = schema_for!(Cw3DaoInstantiateMsg_030);
+    let instantiate_msg_label = "Cw3DaoInstantiateMsg";
     let instantiate_msg_indexer = SchemaIndexer::new(instantiate_msg_label.to_string(), vec![
         SchemaRef {
             name: instantiate_msg_label.to_string(),
             schema: instantiate_msg_schema,
-            version: "0.2.6"
+            version: "0.3.0"
         }]);
     registry.register(Box::from(instantiate_msg_indexer), None);
     // registry.register(Box::from(cw20_indexer), None);

@@ -289,8 +289,8 @@ impl SchemaIndexer {
             self.process_subschema(subschema, name, parent_name, data, db_builder);
         }
         match instance_type {
-            SingleOrVec::Vec(_vtype) => {
-                println!("Vec instance for table {}", table_name);
+            SingleOrVec::Vec(vtype) => {
+                println!("Vec instance for table {}, {:#?}", table_name, vtype);
             }
             SingleOrVec::Single(itype) => match itype.as_ref() {
                 InstanceType::Object => {
@@ -313,22 +313,67 @@ impl SchemaIndexer {
                                                 db_builder,
                                             );
                                         }
+                                        InstanceType::Boolean => {
+                                            // self.add_column_def(table_name, data, "BOOLEAN column".to_string());
+                                            db_builder.column(table_name, property_name).boolean();
+                                        }
                                         InstanceType::String => {
-                                            db_builder.column(table_name, property_name).string();
+                                            db_builder.column(table_name, property_name).text();
                                         }
                                         InstanceType::Integer => {
                                             db_builder.column(table_name, property_name).integer();
                                         }
-                                        _ => {
-                                            eprintln!(
-                                                "not handling single_val: {}/{}[{:#?}]",
-                                                table_name, property_name, single_val
-                                            );
+                                        InstanceType::Number => {
+                                            // self.add_column_def(table_name, data, "Number column".to_string());
+                                            db_builder.column(table_name, property_name).float();
                                         }
+                                        InstanceType::Array => {
+                                            println!("not handling array instance for {}:{}", table_name, property_name);
+                                        }
+                                        InstanceType::Null => {
+                                            println!("not handling Null instance for {}:{}", table_name, property_name);
+                                        }
+                                        // _ => {
+                                        //     eprintln!(
+                                        //         "not handling single_val: {}/{}[{:#?}]",
+                                        //         table_name, property_name, single_val
+                                        //     );
+                                        // }
                                     },
-                                    _ => {
-                                        debug!("Not worred about type {:?}", type_instance)
+                                    SingleOrVec::Vec(vec_val) => {
+                                        // Here we handle the case where we have a nullable field,
+                                        // where vec_val[0] is the instance type and vec_val[1] is Null
+                                        if vec_val.len() > 1 && vec_val[vec_val.len() - 1] == InstanceType::Null
+                                        {
+                                            let optional_val = vec_val[0];
+                                            match optional_val {
+                                                InstanceType::Boolean => {
+                                                    db_builder.column(table_name, property_name).boolean();
+                                                }
+                                                InstanceType::String => {
+                                                    // column_def = format!("{} TEXT", property_name);
+                                                    db_builder.column(table_name, property_name).text();
+                                                }
+                                                InstanceType::Integer => {
+                                                    db_builder.column(table_name, property_name).big_integer_len(78);
+                                                }
+                                                InstanceType::Number => {
+                                                    db_builder.column(table_name, property_name).big_integer_len(78);
+                                                }
+                                                _ => {
+                                                    println!(
+                                                        "{} {:?} Not handled",
+                                                        property_name, optional_val
+                                                    );
+                                                }
+                                            }
+                                        } else {
+                                            warn!("unexpected");
+                                        }
                                     }
+                                    // _ => {
+                                    //     debug!("Not worred about type {:?}", type_instance)
+                                    // }
                                 }
                             }
                         }
