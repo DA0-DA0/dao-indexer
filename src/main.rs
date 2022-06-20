@@ -12,7 +12,7 @@ use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 // };
 use dao_indexer::indexing::msg_set::default_msg_set;
 // use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
-use dao_indexer::indexing::schema_indexer::{SchemaRef, SchemaIndexer};
+use dao_indexer::indexing::schema_indexer::{SchemaIndexer, SchemaRef};
 use dao_indexer::indexing::tx::process_tx_info;
 use diesel::pg::PgConnection;
 use env_logger::Env;
@@ -22,6 +22,7 @@ use tendermint_rpc::event::EventData;
 use tendermint_rpc::query::EventType;
 use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 
+use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg_030;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg_030;
 use schemars::schema_for;
 use sea_orm::{Database, DatabaseConnection};
@@ -69,12 +70,21 @@ async fn main() -> anyhow::Result<()> {
     // let cw3multisig_execute_indexer = Cw3MultisigExecuteMsgIndexer::default();
     let instantiate_msg_schema = schema_for!(Cw3DaoInstantiateMsg_030);
     let instantiate_msg_label = "Cw3DaoInstantiateMsg";
-    let instantiate_msg_indexer = SchemaIndexer::new(instantiate_msg_label.to_string(), vec![
-        SchemaRef {
-            name: instantiate_msg_label.to_string(),
-            schema: instantiate_msg_schema,
-            version: "0.3.0"
-        }]);
+    let instantiate_msg_indexer = SchemaIndexer::new(
+        instantiate_msg_label.to_string(),
+        vec![
+            SchemaRef {
+                name: instantiate_msg_label.to_string(),
+                schema: instantiate_msg_schema,
+                version: "0.3.0",
+            },
+            SchemaRef {
+                name: "Cw3DaoExecuteMsg".to_string(),
+                schema: schema_for!(Cw3DaoExecuteMsg_030),
+                version: "0.3.0",
+            },
+        ],
+    );
     registry.register(Box::from(instantiate_msg_indexer), None);
     // registry.register(Box::from(cw20_indexer), None);
     // registry.register(Box::from(cw3multisig_instantiate_indexer), None);
