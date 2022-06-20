@@ -87,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
 
     if let Some(seaql_db) = &registry.seaql_db {
         // Dump the sql
+        println!("Building tables:\n{}", registry.db_builder.sql_string());
         registry.db_builder.create_tables(seaql_db).await?;
     }
 

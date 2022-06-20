@@ -1,6 +1,6 @@
 use convert_case::{Case, Casing};
 use sea_orm::sea_query::{
-    Alias, ColumnDef, /* ForeignKey, ForeignKeyAction,*/ Table, TableCreateStatement,
+    Alias, ColumnDef, /* ForeignKey, ForeignKeyAction,*/ Table, TableCreateStatement, PostgresQueryBuilder,
 };
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::HashMap;
@@ -84,6 +84,16 @@ impl DatabaseBuilder {
         }
         Ok(())
     }
+
+    pub fn sql_string(&self) -> String {
+        let mut statements = vec![];
+        for (_table_name, table_def) in self.tables.iter() {
+            let sql = table_def.to_string(PostgresQueryBuilder);
+            statements.push(sql);
+        }
+        statements.join(";\n")
+    }
+
 }
 
 impl Default for DatabaseBuilder {
