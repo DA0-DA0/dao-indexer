@@ -9,7 +9,7 @@ use crate::indexing::indexer_registry::IndexerRegistry;
 pub fn insert_transaction(tx_response: &Response, indexer_registry: &IndexerRegistry) -> anyhow::Result<()>{
     if let Some(database_connection) = &indexer_registry.db {
         let hash_of_tx = tx_response.hash.to_string();
-        let tx_response_as_string = serde_json::to_string(&tx_response).unwrap();
+        let tx_response_as_string = serde_json::to_string(&tx_response)?;
 
         let new_transaction = NewTransaction {
             hash: hash_of_tx,

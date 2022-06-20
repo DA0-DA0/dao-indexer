@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 impl IndexMessage for MsgInstantiateContract {
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
-        let db= match &registry.db {
+        let db = match &registry.db {
             Some(registry_db) => {
                 registry_db
             }
