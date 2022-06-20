@@ -24,6 +24,7 @@ use tendermint_rpc::{SubscriptionClient, WebSocketClient};
 
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg_026;
 use schemars::schema_for;
+use sea_orm::{Database, DatabaseConnection};
 
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
@@ -50,10 +51,11 @@ async fn main() -> anyhow::Result<()> {
     #[allow(clippy::needless_late_init)]
     let mut registry;
     if config.postgres_backend {
-        let db: PgConnection = establish_connection(&config.database_url);
-        registry = IndexerRegistry::new(Some(db));
+        let diesel_db: PgConnection = establish_connection(&config.database_url);
+        let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
+        registry = IndexerRegistry::new(Some(diesel_db), Some(seaql_db));
     } else {
-        registry = IndexerRegistry::new(None);
+        registry = IndexerRegistry::new(None, None);
     }
     // let schema3 = schema_for!(Cw3DaoInstantiateMsg);
     // println!("definitions:\n{:#?}", &schema3.definitions);
@@ -82,6 +84,11 @@ async fn main() -> anyhow::Result<()> {
     // registry.register(Box::from(cw20_stake_indexer), None);
 
     registry.initialize()?;
+
+    if let Some(seaql_db) = &registry.seaql_db {
+        // Dump the sql
+        registry.db_builder.create_tables(seaql_db).await?;
+    }
 
     let msg_set = default_msg_set();
 

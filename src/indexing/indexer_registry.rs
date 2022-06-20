@@ -8,6 +8,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
+use sea_orm::DatabaseConnection;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
@@ -43,6 +44,7 @@ pub trait Register {
 
 pub struct IndexerRegistry {
     pub db: Option<PgConnection>,
+    pub seaql_db: Option<DatabaseConnection>,
     pub db_builder: DatabaseBuilder,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
@@ -65,14 +67,15 @@ impl Deref for IndexerRegistry {
 
 impl Default for IndexerRegistry {
     fn default() -> Self {
-        IndexerRegistry::new(None)
+        IndexerRegistry::new(None, None)
     }
 }
 
 impl<'a> IndexerRegistry {
-    pub fn new(db: Option<PgConnection>) -> Self {
+    pub fn new(db: Option<PgConnection>, seaql_db: Option<DatabaseConnection>) -> Self {
         IndexerRegistry {
             db,
+            seaql_db,
             db_builder: DatabaseBuilder::default(),
             handlers: HashMap::default(),
             indexers: vec![],

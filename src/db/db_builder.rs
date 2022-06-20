@@ -1,7 +1,17 @@
+use convert_case::{Case, Casing};
 use sea_orm::sea_query::{
     Alias, ColumnDef, /* ForeignKey, ForeignKeyAction,*/ Table, TableCreateStatement,
 };
+use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::HashMap;
+
+pub fn db_table_name(input_name: &str) -> String {
+    input_name.to_case(Case::Snake)
+}
+
+pub fn db_column_name(input_name: &str) -> String {
+    input_name.to_case(Case::Snake)
+}
 
 #[derive(Debug)]
 pub struct DatabaseBuilder {
@@ -21,7 +31,7 @@ impl DatabaseBuilder {
             .entry(table_name.to_string())
             .or_insert_with(|| {
                 Table::create()
-                    .table(Alias::new(table_name))
+                    .table(Alias::new(&db_table_name(table_name)))
                     .if_not_exists()
                     .to_owned()
             })
@@ -34,7 +44,7 @@ impl DatabaseBuilder {
             .or_insert_with(HashMap::new);
         columns
             .entry(column_name.to_string())
-            .or_insert_with(|| ColumnDef::new(Alias::new(column_name)))
+            .or_insert_with(|| ColumnDef::new(Alias::new(&db_column_name(column_name))))
     }
 
     pub fn add_table_column(&mut self, table_name: &str, column_name: &str) -> &mut Self {
@@ -45,20 +55,34 @@ impl DatabaseBuilder {
 
     pub fn finalize_columns(&mut self) -> &mut Self {
         for (table_name, column_defs) in self.columns.iter_mut() {
-            let mut statement = self.tables
-            .entry(table_name.to_string())
-            .or_insert_with(|| {
-                Table::create()
-                    .table(Alias::new(table_name))
-                    .if_not_exists()
-                    .to_owned()
-            });
+            let mut statement = self
+                .tables
+                .entry(table_name.to_string())
+                .or_insert_with(|| {
+                    Table::create()
+                        .table(Alias::new(&db_table_name(table_name)))
+                        .if_not_exists()
+                        .to_owned()
+                });
             for (_col_name, col_def) in column_defs.iter_mut() {
                 statement = statement.col(col_def);
             }
         }
         self.columns.clear();
         self
+    }
+
+    pub fn get_sql(&self) -> String {
+        "".to_string()
+    }
+
+    pub async fn create_tables(&self, seaql_db: &DatabaseConnection) -> anyhow::Result<()> {
+        let builder = seaql_db.get_database_backend();
+        for (_table_name, table_def) in self.tables.iter() {
+            let statement = builder.build(table_def);
+            seaql_db.execute(statement).await?;
+        }
+        Ok(())
     }
 }
 
