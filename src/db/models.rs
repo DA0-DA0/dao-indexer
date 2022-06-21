@@ -216,8 +216,6 @@ pub struct Block {
     pub height: i64,
     pub hash: String,
     pub num_txs: Option<i64>,
-    // pub total_gas: BigInt,
-    // pub proposer_address: Text
 }
 
 #[derive(Queryable)]
