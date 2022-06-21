@@ -20,13 +20,10 @@ pub fn insert_transaction(
             response: tx_as_json,
         };
 
-        match diesel::insert_into(transaction)
+        diesel::insert_into(transaction)
             .values(new_transaction)
-            .execute(database_connection)
-        {
-            Ok(_rows) => Ok(()),
-            Err(e) => Err(anyhow!("Error: {:?}", e)),
-        }
+            .execute(database_connection)?;
+        Ok(())
     } else {
         Ok(())
     }
