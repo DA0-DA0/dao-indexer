@@ -194,12 +194,11 @@ pub fn insert_gov_token(
                 .values(token_model)
                 .execute(db as &PgConnection);
             let dao_address = contract_addresses.contract_address.as_ref().unwrap();
-            let amount;
-            if let Some(balance) = initial_dao_balance {
-                amount = *balance;
+            let amount = if let Some(balance) = initial_dao_balance {
+                *balance
             } else {
-                amount = Uint128::from(0u128);
-            }
+                Uint128::from(0u128)
+            };
             let initial_update_result = update_balance(
                 db,
                 height,

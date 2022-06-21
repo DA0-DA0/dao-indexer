@@ -11,13 +11,11 @@ use std::str::FromStr;
 
 impl IndexMessage for MsgInstantiateContract {
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
-        let db;
-        match &registry.db {
-            Some(registry_db) => {
-                db = registry_db;
-            }
+        let db = match &registry.db {
+            Some(registry_db) => registry_db,
             _ => return Ok(()),
-        }
+        };
+
         debug!("Indexing MsgInstantiateContract, events: {:?}", events);
         let contract_model = create_new_contract(self, events)?;
 
@@ -54,12 +52,13 @@ fn create_new_contract<'a>(
         let tx_height_str = &tx_height_strings[0];
         tx_height_opt = Some(BigDecimal::from_str(tx_height_str)?);
     }
-    let tx_height: BigDecimal;
-    if let Some(height) = tx_height_opt {
-        tx_height = height;
+
+    let tx_height = if let Some(height) = tx_height_opt {
+        height
     } else {
-        tx_height = BigDecimal::default();
-    }
+        BigDecimal::default()
+    };
+
     let admin = if let Some(account_id) = msg_inst_contract.admin.clone() {
         account_id.to_string()
     } else {

@@ -43,13 +43,13 @@ async fn main() -> anyhow::Result<()> {
         warn!("Running indexer without a postgres backend!");
     }
 
-    let mut registry;
-    if config.postgres_backend {
+    let mut registry = if config.postgres_backend {
         let db: PgConnection = establish_connection(&config.database_url);
-        registry = IndexerRegistry::new(Some(db));
+        IndexerRegistry::new(Some(db))
     } else {
-        registry = IndexerRegistry::new(None);
-    }
+        IndexerRegistry::new(None)
+    };
+
     // Register standard indexers:
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
     let cw3dao_instantiate_indexer = Cw3DaoInstantiateMsgIndexer::default();

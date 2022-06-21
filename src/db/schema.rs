@@ -103,6 +103,14 @@ table! {
     }
 }
 
+table! {
+    transaction (hash) {
+        hash -> Text,
+        height -> Nullable<Int8>,
+        response -> Jsonb,
+    }
+}
+
 allow_tables_to_appear_in_same_query!(
     block,
     codes,
@@ -115,4 +123,5 @@ allow_tables_to_appear_in_same_query!(
     gov_token,
     logo,
     marketing,
+    transaction,
 );

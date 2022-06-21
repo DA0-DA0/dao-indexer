@@ -21,7 +21,7 @@ cw20-base = {  version = "0.13.2", features = ["library"] }
 cw3-dao-2-5 = { package = "cw3-dao", git = "https://github.com/DA0-DA0/dao-contracts.git", tag = "v0.2.5" }
 cw3-dao = { git = "https://github.com/DA0-DA0/dao-contracts.git", tag = "v0.3.0" }
 cw3-multisig = { git = "https://github.com/DA0-DA0/dao-contracts.git", tag = "v0.3.0" }
-diesel = { version = "1.4.8", features = ["postgres", "numeric"] }
+diesel = { version = "1.4.8", features = ["postgres", "numeric", "serde_json"] }
 dotenv = "0.15.0"
 env_logger = "0.9.0"
 futures = "0.3.21"

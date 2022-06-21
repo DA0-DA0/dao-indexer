@@ -4,6 +4,7 @@ use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::msg_set::MsgSet;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use crate::util::query_stream::{QueryStream, TxSearchRequest};
+use crate::util::transaction_util::insert_transaction;
 use async_std::stream::StreamExt;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::Tx as TxV1;
 use cosmrs::tx::Tx;
@@ -27,17 +28,16 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
     for event in events {
         let event_name = &event.type_str;
         for attribute in &event.attributes {
-            let attributes;
             let attribute_key: &str = &attribute.key.to_string();
             let event_key = format!("{}.{}", event_name, attribute_key);
-            if let Some(existing_attributes) = event_map.get_mut(&event_key) {
-                attributes = existing_attributes;
+            let attributes = if let Some(existing_attributes) = event_map.get_mut(&event_key) {
+                existing_attributes
             } else {
                 event_map.insert(event_key.clone(), vec![]);
-                attributes = event_map
+                event_map
                     .get_mut(&event_key)
-                    .ok_or_else(|| anyhow::anyhow!("no attribute {} found", event_key))?;
-            }
+                    .ok_or_else(|| anyhow::anyhow!("no attribute {} found", event_key))?
+            };
             attributes.push(attribute.value.to_string());
         }
     }
@@ -50,12 +50,17 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
 async fn index_search_results(
     search_results: TxSearchResponse,
     registry: &IndexerRegistry,
+    config: &IndexerConfig,
     msg_set: MsgSet,
 ) -> anyhow::Result<()> {
     if search_results.total_count < 1 {
         return Ok(());
     }
     for tx_response in search_results.txs.iter() {
+        if config.write_transactions_in_database {
+            insert_transaction(tx_response, registry)?;
+        }
+
         let msg_set = msg_set.clone();
         let mut events = BTreeMap::default();
         let block_height = tx_response.height;
@@ -187,7 +192,7 @@ async fn handle_transaction_response(
                     }
                 }
             }
-            index_search_results(search_results, registry, msg_set.clone()).await?;
+            index_search_results(search_results, registry, config, msg_set.clone()).await?;
         }
         Err(e) => {
             debug!(

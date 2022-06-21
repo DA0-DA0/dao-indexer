@@ -1,7 +1,5 @@
-use super::schema::block;
-use super::schema::{contracts, cw20_balances, dao, gov_token};
+use super::schema::{block, contracts, cw20_balances, dao, gov_token, transaction};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
-                            // use cosmrs::proto::cosmwasm::wasm::v1::MsgInstantiateContract;
 use cosmrs::cosmwasm::MsgInstantiateContract;
 use cw3_dao::msg::GovTokenInstantiateMsg;
 use diesel::sql_types::{BigInt, Jsonb, Numeric, Text};
@@ -218,6 +216,19 @@ pub struct Block {
     pub height: i64,
     pub hash: String,
     pub num_txs: Option<i64>,
-    // pub total_gas: BigInt,
-    // pub proposer_address: Text
+}
+
+#[derive(Queryable)]
+pub struct Transaction {
+    pub height: i64,
+    pub hash: String,
+    pub response: serde_json::Value,
+}
+
+#[derive(Insertable)]
+#[table_name = "transaction"]
+pub struct NewTransaction {
+    pub hash: String,
+    pub height: i64,
+    pub response: serde_json::Value,
 }
