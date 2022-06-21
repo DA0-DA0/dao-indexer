@@ -24,7 +24,7 @@ pub fn insert_transaction(
             .values(new_transaction)
             .execute(database_connection)
         {
-            Ok(_) => Ok(()),
+            Ok(_rows) => Ok(()),
             Err(e) => Err(anyhow!("Error: {:?}", e)),
         }
     } else {
