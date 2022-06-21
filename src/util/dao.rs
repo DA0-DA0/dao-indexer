@@ -50,7 +50,6 @@ pub fn get_tx_height_from_events(events: &EventMap) -> BigDecimal {
     } else {
         BigDecimal::default()
     }
-
 }
 
 pub fn insert_dao_25(

@@ -63,12 +63,8 @@ pub fn update_balance_from_events(
     let sender = &event_map.get("wasm.sender").unwrap()[0];
 
     let from = match event_map.get("wasm.from") {
-        Some(wasm_from) => {
-            wasm_from[0].to_string()
-        }
-        _ => {
-            "".to_string()
-        }
+        Some(wasm_from) => wasm_from[0].to_string(),
+        _ => "".to_string(),
     };
 
     if !from.is_empty() {

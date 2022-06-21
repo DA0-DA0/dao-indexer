@@ -1,4 +1,4 @@
-use super::schema::{block, transaction, contracts, cw20_balances, dao, gov_token};
+use super::schema::{block, contracts, cw20_balances, dao, gov_token, transaction};
 use bigdecimal::BigDecimal; // Has to match diesel's version!
 use cosmrs::cosmwasm::MsgInstantiateContract;
 use cw3_dao::msg::GovTokenInstantiateMsg;
@@ -227,12 +227,10 @@ pub struct Transaction {
     pub response: serde_json::Value,
 }
 
-
 #[derive(Insertable)]
 #[table_name = "transaction"]
 pub struct NewTransaction {
     pub hash: String,
     pub height: i64,
-    pub response: serde_json::Value
+    pub response: serde_json::Value,
 }
-

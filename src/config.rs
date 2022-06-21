@@ -18,7 +18,7 @@ pub struct IndexerConfig {
     pub max_empty_block_retries: u32,
     pub listen: bool,
     pub requeue_sleep: u64,
-    pub write_transactions_in_database: bool
+    pub write_transactions_in_database: bool,
 }
 
 impl IndexerConfig {
@@ -148,7 +148,7 @@ impl IndexerConfig {
             max_requests,
             max_empty_block_retries,
             requeue_sleep,
-            write_transactions_in_database
+            write_transactions_in_database,
         }
     }
 }

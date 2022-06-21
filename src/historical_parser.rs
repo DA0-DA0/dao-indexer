@@ -4,6 +4,7 @@ use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::indexing::msg_set::MsgSet;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use crate::util::query_stream::{QueryStream, TxSearchRequest};
+use crate::util::transaction_util::insert_transaction;
 use async_std::stream::StreamExt;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::Tx as TxV1;
 use cosmrs::tx::Tx;
@@ -20,7 +21,6 @@ use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
-use crate::util::transaction_util::insert_transaction;
 
 // This is a tech debut function that maps events into a structure
 // that's a little easier to index.
@@ -30,11 +30,12 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
         for attribute in &event.attributes {
             let attribute_key: &str = &attribute.key.to_string();
             let event_key = format!("{}.{}", event_name, attribute_key);
-            let attributes= if let Some(existing_attributes) = event_map.get_mut(&event_key) {
+            let attributes = if let Some(existing_attributes) = event_map.get_mut(&event_key) {
                 existing_attributes
             } else {
                 event_map.insert(event_key.clone(), vec![]);
-                event_map.get_mut(&event_key)
+                event_map
+                    .get_mut(&event_key)
                     .ok_or_else(|| anyhow::anyhow!("no attribute {} found", event_key))?
             };
             attributes.push(attribute.value.to_string());
@@ -56,7 +57,6 @@ async fn index_search_results(
         return Ok(());
     }
     for tx_response in search_results.txs.iter() {
-
         if config.write_transactions_in_database {
             insert_transaction(tx_response, registry)?;
         }
@@ -96,7 +96,6 @@ async fn index_search_results(
                 }
             }
         }
-
     }
     Ok(())
 }
