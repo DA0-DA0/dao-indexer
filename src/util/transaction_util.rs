@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use diesel::prelude::*;
 use tendermint_rpc::endpoint::tx::Response;
 
