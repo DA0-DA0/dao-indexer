@@ -111,14 +111,6 @@ async fn requeue(
     debug!("Requeing tx_request {:?}", &tx_request);
     let mut queries = queries_mutex.lock().await;
     queries.enqueue(tx_request);
-    //  {
-    //     Ok(mut queries) => {
-    //         queries.enqueue(tx_request);
-    //     }
-    //     Err(e) => {
-    //         error!("Error unlocking queries mutex: {:?}", e);
-    //     }
-    // }
     Ok(())
 }
 
