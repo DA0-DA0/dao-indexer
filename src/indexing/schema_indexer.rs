@@ -695,6 +695,7 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
     let dialect = PostgreSqlDialect {}; // or AnsiDialect
 
     let built_sql = db_postgres.build(built_statement).to_string();
+    println!("built:\n{}\nexpected:\n{}", built_sql, expected_sql);
     let built_ast = &Parser::parse_sql(&dialect, &built_sql).unwrap()[0];
     let expected_ast = &Parser::parse_sql(&dialect, expected_sql).unwrap()[0];
 
@@ -716,7 +717,6 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
 #[test]
 fn test_simple_message() {
     use schemars::schema_for;
-    use sea_orm::sea_query::PostgresQueryBuilder;
 
     let name = stringify!(SimpleMessage);
     let schema = schema_for!(SimpleMessage);
@@ -730,8 +730,6 @@ fn test_simple_message() {
         r#")"#,
     ]
     .join(" ");
-    let built_sql = built_table.to_string(PostgresQueryBuilder);
-    println!("expected:\n{}\nbuilt:\n{}", expected_sql, built_sql);
     compare_table_create_statements(built_table, &expected_sql);
 }
 
@@ -742,13 +740,15 @@ fn test_simple_related_message() {
     let schema = schema_for!(SimpleRelatedMessage);
     let mut registry = get_test_registry(name, schema);
     assert!(registry.initialize().is_ok(), "failed to init indexer");
-    let actual = registry.db_builder.sql_string();
-    println!("{}", actual);
-    // let expected = r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ( "title" text, "message_id" integer )"#;
-    // assert_eq!(
-    //     expected,
-    //     actual
-    // );
+    let expected_sql = vec![
+        r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
+        r#""title" text,"#,
+        r#""message_id" integer,"#,
+        r#""sub_message_id" integer)"#,
+    ]
+    .join(" ");
+    let built_table = registry.db_builder.table(name);
+    compare_table_create_statements(built_table, &expected_sql);
 }
 
 #[test]
@@ -762,7 +762,6 @@ fn test_visit() {
     let mut builder = DatabaseBuilder::new();
     let mut visitor = SchemaVisitor::new(&mut indexer, &mut builder);
     let result = visitor.visit_root_schema(&schema3);
-    // println!("indexer after visit: {:#?}", visitor.data);
     if result.is_err() {
         eprintln!("failed {:#?}", result);
     }
