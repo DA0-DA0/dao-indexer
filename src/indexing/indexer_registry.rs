@@ -1,3 +1,5 @@
+use crate::db::db_builder::DatabaseBuilder;
+
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
 use diesel::pg::PgConnection;
@@ -6,8 +8,9 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
+use sea_orm::DatabaseConnection;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
 
 impl RegistryKey {
@@ -41,9 +44,11 @@ pub trait Register {
 
 pub struct IndexerRegistry {
     pub db: Option<PgConnection>,
+    pub seaql_db: Option<DatabaseConnection>,
+    pub db_builder: DatabaseBuilder,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
-    indexers: Vec<Box<dyn IndexerDyn>>,
+    indexers: Vec<Box<dyn IndexerDyn>>,    
 }
 
 impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
@@ -62,17 +67,30 @@ impl Deref for IndexerRegistry {
 
 impl Default for IndexerRegistry {
     fn default() -> Self {
-        IndexerRegistry::new(None)
+        IndexerRegistry::new(None, None)
     }
 }
 
 impl<'a> IndexerRegistry {
-    pub fn new(db: Option<PgConnection>) -> Self {
+    pub fn new(db: Option<PgConnection>, seaql_db: Option<DatabaseConnection>) -> Self {
         IndexerRegistry {
             db,
+            seaql_db,
+            db_builder: DatabaseBuilder::default(),
             handlers: HashMap::default(),
             indexers: vec![],
         }
+    }
+
+    pub fn initialize(&mut self) -> anyhow::Result<()> {
+        for indexer in self.indexers.iter() {
+            indexer.initialize_dyn(self)?;
+        }
+        for indexer in self.indexers.iter_mut() {
+            indexer.initialize_schemas_dyn(&mut self.db_builder)?;
+        }
+        self.db_builder.finalize_columns();
+        Ok(())
     }
 
     // This method gets handed the decoded cosmwasm message
@@ -158,13 +176,13 @@ impl<'a> Register for IndexerRegistry {
     }
 }
 
-struct TestIndexer<'a> {
+struct TestIndexer {
     pub name: String,
     my_registry_keys: Vec<RegistryKey>,
-    my_root_keys: Box<[&'a str]>,
+    my_root_keys: Vec<String>,
 }
 
-impl<'a> Indexer for TestIndexer<'a> {
+impl<'a> Indexer for TestIndexer {
     type MessageType = ();
 
     fn id(&self) -> String {
@@ -185,8 +203,8 @@ impl<'a> Indexer for TestIndexer<'a> {
         Box::from(self.my_registry_keys.iter())
     }
 
-    fn root_keys<'b>(&'b self) -> Box<dyn Iterator<Item = &'b str> + 'b> {
-        Box::from(self.my_root_keys.iter().copied())
+    fn root_keys<'b>(&'b self) -> Box<dyn Iterator<Item = &'b String> + 'b> {
+        Box::from(self.my_root_keys.iter())
     }
 
     fn required_root_keys(&self) -> super::indexer::RootKeysType {
@@ -203,7 +221,11 @@ fn test_registry() {
             RegistryKey("key_2".to_string()),
             RegistryKey("key_5".to_string()),
         ],
-        my_root_keys: Box::from(["key_1", "key_2", "key_5"]),
+        my_root_keys: vec![
+            "key_1".to_string(),
+            "key_2".to_string(),
+            "key_5".to_string(),
+        ],
     };
     let indexer_b = TestIndexer {
         name: "indexer_b".to_string(),
@@ -211,7 +233,7 @@ fn test_registry() {
             RegistryKey("key_3".to_string()),
             RegistryKey("key_4".to_string()),
         ],
-        my_root_keys: Box::from(["key_3", "key_4"]),
+        my_root_keys: vec!["key_3".to_string(), "key_4".to_string()],
     };
     let mut registry = IndexerRegistry::default();
     registry.register(Box::from(indexer_a), None);
