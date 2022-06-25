@@ -50,12 +50,12 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let mut registry = if config.postgres_backend {
-let diesel_db: PgConnection = establish_connection(&config.database_url);
-let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-IndexerRegistry::new(Some(diesel_db), Some(seaql_db))
+        let diesel_db: PgConnection = establish_connection(&config.database_url);
+        let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
+        IndexerRegistry::new(Some(diesel_db), Some(seaql_db))
     } else {
-        registry = IndexerRegistry::new(None, None);
-    }
+        IndexerRegistry::new(None, None)
+    };
     // let schema3 = schema_for!(Cw3DaoInstantiateMsg);
     // println!("definitions:\n{:#?}", &schema3.definitions);
 

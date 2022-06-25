@@ -682,32 +682,57 @@ fn get_test_registry(name: &str, schema: RootSchema) -> IndexerRegistry {
     registry
 }
 
+use sea_orm::sea_query::TableCreateStatement;
+pub fn compare_table_create_statements(built_statement: &TableCreateStatement, expected_sql: &str) {
+    use sea_orm::DbBackend;
+    let db_postgres = DbBackend::Postgres;
+
+    use sqlparser::ast::{Statement, ColumnDef};
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::collections::HashSet;
+
+    let dialect = PostgreSqlDialect {}; // or AnsiDialect
+
+    let built_sql = db_postgres.build(built_statement).to_string();
+    let built_ast = &Parser::parse_sql(&dialect, &built_sql).unwrap()[0];
+    let expected_ast = &Parser::parse_sql(&dialect, expected_sql).unwrap()[0];
+
+    // Because of the stupid non-deterministic nature of how the sql generation works, we
+    // have to compare the members.
+
+    if let Statement::CreateTable { columns, .. } = built_ast {
+        let built_columns = HashSet::<ColumnDef>::from_iter(columns.iter().cloned());
+
+        if let Statement::CreateTable { columns, .. } = expected_ast {
+            let expected_columns = HashSet::<ColumnDef>::from_iter(columns.iter().cloned());
+            assert_eq!(expected_columns, built_columns);
+        }
+    } else {
+        panic!(r#"unable to compare sql"#);
+    }    
+}
+
 #[test]
 fn test_simple_message() {
     use schemars::schema_for;
-    use sea_orm::{DbBackend, Statement};
+    use sea_orm::sea_query::PostgresQueryBuilder;
 
     let name = stringify!(SimpleMessage);
     let schema = schema_for!(SimpleMessage);
     let mut registry = get_test_registry(name, schema);
     assert!(registry.initialize().is_ok(), "failed to init indexer");
     let built_table = registry.db_builder.table(name);
-
-    let db_postgres = DbBackend::Postgres;
-
-    assert_eq!(
-        db_postgres.build(built_table),
-        Statement::from_string(
-            db_postgres,
-            vec![
-                r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
-                r#""simple_field_one" text,"#,
-                r#""simple_field_two" integer"#,
-                r#")"#,
-            ]
-            .join(" ")
-        )
-    );
+    let expected_sql = vec![
+        r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
+        r#""simple_field_one" text,"#,
+        r#""simple_field_two" integer"#,
+        r#")"#,
+    ]
+    .join(" ");
+    let built_sql = built_table.to_string(PostgresQueryBuilder);
+    println!("expected:\n{}\nbuilt:\n{}", expected_sql, built_sql);
+    compare_table_create_statements(built_table, &expected_sql);
 }
 
 #[test]

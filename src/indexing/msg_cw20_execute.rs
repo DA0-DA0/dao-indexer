@@ -46,10 +46,6 @@ impl IndexMessage for Cw20ExecuteMsg {
                     .ok_or_else(|| anyhow!("no wasm.from"))?;
                 let sender_addr = &senders[0];
                 let mut send_amount: &str = &amounts[0];
-                let receiving_contract_action: &str = match wasm_actions.len() > 1 {
-                    true => &(wasm_actions[1]),
-                    _ => "",
-                };
 
                 let receiving_contract_action: &str = if wasm_actions.len() > 1 {
                     &wasm_actions[1]

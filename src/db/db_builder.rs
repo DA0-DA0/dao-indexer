@@ -5,7 +5,7 @@ use sea_orm::sea_query::{
     ForeignKeyCreateStatement
 };
 use sea_orm::{ConnectionTrait, DatabaseConnection};
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 
 use super::db_mapper::DatabaseMapper;
 
@@ -19,16 +19,16 @@ pub fn db_column_name(input_name: &str) -> String {
 
 #[derive(Debug)]
 pub struct DatabaseBuilder {
-    tables: HashMap<String, TableCreateStatement>,
-    columns: HashMap<String, HashMap<String, ColumnDef>>,
+    tables: BTreeMap<String, TableCreateStatement>,
+    columns: BTreeMap<String, HashMap<String, ColumnDef>>,
     value_mapper: DatabaseMapper,
 }
 
 impl DatabaseBuilder {
     pub fn new() -> Self {
         DatabaseBuilder {
-            tables: HashMap::new(),
-            columns: HashMap::new(),
+            tables: BTreeMap::new(),
+            columns: BTreeMap::new(),
             value_mapper: DatabaseMapper::new(),
         }
     }
