@@ -4,11 +4,11 @@ use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
 use diesel::pg::PgConnection;
 use log::{debug, error};
+use sea_orm::DatabaseConnection;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
-use sea_orm::DatabaseConnection;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);
@@ -48,7 +48,7 @@ pub struct IndexerRegistry {
     pub db_builder: DatabaseBuilder,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
-    indexers: Vec<Box<dyn IndexerDyn>>,    
+    indexers: Vec<Box<dyn IndexerDyn>>,
 }
 
 impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {

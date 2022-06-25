@@ -143,7 +143,10 @@ pub trait IndexerDyn {
         msg_dictionary: &'a Value,
         msg_str: &'a str,
     ) -> anyhow::Result<()>;
-    fn initialize_schemas_dyn<'a>(&'a mut self, builder: &'a mut DatabaseBuilder) -> anyhow::Result<()>;
+    fn initialize_schemas_dyn<'a>(
+        &'a mut self,
+        builder: &'a mut DatabaseBuilder,
+    ) -> anyhow::Result<()>;
     fn extract_message_key_dyn(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey>;
     fn registry_keys_dyn(&self) -> RegistryKeysType;
     fn id(&self) -> String;
@@ -164,7 +167,10 @@ impl<I: Indexer> IndexerDyn for I {
         self.initialize(registry)
     }
 
-    fn initialize_schemas_dyn<'a>(&'a mut self, builder: &'a mut DatabaseBuilder) -> anyhow::Result<()> {
+    fn initialize_schemas_dyn<'a>(
+        &'a mut self,
+        builder: &'a mut DatabaseBuilder,
+    ) -> anyhow::Result<()> {
         self.initialize_schemas(builder)
     }
 

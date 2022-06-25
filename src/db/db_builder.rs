@@ -1,11 +1,10 @@
 use convert_case::{Case, Casing};
 use sea_orm::sea_query::{
-    Alias, ColumnDef, PostgresQueryBuilder, /* ForeignKey, ForeignKeyAction,*/ Table,
-    TableCreateStatement,
-    ForeignKeyCreateStatement
+    Alias, ColumnDef, ForeignKeyCreateStatement, PostgresQueryBuilder,
+    /* ForeignKey, ForeignKeyAction,*/ Table, TableCreateStatement,
 };
 use sea_orm::{ConnectionTrait, DatabaseConnection};
-use std::collections::{HashMap, BTreeMap};
+use std::collections::{BTreeMap, HashMap};
 
 use super::db_mapper::DatabaseMapper;
 
@@ -75,15 +74,16 @@ impl DatabaseBuilder {
 
         self.column(destination_table_name, "id").integer();
         let mut foreign_key_create = ForeignKeyCreateStatement::new();
-        foreign_key_create.name(&foreign_key)
-        .from_tbl(Alias::new(source_table_name))
-        .from_col(Alias::new(source_property_name))
-        .to_tbl(Alias::new(destination_table_name))
-        .to_col(Alias::new("id"));
-        self.table(destination_table_name).foreign_key(&mut foreign_key_create);
+        foreign_key_create
+            .name(&foreign_key)
+            .from_tbl(Alias::new(source_table_name))
+            .from_col(Alias::new(source_property_name))
+            .to_tbl(Alias::new(destination_table_name))
+            .to_col(Alias::new("id"));
+        self.table(destination_table_name)
+            .foreign_key(&mut foreign_key_create);
 
-        self.column(destination_table_name, &foreign_key)
-            .integer();
+        self.column(destination_table_name, &foreign_key).integer();
         Ok(())
     }
 

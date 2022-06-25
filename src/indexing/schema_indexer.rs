@@ -687,7 +687,7 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
     use sea_orm::DbBackend;
     let db_postgres = DbBackend::Postgres;
 
-    use sqlparser::ast::{Statement, ColumnDef};
+    use sqlparser::ast::{ColumnDef, Statement};
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
     use std::collections::HashSet;
@@ -710,7 +710,7 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
         }
     } else {
         panic!(r#"unable to compare sql"#);
-    }    
+    }
 }
 
 #[test]

@@ -39,7 +39,6 @@ pub struct FieldMapping {
     // will probably need a policy defining HOW to put a value in a field
 }
 
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DatabaseMapper {
     pub relationships: HashMap<String, DatabaseRelationship>,
@@ -76,13 +75,8 @@ impl DatabaseMapper {
         column_name: &str,
     ) -> anyhow::Result<()> {
         println!("add_mapping(add_relational_mapping: {}, field_name: {}, table_name: {}, column_name: {})", message_name, field_name, table_name, column_name);
-        let relation = DatabaseRelationship::new(
-            message_name,
-            field_name,
-            table_name,
-            column_name,
-            None,
-        );
+        let relation =
+            DatabaseRelationship::new(message_name, field_name, table_name, column_name, None);
         self.relationships
             .insert(message_name.to_string(), relation);
         Ok(())
