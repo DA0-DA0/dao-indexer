@@ -16,8 +16,8 @@ use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
 // use tendermint::abci::transaction::Data;
-use std::collections::BTreeSet;
 use anyhow::anyhow;
+use std::collections::BTreeSet;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
@@ -310,6 +310,7 @@ impl SchemaIndexer {
                 self.update_root_map(&mut data.required_roots, parent_name, name);
                 data.ref_roots.insert(name.to_string(), reference.clone());
                 // db_builder.column(parent_name, "id").integer();
+                return Ok(());
             }
         } else if let Some(subschema) = &schema.subschemas {
             self.process_subschema(subschema, name, parent_name, data, db_builder)?;
@@ -319,7 +320,10 @@ impl SchemaIndexer {
             println!("{} is a subschema", name);
             return self.process_subschema(subschema, name, parent_name, data, db_builder);
         } else if schema.instance_type.is_none() {
-            return Err(anyhow!("No instance or ref type for {}", name));
+            if schema.reference.is_none() {
+                return Err(anyhow!("No instance or ref type for {}", name));
+            }
+            return Ok(());
         }
         let instance_type = schema.instance_type.as_ref().unwrap();
         match instance_type {
@@ -344,8 +348,15 @@ impl SchemaIndexer {
                             }
                             if let Some(ref_property) = &property_object_schema.reference {
                                 let backpointer_table_name = &ref_property[14..]; // Clip off "#/definitions/"
-                                println!(r#"Adding relation from {}.{} back to {}"#, table_name, property_name, backpointer_table_name);
-                                db_builder.add_relation(table_name, property_name, backpointer_table_name)?;
+                                println!(
+                                    r#"Adding relation from {}.{} back to {}"#,
+                                    table_name, property_name, backpointer_table_name
+                                );
+                                db_builder.add_relation(
+                                    table_name,
+                                    property_name,
+                                    backpointer_table_name,
+                                )?;
                             }
                             if let Some(type_instance) = &property_object_schema.instance_type {
                                 match type_instance {
@@ -535,7 +546,7 @@ impl Indexer for SchemaIndexer {
         Ok(())
     }
     // TODO(gavindoughtie): We can validate `msg` against the Schema and return our key
-    // if it succeeds. 
+    // if it succeeds.
     // fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
     // }
 }
@@ -611,7 +622,11 @@ impl<'a> SchemaVisitor<'a> {
         Ok(())
     }
 
-    pub fn visit_schema_object(&mut self, schema: &SchemaObject, parent_name: &str) -> anyhow::Result<()> {
+    pub fn visit_schema_object(
+        &mut self,
+        schema: &SchemaObject,
+        parent_name: &str,
+    ) -> anyhow::Result<()> {
         self.indexer.process_schema_object(
             schema,
             parent_name,
@@ -634,13 +649,13 @@ struct SimpleMessage {
 enum SimpleSubMessage {
     TypeA {
         type_a_contract_address: String,
-        type_a_count: u32
+        type_a_count: u32,
     },
     TypeB {
         type_b_contract_address: String,
         type_b_count: u32,
-        type_b_addtional_field: String
-    }
+        type_b_addtional_field: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -648,9 +663,8 @@ enum SimpleSubMessage {
 struct SimpleRelatedMessage {
     title: String,
     message: SimpleMessage,
-    sub_message: SimpleSubMessage
+    sub_message: SimpleSubMessage,
 }
-
 
 #[allow(dead_code)]
 fn get_test_registry(name: &str, schema: RootSchema) -> IndexerRegistry {
@@ -671,13 +685,28 @@ fn get_test_registry(name: &str, schema: RootSchema) -> IndexerRegistry {
 #[test]
 fn test_simple_message() {
     use schemars::schema_for;
+    use sea_orm::{DbBackend, Statement};
+
     let name = stringify!(SimpleMessage);
     let schema = schema_for!(SimpleMessage);
     let mut registry = get_test_registry(name, schema);
     assert!(registry.initialize().is_ok(), "failed to init indexer");
+    let built_table = registry.db_builder.table(name);
+
+    let db_postgres = DbBackend::Postgres;
+
     assert_eq!(
-        r#"CREATE TABLE IF NOT EXISTS "simple_message" ( "simple_field_one" text, "simple_field_two" integer )"#,
-        registry.db_builder.sql_string()
+        db_postgres.build(built_table),
+        Statement::from_string(
+            db_postgres,
+            vec![
+                r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
+                r#""simple_field_one" text,"#,
+                r#""simple_field_two" integer"#,
+                r#")"#,
+            ]
+            .join(" ")
+        )
     );
 }
 
@@ -707,6 +736,10 @@ fn test_visit() {
     let mut indexer = SchemaIndexer::new(label.to_string(), vec![]);
     let mut builder = DatabaseBuilder::new();
     let mut visitor = SchemaVisitor::new(&mut indexer, &mut builder);
-    assert!(visitor.visit_root_schema(&schema3).is_ok());
-    println!("indexer after visit: {:#?}", visitor.data);
+    let result = visitor.visit_root_schema(&schema3);
+    // println!("indexer after visit: {:#?}", visitor.data);
+    if result.is_err() {
+        eprintln!("failed {:#?}", result);
+    }
+    assert!(result.is_ok());
 }
