@@ -58,6 +58,8 @@ impl DatabaseBuilder {
         self
     }
 
+    /// Adds a database relationship between a field on one table and a different
+    /// table. Defaults to using "fieldname_id" on one table and "id" on the other.
     pub fn add_relation(
         &mut self,
         source_table_name: &str,
@@ -86,6 +88,8 @@ impl DatabaseBuilder {
         Ok(())
     }
 
+    /// After all the schemas have added themselves to the various definitions,
+    /// build the final table definitions and clear the processed column definitions.
     pub fn finalize_columns(&mut self) -> &mut Self {
         for (table_name, column_defs) in self.columns.iter_mut() {
             let mut statement = self
@@ -105,7 +109,13 @@ impl DatabaseBuilder {
         self
     }
 
+    /// Use the final table definitions to physically build the database.
     pub async fn create_tables(&self, seaql_db: &DatabaseConnection) -> anyhow::Result<()> {
+        if !self.columns.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Builder not finalized. Please call `finalize_columns` before `create_tables`"
+            ));
+        }
         let builder = seaql_db.get_database_backend();
         for (_table_name, table_def) in self.tables.iter() {
             let statement = builder.build(table_def);
@@ -114,13 +124,19 @@ impl DatabaseBuilder {
         Ok(())
     }
 
-    pub fn sql_string(&self) -> String {
+    /// Human-readable SQL string for all definitions in this builder.
+    pub fn sql_string(&self) -> anyhow::Result<String> {
+        if !self.columns.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Builder not finalized. Please call `finalize_columns` before `sql_string`"
+            ));
+        }
         let mut statements = vec![];
         for (_table_name, table_def) in self.tables.iter() {
             let sql = table_def.to_string(PostgresQueryBuilder);
             statements.push(sql);
         }
-        statements.join(";\n")
+        Ok(statements.join(";\n"))
     }
 }
 
