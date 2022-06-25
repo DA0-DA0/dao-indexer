@@ -5,6 +5,8 @@ use sea_orm::sea_query::{
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::HashMap;
 
+use super::db_mapper::DatabaseMapper;
+
 pub fn db_table_name(input_name: &str) -> String {
     input_name.to_case(Case::Snake)
 }
@@ -17,6 +19,7 @@ pub fn db_column_name(input_name: &str) -> String {
 pub struct DatabaseBuilder {
     tables: HashMap<String, TableCreateStatement>,
     columns: HashMap<String, HashMap<String, ColumnDef>>,
+    value_mapper: DatabaseMapper
 }
 
 impl DatabaseBuilder {
@@ -24,6 +27,7 @@ impl DatabaseBuilder {
         DatabaseBuilder {
             tables: HashMap::new(),
             columns: HashMap::new(),
+            value_mapper: DatabaseMapper::new()
         }
     }
     pub fn table(&mut self, table_name: &str) -> &mut TableCreateStatement {
@@ -51,6 +55,14 @@ impl DatabaseBuilder {
         let mut def = self.column(table_name, column_name).to_owned();
         self.table(table_name).col(&mut def).if_not_exists();
         self
+    }
+
+    pub fn add_relation(&mut self, source_table_name: &str, source_property_name: &str, destination_table_name: &str) -> anyhow::Result<()> {
+        self.value_mapper.add_relational_mapping(
+            source_table_name,
+            source_property_name,
+            destination_table_name,
+            source_property_name)
     }
 
     pub fn finalize_columns(&mut self) -> &mut Self {

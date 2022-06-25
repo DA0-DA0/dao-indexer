@@ -17,6 +17,7 @@ use schemars::schema::{
 };
 // use tendermint::abci::transaction::Data;
 use std::collections::BTreeSet;
+use anyhow::anyhow;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
@@ -207,7 +208,7 @@ impl SchemaIndexer {
         parent_name: &str,
         data: &mut SchemaData,
         db_builder: &mut DatabaseBuilder,
-    ) {
+    ) -> anyhow::Result<()> {
         if let Some(all_of) = &subschema.all_of {
             for schema in all_of {
                 match schema {
@@ -221,7 +222,7 @@ impl SchemaIndexer {
                             name,
                             data,
                             db_builder,
-                        );
+                        )?;
                         // TODO(gavindoughtie): self.mapper.add_all_required(parent_name, name)
                     }
                     Schema::Bool(bool_val) => {
@@ -242,7 +243,7 @@ impl SchemaIndexer {
                             name,
                             data,
                             db_builder,
-                        );
+                        )?;
                         // TODO(gavindoughtie): self.mapper.add_one_required(parent_name, name)
                     }
                     Schema::Bool(bool_val) => {
@@ -263,7 +264,7 @@ impl SchemaIndexer {
                             name,
                             data,
                             db_builder,
-                        );
+                        )?;
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -273,6 +274,7 @@ impl SchemaIndexer {
         } else {
             println!("not handling subschema for {}", name);
         }
+        Ok(())
     }
 
     // fn add_column_def(&self, table_name: &str, data: &mut SchemaData, column_def: String) {
@@ -302,7 +304,7 @@ impl SchemaIndexer {
         name: &str,
         data: &mut SchemaData,
         db_builder: &mut DatabaseBuilder,
-    ) {
+    ) -> anyhow::Result<()> {
         if let Some(reference) = &schema.reference {
             if !name.is_empty() {
                 self.update_root_map(&mut data.required_roots, parent_name, name);
@@ -310,17 +312,16 @@ impl SchemaIndexer {
                 // db_builder.column(parent_name, "id").integer();
             }
         } else if let Some(subschema) = &schema.subschemas {
-            self.process_subschema(subschema, name, parent_name, data, db_builder);
+            self.process_subschema(subschema, name, parent_name, data, db_builder)?;
         }
         if schema.instance_type.is_none() {
-            eprintln!("No instance or ref type for {}", name);
-            return;
+            return Err(anyhow!("No instance or ref type for {}", name));
         }
         let instance_type = schema.instance_type.as_ref().unwrap();
         let table_name = name;
         if let Some(subschema) = &schema.subschemas {
             println!("{} is a subschema", name);
-            self.process_subschema(subschema, name, parent_name, data, db_builder);
+            self.process_subschema(subschema, name, parent_name, data, db_builder)?;
         }
         match instance_type {
             SingleOrVec::Vec(vtype) => {
@@ -340,12 +341,13 @@ impl SchemaIndexer {
                                     name,
                                     data,
                                     db_builder,
-                                );
+                                )?;
                             }
                             if let Some(ref_property) = &property_object_schema.reference {
                                 db_builder.column(table_name, &format!("{}_id", property_name)).integer();
                                 let backpointer_table_name = &ref_property[14..]; // Clip off "#/definitions/"
-                                println!("TODO: add index from {}.{} back to {}", table_name, property_name, backpointer_table_name);
+                                println!(r#"TODO: add index from {}.{} back to {}"#, table_name, property_name, backpointer_table_name);
+                                db_builder.add_relation(table_name, property_name, backpointer_table_name)?;
                             }
                             if let Some(type_instance) = &property_object_schema.instance_type {
                                 match type_instance {
@@ -357,7 +359,7 @@ impl SchemaIndexer {
                                                 property_name,
                                                 data,
                                                 db_builder,
-                                            );
+                                            )?;
                                             println!(
                                                 "{}.{} is the ID of a {}",
                                                 name, property_name, property_name
@@ -503,6 +505,7 @@ impl SchemaIndexer {
                 }
             },
         }
+        Ok(())
     }
 }
 
@@ -529,10 +532,14 @@ impl Indexer for SchemaIndexer {
         let schemas = self.schemas.clone();
         let mut visitor = SchemaVisitor::new(self, builder);
         for schema in schemas.iter() {
-            visitor.visit_root_schema(&schema.schema);
+            visitor.visit_root_schema(&schema.schema)?;
         }
         Ok(())
     }
+    // TODO(gavindoughtie): We can validate `msg` against the Schema and return our key
+    // if it succeeds. 
+    // fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+    // }
 }
 
 #[test]
@@ -578,7 +585,7 @@ impl<'a> SchemaVisitor<'a> {
     /// Override this method to modify a [`RootSchema`] and (optionally) its subschemas.
     ///
     /// When overriding this method, you will usually want to call the [`visit_root_schema`] function to visit subschemas.
-    pub fn visit_root_schema(&mut self, root: &RootSchema) {
+    pub fn visit_root_schema(&mut self, root: &RootSchema) -> anyhow::Result<()> {
         let parent_name = self.indexer.id();
         for (root_def_name, schema) in root.definitions.iter() {
             if let Schema::Object(schema_object) = schema {
@@ -588,31 +595,32 @@ impl<'a> SchemaVisitor<'a> {
                     root_def_name,
                     &mut self.data,
                     self.db_builder,
-                )
+                )?;
             } else {
                 println!("Bool schema for {:#?}", schema);
             }
         }
-        self.visit_schema_object(&root.schema, &parent_name);
+        self.visit_schema_object(&root.schema, &parent_name)
     }
 
     /// Override this method to modify a [`Schema`] and (optionally) its subschemas.
     ///
     /// When overriding this method, you will usually want to call the [`visit_schema`] function to visit subschemas.
-    pub fn visit_schema(&mut self, schema: &Schema, parent_name: &str) {
+    pub fn visit_schema(&mut self, schema: &Schema, parent_name: &str) -> anyhow::Result<()> {
         if let Schema::Object(schema_val) = schema {
-            self.visit_schema_object(schema_val, parent_name);
+            return self.visit_schema_object(schema_val, parent_name);
         }
+        Ok(())
     }
 
-    pub fn visit_schema_object(&mut self, schema: &SchemaObject, parent_name: &str) {
+    pub fn visit_schema_object(&mut self, schema: &SchemaObject, parent_name: &str) -> anyhow::Result<()> {
         self.indexer.process_schema_object(
             schema,
             parent_name,
             parent_name,
             &mut self.data,
             self.db_builder,
-        );
+        )
     }
 }
 
@@ -625,11 +633,26 @@ struct SimpleMessage {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+enum SimpleSubMessage {
+    TypeA {
+        type_a_contract_address: String,
+        type_a_count: u32
+    },
+    TypeB {
+        type_b_contract_address: String,
+        type_b_count: u32,
+        type_b_addtional_field: String
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 struct SimpleRelatedMessage {
     title: String,
     message: SimpleMessage,
+    sub_message: SimpleSubMessage
 }
+
 
 #[allow(dead_code)]
 fn get_test_registry(name: &str, schema: RootSchema) -> IndexerRegistry {
@@ -686,6 +709,6 @@ fn test_visit() {
     let mut indexer = SchemaIndexer::new(label.to_string(), vec![]);
     let mut builder = DatabaseBuilder::new();
     let mut visitor = SchemaVisitor::new(&mut indexer, &mut builder);
-    visitor.visit_root_schema(&schema3);
+    assert!(visitor.visit_root_schema(&schema3).is_ok());
     println!("indexer after visit: {:#?}", visitor.data);
 }
