@@ -314,15 +314,14 @@ impl SchemaIndexer {
         } else if let Some(subschema) = &schema.subschemas {
             self.process_subschema(subschema, name, parent_name, data, db_builder)?;
         }
-        if schema.instance_type.is_none() {
-            return Err(anyhow!("No instance or ref type for {}", name));
-        }
-        let instance_type = schema.instance_type.as_ref().unwrap();
         let table_name = name;
         if let Some(subschema) = &schema.subschemas {
             println!("{} is a subschema", name);
-            self.process_subschema(subschema, name, parent_name, data, db_builder)?;
+            return self.process_subschema(subschema, name, parent_name, data, db_builder);
+        } else if schema.instance_type.is_none() {
+            return Err(anyhow!("No instance or ref type for {}", name));
         }
+        let instance_type = schema.instance_type.as_ref().unwrap();
         match instance_type {
             SingleOrVec::Vec(vtype) => {
                 println!("Vec instance for table {}, {:#?}", table_name, vtype);
@@ -344,9 +343,8 @@ impl SchemaIndexer {
                                 )?;
                             }
                             if let Some(ref_property) = &property_object_schema.reference {
-                                db_builder.column(table_name, &format!("{}_id", property_name)).integer();
                                 let backpointer_table_name = &ref_property[14..]; // Clip off "#/definitions/"
-                                println!(r#"TODO: add index from {}.{} back to {}"#, table_name, property_name, backpointer_table_name);
+                                println!(r#"Adding relation from {}.{} back to {}"#, table_name, property_name, backpointer_table_name);
                                 db_builder.add_relation(table_name, property_name, backpointer_table_name)?;
                             }
                             if let Some(type_instance) = &property_object_schema.instance_type {

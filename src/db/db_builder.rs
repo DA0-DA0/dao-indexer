@@ -1,6 +1,8 @@
 use convert_case::{Case, Casing};
 use sea_orm::sea_query::{
-    Alias, ColumnDef, /* ForeignKey, ForeignKeyAction,*/ Table, TableCreateStatement, PostgresQueryBuilder,
+    Alias, ColumnDef, PostgresQueryBuilder, /* ForeignKey, ForeignKeyAction,*/ Table,
+    TableCreateStatement,
+    ForeignKeyCreateStatement
 };
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::HashMap;
@@ -19,7 +21,7 @@ pub fn db_column_name(input_name: &str) -> String {
 pub struct DatabaseBuilder {
     tables: HashMap<String, TableCreateStatement>,
     columns: HashMap<String, HashMap<String, ColumnDef>>,
-    value_mapper: DatabaseMapper
+    value_mapper: DatabaseMapper,
 }
 
 impl DatabaseBuilder {
@@ -27,7 +29,7 @@ impl DatabaseBuilder {
         DatabaseBuilder {
             tables: HashMap::new(),
             columns: HashMap::new(),
-            value_mapper: DatabaseMapper::new()
+            value_mapper: DatabaseMapper::new(),
         }
     }
     pub fn table(&mut self, table_name: &str) -> &mut TableCreateStatement {
@@ -57,12 +59,32 @@ impl DatabaseBuilder {
         self
     }
 
-    pub fn add_relation(&mut self, source_table_name: &str, source_property_name: &str, destination_table_name: &str) -> anyhow::Result<()> {
+    pub fn add_relation(
+        &mut self,
+        source_table_name: &str,
+        source_property_name: &str,
+        destination_table_name: &str,
+    ) -> anyhow::Result<()> {
         self.value_mapper.add_relational_mapping(
             source_table_name,
             source_property_name,
             destination_table_name,
-            source_property_name)
+            source_property_name,
+        )?;
+        let foreign_key = format!("{}_id", source_property_name);
+
+        self.column(destination_table_name, "id").integer();
+        let mut foreign_key_create = ForeignKeyCreateStatement::new();
+        foreign_key_create.name(&foreign_key)
+        .from_tbl(Alias::new(source_table_name))
+        .from_col(Alias::new(source_property_name))
+        .to_tbl(Alias::new(destination_table_name))
+        .to_col(Alias::new("id"));
+        self.table(destination_table_name).foreign_key(&mut foreign_key_create);
+
+        self.column(destination_table_name, &foreign_key)
+            .integer();
+        Ok(())
     }
 
     pub fn finalize_columns(&mut self) -> &mut Self {
@@ -101,7 +123,6 @@ impl DatabaseBuilder {
         }
         statements.join(";\n")
     }
-
 }
 
 impl Default for DatabaseBuilder {
