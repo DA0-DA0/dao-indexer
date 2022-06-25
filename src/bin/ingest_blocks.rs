@@ -14,7 +14,6 @@ use dao_indexer::indexing::msg_set::default_msg_set;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-
     let app = Command::new("Indexer Dao")
         .version("0.0.1")
         .author("Indexer Dao https://daodao.zone/multisig/juno1qertq0ve2mwnpytas6ckwv4d7ny4pqfanjkxanm84dd6g00tl4ssyjk09q")
@@ -27,16 +26,10 @@ async fn main() -> anyhow::Result<()> {
 
     env_logger::init_from_env(env);
 
-
     let db: PgConnection = establish_connection(&config.database_url);
 
     let indexer_registry = IndexerRegistry::new(Some(db));
     let msg_set = default_msg_set();
-
-
-    // println!("testing that this stuff works");
-
-    // Ingestion Engine
 
     block_synchronizer(&indexer_registry, &config, msg_set.clone()).await?;
     Ok(())
