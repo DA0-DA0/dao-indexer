@@ -283,10 +283,22 @@ fn test_mapper_to_persistence() -> anyhow::Result<()> {
     let records_for_message = persister.tables.get(&message_name).unwrap();
     let persisted_record_one = records_for_message.get(&record_one_id.unwrap()).unwrap();
     let persisted_record_two = records_for_message.get(&record_two_id.unwrap()).unwrap();
-    assert_eq!(record_one.get(first_name_field_name.clone()).unwrap(), persisted_record_one.get(&first_name_field_name).unwrap());
-    assert_eq!(record_one.get(last_name_field_name.clone()).unwrap(), persisted_record_one.get(&last_name_field_name).unwrap());
-    assert_eq!(record_one.get(birth_year_field_name.clone()).unwrap(), persisted_record_one.get(&birth_year_field_name).unwrap());
-    assert_eq!(record_two.get(first_name_field_name.clone()).unwrap(), persisted_record_two.get(&first_name_field_name).unwrap());
+    assert_eq!(
+        record_one.get(first_name_field_name.clone()).unwrap(),
+        persisted_record_one.get(&first_name_field_name).unwrap()
+    );
+    assert_eq!(
+        record_one.get(last_name_field_name.clone()).unwrap(),
+        persisted_record_one.get(&last_name_field_name).unwrap()
+    );
+    assert_eq!(
+        record_one.get(birth_year_field_name.clone()).unwrap(),
+        persisted_record_one.get(&birth_year_field_name).unwrap()
+    );
+    assert_eq!(
+        record_two.get(first_name_field_name.clone()).unwrap(),
+        persisted_record_two.get(&first_name_field_name).unwrap()
+    );
     println!("persisted:\n{:#?}", persister);
 
     Ok(())

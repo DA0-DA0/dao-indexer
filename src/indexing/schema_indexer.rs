@@ -85,27 +85,12 @@ fn insert_table_set_value(
 
 impl SchemaIndexer {
     pub fn new(id: String, schemas: Vec<SchemaRef>) -> Self {
-        let mut indexer = SchemaIndexer {
+        SchemaIndexer {
             id: id.clone(),
             schemas,
             registry_keys: vec![RegistryKey::new(id)],
             root_keys: vec![],
-        };
-        indexer.init_from_schemas().unwrap();
-        indexer
-    }
-
-    fn init_from_schemas(&mut self) -> anyhow::Result<()> {
-        // let mut data_objects = vec![];
-        // for schema in self.schemas.iter() {
-        //     let mut data = SchemaData::default();
-        //     self.process_schema_object(&schema.schema.schema, &schema.name, &mut data);
-        //     data_objects.push(data);
-        // }
-        // debug!("schemas initialized:\n{:#?}", data_objects);
-        // self.root_keys = data_objects[0].root_keys.clone();
-        self.root_keys = vec![];
-        Ok(())
+        }
     }
 
     pub fn get_column_def_unused(
@@ -277,17 +262,6 @@ impl SchemaIndexer {
         Ok(())
     }
 
-    // fn add_column_def(&self, table_name: &str, data: &mut SchemaData, column_def: String) {
-    //     let mut column_defs = data.sql_tables.get_mut(table_name);
-    //     if column_defs.is_none() {
-    //         data.sql_tables.insert(table_name.to_string(), vec![]);
-    //         column_defs = data.sql_tables.get_mut(table_name);
-    //     }
-    //     if let Some(column_defs) = column_defs {
-    //         column_defs.push(column_def);
-    //     }
-    // }
-
     fn update_root_map(&self, root_map: &mut RootMap, key: &str, value: &str) {
         if !root_map.contains_key(key) {
             root_map.insert(key.to_string(), BTreeSet::new());
@@ -309,7 +283,6 @@ impl SchemaIndexer {
             if !name.is_empty() {
                 self.update_root_map(&mut data.required_roots, parent_name, name);
                 data.ref_roots.insert(name.to_string(), reference.clone());
-                // db_builder.column(parent_name, "id").integer();
                 return Ok(());
             }
         } else if let Some(subschema) = &schema.subschemas {
