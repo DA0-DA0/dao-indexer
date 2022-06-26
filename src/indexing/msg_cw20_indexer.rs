@@ -8,28 +8,17 @@ use log::debug;
 use serde_json::Value;
 
 const INDEXER_KEY: &str = "Cw20ExecuteMsg";
-static ROOT_KEYS: [&str; 11] = [
-    "send",
-    "burn",
-    "transfer",
-    "increase_allowance",
-    "decrease_allowance",
-    "transfer_from",
-    "send_from",
-    "burn_from",
-    "mint",
-    "update_marketing",
-    "upload_logo",
-];
 
 pub struct Cw20ExecuteMsgIndexer {
     registry_keys: Vec<RegistryKey>,
+    root_keys: Vec<String>,
 }
 
 impl Default for Cw20ExecuteMsgIndexer {
     fn default() -> Self {
         Cw20ExecuteMsgIndexer {
             registry_keys: vec![RegistryKey::new(INDEXER_KEY.to_string())],
+            root_keys: vec![],
         }
     }
 }
@@ -43,7 +32,7 @@ impl Indexer for Cw20ExecuteMsgIndexer {
         registry_keys_from_iter(self.registry_keys.iter())
     }
     fn root_keys(&self) -> RootKeysType {
-        root_keys_from_iter(ROOT_KEYS.into_iter())
+        root_keys_from_iter(self.root_keys.iter())
     }
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
