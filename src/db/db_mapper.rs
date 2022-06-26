@@ -41,24 +41,37 @@ pub struct FieldMapping {
 }
 
 impl FieldMapping {
-    pub fn new(message_name: &str, field_name: &str, table_name: &str, column_name: &str) -> Self {
+    pub fn new(
+        message_name: String,
+        field_name: String,
+        table_name: String,
+        column_name: String,
+    ) -> Self {
         FieldMapping {
-            message_name: message_name.to_string(),
-            field_name: field_name.to_string(),
-            table_name: table_name.to_string(),
-            column_name: column_name.to_string(),
+            message_name,
+            field_name,
+            table_name,
+            column_name,
         }
     }
 }
 
-trait Persister<T> {
-    fn save(&mut self, table_name: &str, column_name: &str, value: &Value, id: Option<T>) -> anyhow::Result<T>;
+pub trait Persister<T> {
+    fn save(
+        &mut self,
+        table_name: &str,
+        column_name: &str,
+        value: &Value,
+        id: &Option<T>,
+    ) -> anyhow::Result<T>;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DatabaseMapper {
     pub relationships: HashMap<String, DatabaseRelationship>,
-    pub mappings: HashMap<String, FieldMapping>,
+
+    // Map from a message name to a dictionary of mappings
+    pub mappings: HashMap<String, HashMap<String, FieldMapping>>,
 }
 
 impl DatabaseMapper {
@@ -72,17 +85,21 @@ impl DatabaseMapper {
     // Add an inbound mapping FROM the message TO the database.
     pub fn add_mapping(
         &mut self,
-        message_name: &str,
-        field_name: &str,
-        table_name: &str,
-        column_name: &str,
+        message_name: String,
+        field_name: String,
+        table_name: String,
+        column_name: String,
     ) -> anyhow::Result<()> {
         debug!(
             "add_mapping(message_name: {}, field_name: {}, table_name: {}, column_name: {})",
             message_name, field_name, table_name, column_name
         );
-        let mapping = FieldMapping::new(message_name, field_name, table_name, column_name);
-        self.mappings.insert(message_name.to_string(), mapping);
+        let message_mappings = self
+            .mappings
+            .entry(message_name.clone())
+            .or_insert_with(HashMap::new);
+        let mapping = FieldMapping::new(message_name, field_name, table_name, column_name.clone());
+        message_mappings.insert(column_name, mapping);
         Ok(())
     }
 
@@ -101,19 +118,33 @@ impl DatabaseMapper {
         Ok(())
     }
 
-    fn keys(&self) -> Vec<String> {
-        vec![]
-    }
-
-    pub fn persist_message(&mut self, table_name: &str, msg: &Value) -> anyhow::Result<()> {
+    pub fn persist_message<T>(
+        &mut self,
+        persister: &mut dyn Persister<T>,
+        table_name: &str,
+        msg: &Value,
+    ) -> anyhow::Result<Option<T>> {
         println!("persist_msg {}, {:#?}", table_name, msg);
 
-        for key in self.keys() {
-            if let Some(Value::String(val)) = msg.get(&key) {
-                println!("Saving {}:{}={}", table_name, key, val);
+        let mut record_id: Option<T> = None;
+
+        let mapping = self.mappings.get(table_name);
+        if mapping.is_none() {
+            return Err(anyhow::anyhow!("no mapping for {}", table_name));
+        }
+        let mapping = mapping.unwrap();
+
+        for field_name in mapping.keys() {
+            if let Some(val) = msg.get(field_name) {
+                println!("Saving {}:{}={}", table_name, field_name, val);
+                if let Ok(updated_id) = persister.save(table_name, field_name, val, &record_id) {
+                    if record_id.is_none() {
+                        record_id = Some(updated_id);
+                    }
+                }
             }
         }
-        Ok(())
+        Ok(record_id)
     }
 }
 
@@ -124,11 +155,13 @@ impl Default for DatabaseMapper {
 }
 
 type Record = BTreeMap<String, Value>;
+#[derive(Debug)]
 struct TestPersister {
     pub tables: BTreeMap<String, HashMap<usize, Record>>,
 }
 
 impl TestPersister {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         TestPersister {
             tables: BTreeMap::new(),
@@ -137,18 +170,23 @@ impl TestPersister {
 }
 
 impl Persister<usize> for TestPersister {
-    fn save(&mut self, table_name: &str, column_name: &str, value: &Value, id: Option<usize>) -> anyhow::Result<usize> {
-        let records: &mut HashMap<usize, Record> = self.tables
+    fn save(
+        &mut self,
+        table_name: &str,
+        column_name: &str,
+        value: &Value,
+        id: &Option<usize>,
+    ) -> anyhow::Result<usize> {
+        let records: &mut HashMap<usize, Record> = self
+            .tables
             .entry(table_name.to_string())
-            .or_insert_with(|| {
-                HashMap::new()
-            });            
+            .or_insert_with(HashMap::new);
         let id = match id {
-            Some(id) => id,
-            _ => records.len()
+            Some(id) => *id,
+            _ => records.len(),
         };
 
-        let record = records.entry(id).or_insert_with(|| BTreeMap::new());
+        let record = records.entry(id).or_insert_with(BTreeMap::new);
         record.insert(column_name.to_string(), value.clone());
 
         Ok(id)
@@ -156,7 +194,100 @@ impl Persister<usize> for TestPersister {
 }
 
 #[test]
-fn test_map_to_records() {
-  let persister = TestPersister::new();
-  persister.save("Table", "Column", Value::String::new("Test value"), None);
+fn test_persister_trait() -> anyhow::Result<()> {
+    let mut persister = TestPersister::new();
+    let id = persister
+        .save(
+            "contacts",
+            "first_name",
+            &Value::String("Gavin".to_string()),
+            &None,
+        )
+        .unwrap();
+    persister.save(
+        "contacts",
+        "last_name",
+        &Value::String("Doughtie".to_string()),
+        &Some(id),
+    )?;
+    let year = serde_json::json!(1962u64);
+    persister.save("contacts", "birth_year", &year, &Some(id))?;
+
+    let id = persister
+        .save(
+            "contacts",
+            "first_name",
+            &Value::String("Kristina".to_string()),
+            &None,
+        )
+        .unwrap();
+    persister.save(
+        "contacts",
+        "last_name",
+        &Value::String("Helwing".to_string()),
+        &Some(id),
+    )?;
+    let year = serde_json::json!(1978);
+    persister.save("contacts", "birth_year", &year, &Some(id))?;
+
+    println!("Persisted:\n{:#?}", persister);
+    Ok(())
+}
+
+#[test]
+fn test_mapper_to_persistence() -> anyhow::Result<()> {
+    let mut mapper = DatabaseMapper::new();
+    let message_name = "Contact".to_string();
+    let first_name_field_name = "first_name".to_string();
+    let last_name_field_name = "last_name".to_string();
+    let birth_year_field_name = "birth_year".to_string();
+    mapper.add_mapping(
+        message_name.clone(),
+        first_name_field_name.clone(),
+        message_name.clone(),
+        first_name_field_name.clone(),
+    )?;
+    mapper.add_mapping(
+        message_name.clone(),
+        last_name_field_name.clone(),
+        message_name.clone(),
+        last_name_field_name.clone(),
+    )?;
+    mapper.add_mapping(
+        message_name.clone(),
+        birth_year_field_name.clone(),
+        message_name.clone(),
+        birth_year_field_name.clone(),
+    )?;
+
+    let record_one = serde_json::json!({
+      "first_name": "Gavin",
+      "last_name": "Doughtie",
+      "birth_year": 1962u64
+    });
+
+    let record_two = serde_json::json!({
+      "first_name": "Kristina",
+      "last_name": "Helwing",
+      "birth_year": 1978u64
+    });
+
+    let mut persister = TestPersister::new();
+    let record_one_id = mapper
+        .persist_message(&mut persister, &message_name, &record_one)
+        .unwrap();
+    let record_two_id = mapper
+        .persist_message(&mut persister, &message_name, &record_two)
+        .unwrap();
+
+    let records_for_message = persister.tables.get(&message_name).unwrap();
+    let persisted_record_one = records_for_message.get(&record_one_id.unwrap()).unwrap();
+    let persisted_record_two = records_for_message.get(&record_two_id.unwrap()).unwrap();
+    assert_eq!(record_one.get(first_name_field_name.clone()).unwrap(), persisted_record_one.get(&first_name_field_name).unwrap());
+    assert_eq!(record_one.get(last_name_field_name.clone()).unwrap(), persisted_record_one.get(&last_name_field_name).unwrap());
+    assert_eq!(record_one.get(birth_year_field_name.clone()).unwrap(), persisted_record_one.get(&birth_year_field_name).unwrap());
+    assert_eq!(record_two.get(first_name_field_name.clone()).unwrap(), persisted_record_two.get(&first_name_field_name).unwrap());
+    println!("persisted:\n{:#?}", persister);
+
+    Ok(())
 }
