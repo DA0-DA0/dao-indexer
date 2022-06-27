@@ -5,7 +5,6 @@ use crate::indexing::msg_set::MsgSet;
 use crate::indexing::tx::{process_parsed, process_parsed_v1beta};
 use crate::util::query_stream::{QueryStream, TxSearchRequest};
 use crate::util::transaction_util::insert_transaction;
-use async_std::stream::StreamExt;
 use cosmos_sdk_proto::cosmos::tx::v1beta1::Tx as TxV1;
 use cosmrs::tx::Tx;
 use futures::future::join_all;
@@ -15,12 +14,13 @@ use math::round;
 use prost::Message;
 use std::cmp::min;
 use std::collections::BTreeMap;
-use std::sync::Mutex;
 use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
 use tendermint_rpc::HttpClient as TendermintClient;
+use tokio::sync::Mutex;
+use tokio_stream::StreamExt;
 
 // This is a tech debut function that maps events into a structure
 // that's a little easier to index.
@@ -100,7 +100,7 @@ async fn index_search_results(
     Ok(())
 }
 
-fn requeue(
+async fn requeue(
     config: &IndexerConfig,
     queries_mutex: &Mutex<QueryStream>,
     tx_request: Box<TxSearchRequest>,
@@ -109,14 +109,8 @@ fn requeue(
         std::thread::sleep(std::time::Duration::from_millis(config.requeue_sleep));
     }
     debug!("Requeing tx_request {:?}", &tx_request);
-    match queries_mutex.lock() {
-        Ok(mut queries) => {
-            queries.enqueue(tx_request);
-        }
-        Err(e) => {
-            error!("Error unlocking queries mutex: {:?}", e);
-        }
-    }
+    let mut queries = queries_mutex.lock().await;
+    queries.enqueue(tx_request);
     Ok(())
 }
 
@@ -140,7 +134,7 @@ async fn handle_transaction_response(
             if total_count == 0 && tx_request.page == 1 {
                 // There was no error, and no results. Look again.
                 if tx_request.reque_count < config.max_empty_block_retries as i64 {
-                    return requeue(config, queries_mutex, tx_request);
+                    return requeue(config, queries_mutex, tx_request).await;
                 } else {
                     warn!(
                         "Received empty results for request {:#?}/{:#?} after {} retries",
@@ -172,24 +166,16 @@ async fn handle_transaction_response(
                 );
             }
             if total_pages > 1 && tx_request.page == 1 {
-                match queries_mutex.lock() {
-                    Ok(mut queries) => {
-                        for page in 2..=total_pages {
-                            // Inclusive range
-                            let tx_search = TxSearchRequest::from_query_and_page(
-                                tx_request.query.clone(),
-                                page,
-                            );
-                            debug!(
-                                "enqueing query for page {}, blocks {}-{}",
-                                page, current_height, last_block
-                            );
-                            queries.enqueue(Box::new(tx_search));
-                        }
-                    }
-                    Err(e) => {
-                        error!("Error unlocking queries mutex: {:?}", e);
-                    }
+                let mut queries = queries_mutex.lock().await;
+                for page in 2..=total_pages {
+                    // Inclusive range
+                    let tx_search =
+                        TxSearchRequest::from_query_and_page(tx_request.query.clone(), page);
+                    debug!(
+                        "enqueing query for page {}, blocks {}-{}",
+                        page, current_height, last_block
+                    );
+                    queries.enqueue(Box::new(tx_search));
                 }
             }
             index_search_results(search_results, registry, config, msg_set.clone()).await?;
@@ -199,7 +185,7 @@ async fn handle_transaction_response(
                 "Error: {:?}\npage: {}, current_height:{}",
                 e, tx_request.page, current_height
             );
-            return requeue(config, queries_mutex, tx_request);
+            return requeue(config, queries_mutex, tx_request).await;
         }
     }
     Ok(())
@@ -232,7 +218,8 @@ pub async fn load_block_transactions(
         let mut query = None;
         let mut page = 0;
         let mut tx_request = None;
-        if let Ok(mut queries_stream) = queries_mutex.lock() {
+        {
+            let mut queries_stream = queries_mutex.lock().await;
             if let Some(next_tx_request) = queries_stream.next().await {
                 query = Some(next_tx_request.query.clone());
                 page = next_tx_request.page;

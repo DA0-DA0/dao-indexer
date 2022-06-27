@@ -19,6 +19,7 @@ pub struct IndexerConfig {
     pub listen: bool,
     pub requeue_sleep: u64,
     pub write_transactions_in_database: bool,
+    pub schema_indexer: bool,
 }
 
 impl IndexerConfig {
@@ -133,6 +134,11 @@ impl IndexerConfig {
             .parse::<bool>()
             .unwrap_or(true);
 
+        let schema_indexer = env::var("USE_SCHEMA_INDEXER")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse::<bool>()
+            .unwrap_or(false);
+
         IndexerConfig {
             enable_indexer_env,
             tendermint_websocket_url,
@@ -149,6 +155,7 @@ impl IndexerConfig {
             max_empty_block_retries,
             requeue_sleep,
             write_transactions_in_database,
+            schema_indexer,
         }
     }
 }
@@ -173,6 +180,7 @@ impl fmt::Display for IndexerConfig {
         max_empty_block_retries: {}\n\
         requeue_sleep: {}\n\
         write_transactions_in_db: {}\n\
+        schema_indexer: {}\n\
        ",
             self.tendermint_rpc_url,
             self.tendermint_websocket_url,
@@ -188,7 +196,8 @@ impl fmt::Display for IndexerConfig {
             self.max_requests,
             self.max_empty_block_retries,
             self.requeue_sleep,
-            self.write_transactions_in_database
+            self.write_transactions_in_database,
+            self.schema_indexer
         )
     }
 }

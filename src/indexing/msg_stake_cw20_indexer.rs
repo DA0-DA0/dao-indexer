@@ -7,16 +7,22 @@ use serde_json::Value;
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 
 const INDEXER_KEY: &str = "StakeCw20ExecuteMsg";
-static ROOT_KEYS: [&str; 4] = ["receive", "unstake", "claim", "update_config"];
 
 pub struct StakeCw20ExecuteMsgIndexer {
     registry_keys: Vec<RegistryKey>,
+    root_keys: Vec<String>,
 }
 
 impl Default for StakeCw20ExecuteMsgIndexer {
     fn default() -> Self {
         StakeCw20ExecuteMsgIndexer {
             registry_keys: vec![RegistryKey::new(INDEXER_KEY.to_string())],
+            root_keys: vec![
+                "receive".to_string(),
+                "unstake".to_string(),
+                "claim".to_string(),
+                "update_config".to_string(),
+            ],
         }
     }
 }
@@ -30,7 +36,7 @@ impl Indexer for StakeCw20ExecuteMsgIndexer {
         registry_keys_from_iter(self.registry_keys.iter())
     }
     fn root_keys(&self) -> RootKeysType {
-        root_keys_from_iter(ROOT_KEYS.into_iter())
+        root_keys_from_iter(self.root_keys.iter())
     }
     fn required_root_keys(&self) -> super::indexer::RootKeysType {
         root_keys_from_iter([].into_iter())
