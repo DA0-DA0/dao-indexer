@@ -1,15 +1,17 @@
 use super::persister::Persister;
 use anyhow::Result;
-use log::debug;
-use serde_json;
-use sea_orm::entity::prelude::*;
-use sea_orm::{
-  ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, FromQueryResult, JoinType, JsonValue,
-  QueryFilter, Value,
-};
-use sea_orm::sea_query::{Alias, Cond, Iden, Expr, IntoIden, OnConflict, Query};
 use async_trait::async_trait;
+use log::debug;
+use sea_orm::entity::prelude::*;
+use sea_orm::sea_query::{Alias, IntoIden, Query};
+use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
+// use sea_orm::sea_query::{Alias, Cond, Expr, Iden, IntoIden, OnConflict, Query};
+// use sea_orm::{
+//     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, FromQueryResult,
+//     JoinType, JsonValue, QueryFilter, Value,
+// };
 use serde::{Deserialize, Serialize};
+use serde_json;
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
@@ -21,7 +23,7 @@ pub enum Datatype {
 }
 
 impl Datatype {
-    pub fn value_with_datatype(&self, value: Option<&serde_json::Value>) -> Value {
+    pub fn value_with_datatype(&self, value: Option<&JsonValue>) -> Value {
         match self {
             Datatype::Int => {
                 if let Some(value) = value {
@@ -65,7 +67,7 @@ impl Persister for DatabasePersister {
             "saving table_name:{}, column_name:{}, value:{}, id:{:?}, db:{:?}",
             table_name, column_name, value, id, self.db
         );
-        let mut cols = vec![Alias::new(column_name).into_iden()];
+        let cols = vec![Alias::new(column_name).into_iden()];
 
         let mut stmt = Query::insert();
         stmt.into_table(Alias::new(table_name))
@@ -103,20 +105,33 @@ impl Persister for DatabasePersister {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use sea_orm::{entity::prelude::*, DatabaseBackend, MockDatabase};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use serde_json::json;
 
     #[tokio::test]
     async fn test_basic_persistence() -> anyhow::Result<()> {
-        let db = MockDatabase::new(DatabaseBackend::Postgres).into_connection();
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results(vec![
+                MockExecResult {
+                    last_insert_id: 15,
+                    rows_affected: 1,
+                },
+                MockExecResult {
+                    last_insert_id: 16,
+                    rows_affected: 1,
+                },
+            ])
+            .into_connection();
         let mut persister = DatabasePersister::new(db);
         let id = persister
             .save("Contact", "first_name", &json!("Gavin"), &None)
             .await?;
         let id = Some(id);
-        let result = persister
+        persister
             .save("Contact", "last_name", &json!("Doughtie"), &id)
-            .await;
+            .await?;
+        let log = persister.db.into_transaction_log();
+        println!("log:\n{:#?}", log);
         Ok(())
     }
 }
