@@ -14,13 +14,13 @@ pub trait Persister<T = usize> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use std::collections::{BTreeMap, HashMap};
 
     type Record = BTreeMap<String, Value>;
     #[derive(Debug)]
-    struct TestPersister {
+    pub struct TestPersister {
         pub tables: BTreeMap<String, HashMap<usize, Record>>,
     }
 
@@ -30,6 +30,12 @@ mod tests {
             TestPersister {
                 tables: BTreeMap::new(),
             }
+        }
+    }
+
+    impl Default for TestPersister {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
@@ -97,5 +103,4 @@ mod tests {
         println!("Persisted:\n{:#?}", persister);
         Ok(())
     }
-
-  }
+}

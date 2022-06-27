@@ -1,7 +1,8 @@
+use super::persister::Persister;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 /// Relational mapping
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -54,16 +55,6 @@ impl FieldMapping {
             column_name,
         }
     }
-}
-
-pub trait Persister<T> {
-    fn save(
-        &mut self,
-        table_name: &str,
-        column_name: &str,
-        value: &Value,
-        id: &Option<T>,
-    ) -> anyhow::Result<T>;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -154,72 +145,78 @@ impl Default for DatabaseMapper {
     }
 }
 
-#[test]
-fn test_mapper_to_persistence() -> anyhow::Result<()> {
-    let mut mapper = DatabaseMapper::new();
-    let message_name = "Contact".to_string();
-    let first_name_field_name = "first_name".to_string();
-    let last_name_field_name = "last_name".to_string();
-    let birth_year_field_name = "birth_year".to_string();
-    mapper.add_mapping(
-        message_name.clone(),
-        first_name_field_name.clone(),
-        message_name.clone(),
-        first_name_field_name.clone(),
-    )?;
-    mapper.add_mapping(
-        message_name.clone(),
-        last_name_field_name.clone(),
-        message_name.clone(),
-        last_name_field_name.clone(),
-    )?;
-    mapper.add_mapping(
-        message_name.clone(),
-        birth_year_field_name.clone(),
-        message_name.clone(),
-        birth_year_field_name.clone(),
-    )?;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::persister::tests::TestPersister;
 
-    let record_one = serde_json::json!({
-      "first_name": "Gavin",
-      "last_name": "Doughtie",
-      "birth_year": 1962u64
-    });
+    #[test]
+    fn test_mapper_to_persistence() -> anyhow::Result<()> {
+        let mut mapper = DatabaseMapper::new();
+        let message_name = "Contact".to_string();
+        let first_name_field_name = "first_name".to_string();
+        let last_name_field_name = "last_name".to_string();
+        let birth_year_field_name = "birth_year".to_string();
+        mapper.add_mapping(
+            message_name.clone(),
+            first_name_field_name.clone(),
+            message_name.clone(),
+            first_name_field_name.clone(),
+        )?;
+        mapper.add_mapping(
+            message_name.clone(),
+            last_name_field_name.clone(),
+            message_name.clone(),
+            last_name_field_name.clone(),
+        )?;
+        mapper.add_mapping(
+            message_name.clone(),
+            birth_year_field_name.clone(),
+            message_name.clone(),
+            birth_year_field_name.clone(),
+        )?;
 
-    let record_two = serde_json::json!({
-      "first_name": "Kristina",
-      "last_name": "Helwing",
-      "birth_year": 1978u64
-    });
+        let record_one = serde_json::json!({
+          "first_name": "Gavin",
+          "last_name": "Doughtie",
+          "birth_year": 1962u64
+        });
 
-    let mut persister = TestPersister::new();
-    let record_one_id = mapper
-        .persist_message(&mut persister, &message_name, &record_one)
-        .unwrap();
-    let record_two_id = mapper
-        .persist_message(&mut persister, &message_name, &record_two)
-        .unwrap();
+        let record_two = serde_json::json!({
+          "first_name": "Kristina",
+          "last_name": "Helwing",
+          "birth_year": 1978u64
+        });
 
-    let records_for_message = persister.tables.get(&message_name).unwrap();
-    let persisted_record_one = records_for_message.get(&record_one_id.unwrap()).unwrap();
-    let persisted_record_two = records_for_message.get(&record_two_id.unwrap()).unwrap();
-    assert_eq!(
-        record_one.get(first_name_field_name.clone()).unwrap(),
-        persisted_record_one.get(&first_name_field_name).unwrap()
-    );
-    assert_eq!(
-        record_one.get(last_name_field_name.clone()).unwrap(),
-        persisted_record_one.get(&last_name_field_name).unwrap()
-    );
-    assert_eq!(
-        record_one.get(birth_year_field_name.clone()).unwrap(),
-        persisted_record_one.get(&birth_year_field_name).unwrap()
-    );
-    assert_eq!(
-        record_two.get(first_name_field_name.clone()).unwrap(),
-        persisted_record_two.get(&first_name_field_name).unwrap()
-    );
-    println!("persisted:\n{:#?}", persister);
+        let mut persister = TestPersister::new();
+        let record_one_id = mapper
+            .persist_message(&mut persister, &message_name, &record_one)
+            .unwrap();
+        let record_two_id = mapper
+            .persist_message(&mut persister, &message_name, &record_two)
+            .unwrap();
 
-    Ok(())
+        let records_for_message = persister.tables.get(&message_name).unwrap();
+        let persisted_record_one = records_for_message.get(&record_one_id.unwrap()).unwrap();
+        let persisted_record_two = records_for_message.get(&record_two_id.unwrap()).unwrap();
+        assert_eq!(
+            record_one.get(first_name_field_name.clone()).unwrap(),
+            persisted_record_one.get(&first_name_field_name).unwrap()
+        );
+        assert_eq!(
+            record_one.get(last_name_field_name.clone()).unwrap(),
+            persisted_record_one.get(&last_name_field_name).unwrap()
+        );
+        assert_eq!(
+            record_one.get(birth_year_field_name.clone()).unwrap(),
+            persisted_record_one.get(&birth_year_field_name).unwrap()
+        );
+        assert_eq!(
+            record_two.get(first_name_field_name.clone()).unwrap(),
+            persisted_record_two.get(&first_name_field_name).unwrap()
+        );
+        println!("persisted:\n{:#?}", persister);
+
+        Ok(())
+    }
 }
