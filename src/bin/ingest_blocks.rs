@@ -1,7 +1,3 @@
-
-// Multi-threading and doing some action. then we can run the multi-threadin
-// code there. That is the best way of approaching this solution.
-
 use clap::Command;
 use diesel::PgConnection;
 use env_logger::Env;
