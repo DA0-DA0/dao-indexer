@@ -1,10 +1,12 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use serde_json::Value;
 
 /// Trait for persisting a message.
 /// T is the ID type.
+#[async_trait]
 pub trait Persister<T = usize> {
-    fn save(
+    async fn save(
         &mut self,
         table_name: &str,
         column_name: &str,
@@ -17,6 +19,7 @@ pub trait Persister<T = usize> {
 pub mod tests {
     use super::*;
     use std::collections::{BTreeMap, HashMap};
+    use tokio::test;
 
     type Record = BTreeMap<String, Value>;
     #[derive(Debug)]
@@ -39,8 +42,9 @@ pub mod tests {
         }
     }
 
+    #[async_trait]
     impl Persister<usize> for TestPersister {
-        fn save(
+        async fn save(
             &mut self,
             table_name: &str,
             column_name: &str,
@@ -64,7 +68,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_persister_trait() -> anyhow::Result<()> {
+    async fn test_persister_trait() -> anyhow::Result<()> {
         let mut persister = TestPersister::new();
         let id = persister
             .save(
@@ -73,15 +77,20 @@ pub mod tests {
                 &Value::String("Gavin".to_string()),
                 &None,
             )
+            .await
             .unwrap();
-        persister.save(
-            "contacts",
-            "last_name",
-            &Value::String("Doughtie".to_string()),
-            &Some(id),
-        )?;
+        persister
+            .save(
+                "contacts",
+                "last_name",
+                &Value::String("Doughtie".to_string()),
+                &Some(id),
+            )
+            .await?;
         let year = serde_json::json!(1962u64);
-        persister.save("contacts", "birth_year", &year, &Some(id))?;
+        persister
+            .save("contacts", "birth_year", &year, &Some(id))
+            .await?;
 
         let id = persister
             .save(
@@ -90,15 +99,19 @@ pub mod tests {
                 &Value::String("Kristina".to_string()),
                 &None,
             )
-            .unwrap();
-        persister.save(
-            "contacts",
-            "last_name",
-            &Value::String("Helwing".to_string()),
-            &Some(id),
-        )?;
+            .await?;
+        persister
+            .save(
+                "contacts",
+                "last_name",
+                &Value::String("Helwing".to_string()),
+                &Some(id),
+            )
+            .await?;
         let year = serde_json::json!(1978);
-        persister.save("contacts", "birth_year", &year, &Some(id))?;
+        persister
+            .save("contacts", "birth_year", &year, &Some(id))
+            .await?;
 
         println!("Persisted:\n{:#?}", persister);
         Ok(())

@@ -108,8 +108,8 @@ impl DatabaseMapper {
             .insert(message_name.to_string(), relation);
         Ok(())
     }
-
-    pub fn persist_message<T>(
+    
+    pub async fn persist_message<T>(
         &mut self,
         persister: &mut dyn Persister<T>,
         table_name: &str,
@@ -128,7 +128,7 @@ impl DatabaseMapper {
         for field_name in mapping.keys() {
             if let Some(val) = msg.get(field_name) {
                 println!("Saving {}:{}={}", table_name, field_name, val);
-                if let Ok(updated_id) = persister.save(table_name, field_name, val, &record_id) {
+                if let Ok(updated_id) = persister.save(table_name, field_name, val, &record_id).await {
                     if record_id.is_none() {
                         record_id = Some(updated_id);
                     }
@@ -149,9 +149,10 @@ impl Default for DatabaseMapper {
 mod tests {
     use super::*;
     use crate::db::persister::tests::TestPersister;
+    use tokio::test;
 
     #[test]
-    fn test_mapper_to_persistence() -> anyhow::Result<()> {
+    async fn test_mapper_to_persistence() -> anyhow::Result<()> {
         let mut mapper = DatabaseMapper::new();
         let message_name = "Contact".to_string();
         let first_name_field_name = "first_name".to_string();
@@ -191,10 +192,10 @@ mod tests {
         let mut persister = TestPersister::new();
         let record_one_id = mapper
             .persist_message(&mut persister, &message_name, &record_one)
-            .unwrap();
+            .await?;
         let record_two_id = mapper
             .persist_message(&mut persister, &message_name, &record_two)
-            .unwrap();
+            .await?;
 
         let records_for_message = persister.tables.get(&message_name).unwrap();
         let persisted_record_one = records_for_message.get(&record_one_id.unwrap()).unwrap();
