@@ -12,6 +12,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 // };
 use serde::{Deserialize, Serialize};
 use serde_json;
+use std::iter::Iterator;
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
@@ -45,7 +46,7 @@ impl Datatype {
 
 #[derive(Debug)]
 pub struct DatabasePersister {
-    db: DatabaseConnection,
+    pub db: DatabaseConnection,
 }
 
 impl DatabasePersister {
@@ -85,25 +86,31 @@ impl Persister for DatabasePersister {
         };
 
         let val = string_data_type.value_with_datatype(Some(value));
-        vals.push(val);
+        vals.push(val.clone());
 
         let builder = self.db.get_database_backend();
 
         if update {
-            let mut stmt = Query::update()
+            let stmt = Query::update()
                 .table(Alias::new(table_name))
-                .values(vals)
-                .and_where(Expr::col(Alias::new("id").into_iden()).eq(id.unwrap()));
+                .value(Alias::new(column_name).into_iden(), val)
+                // .values::<Value>(vals.iter().collect_tuple().unwrap())
+                .and_where(Expr::col(Alias::new("id").into_iden()).eq::<i64>(id.unwrap() as i64))
+                .to_owned();
 
-            self.db.execute(builder.build(stmt)).await?;
-
+            let result = self.db.execute(builder.build(&stmt)).await?;
+            println!("{:#?}", result);
+            Ok(result.last_insert_id() as usize)
             // stmt.values_panic(vals);
         } else {
             let mut stmt = Query::insert()
                 .into_table(Alias::new(table_name))
-                .columns(cols.clone());
+                .columns(cols.clone())
+                .to_owned();
             stmt.values_panic(vals);
-            self.db.execute(builder.build(stmt)).await?;
+            let result = self.db.execute(builder.build(&stmt)).await?;
+            println!("{:#?}", result);
+            Ok(result.last_insert_id() as usize)
         }
         // if upsert {
         //     stmt.on_conflict(
@@ -125,7 +132,7 @@ impl Persister for DatabasePersister {
         //     stmt.values_panic(vals);
         // }
 
-        Ok(0)
+        // Ok(0)
     }
 }
 

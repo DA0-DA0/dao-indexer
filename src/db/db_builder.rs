@@ -20,7 +20,7 @@ pub fn db_column_name(input_name: &str) -> String {
 pub struct DatabaseBuilder {
     tables: BTreeMap<String, TableCreateStatement>,
     columns: BTreeMap<String, HashMap<String, ColumnDef>>,
-    value_mapper: DatabaseMapper,
+    pub value_mapper: DatabaseMapper,
 }
 
 impl DatabaseBuilder {
