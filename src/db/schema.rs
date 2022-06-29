@@ -106,7 +106,7 @@ table! {
 table! {
     transaction (hash) {
         hash -> Text,
-        height -> Nullable<Int8>,
+        height -> Int8,
         response -> Jsonb,
     }
 }

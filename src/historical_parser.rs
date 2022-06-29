@@ -47,7 +47,7 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
 // Generic driver function for "put these blockchain transactions into the index".
 // This function isn't actually async, but may eventually be
 // extended to code that is, hence it being marked that way.
-async fn index_search_results(
+pub async fn index_search_results(
     search_results: TxSearchResponse,
     registry: &IndexerRegistry,
     config: &IndexerConfig,

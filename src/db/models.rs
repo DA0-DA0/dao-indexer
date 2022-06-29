@@ -220,8 +220,8 @@ pub struct Block {
 
 #[derive(Queryable)]
 pub struct Transaction {
-    pub height: i64,
     pub hash: String,
+    pub height: i64,
     pub response: serde_json::Value,
 }
 

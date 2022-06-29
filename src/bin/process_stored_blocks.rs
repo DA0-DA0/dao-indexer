@@ -4,9 +4,9 @@ use env_logger::Env;
 
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::historical_parser::block_synchronizer;
+use dao_indexer::historical_parser::index_search_results;
 use dao_indexer::indexing::indexer_registry::IndexerRegistry;
-use dao_indexer::indexing::msg_set::default_msg_set;
+use dao_indexer::util::transaction_util::get_transactions;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -25,8 +25,10 @@ async fn main() -> anyhow::Result<()> {
     let db: PgConnection = establish_connection(&config.database_url);
 
     let indexer_registry = IndexerRegistry::new(Some(db), None);
-    let msg_set = default_msg_set();
 
-    block_synchronizer(&indexer_registry, &config, msg_set.clone()).await?;
+    let _zeta = get_transactions(1500000, 1500100, &indexer_registry);
+
+    // now that we have the responses we need to progres them
+
     Ok(())
 }
