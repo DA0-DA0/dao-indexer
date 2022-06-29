@@ -18,6 +18,7 @@ use tendermint::abci::responses::Event;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
+use tendermint_rpc::endpoint::tx::Response;
 use tendermint_rpc::HttpClient as TendermintClient;
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
@@ -57,42 +58,51 @@ pub async fn index_search_results(
         return Ok(());
     }
     for tx_response in search_results.txs.iter() {
-        if config.write_transactions_in_database {
-            insert_transaction(tx_response, registry)?;
-        }
+        index_search_result(tx_response, registry, config, msg_set.clone())?;
+    }
+    Ok(())
+}
 
-        let msg_set = msg_set.clone();
-        let mut events = BTreeMap::default();
-        let block_height = tx_response.height;
-        map_from_events(&tx_response.tx_result.events, &mut events)?;
-        if events.get("tx.height").is_none() {
-            events.insert("tx.height".to_string(), vec![block_height.to_string()]);
-        }
-        match Tx::from_bytes(tx_response.tx.as_bytes()) {
-            Ok(unmarshalled_tx) => {
-                if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set) {
-                    error!("Error in process_parsed: {:?}\n{:?}", e, unmarshalled_tx);
-                }
+pub fn index_search_result(
+    tx_response: &Response,
+    registry: &IndexerRegistry,
+    config: &IndexerConfig,
+    msg_set: MsgSet,
+) -> anyhow::Result<()> {
+    if config.write_transactions_in_database {
+        insert_transaction(tx_response, registry)?;
+    }
+    let msg_set = msg_set.clone();
+    let mut events = BTreeMap::default();
+    let block_height = tx_response.height;
+    map_from_events(&tx_response.tx_result.events, &mut events)?;
+    if events.get("tx.height").is_none() {
+        events.insert("tx.height".to_string(), vec![block_height.to_string()]);
+    }
+    match Tx::from_bytes(tx_response.tx.as_bytes()) {
+        Ok(unmarshalled_tx) => {
+            if let Err(e) = process_parsed(registry, &unmarshalled_tx, &events, msg_set) {
+                error!("Error in process_parsed: {:?}\n{:?}", e, unmarshalled_tx);
             }
-            Err(e) => {
-                warn!(
+        }
+        Err(e) => {
+            warn!(
                     "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
                     e
                 );
-                info!("tx_response:\n{:?}", tx_response);
-                match TxV1::decode(tx_response.tx.as_bytes()) {
-                    // match TxV1::decode(tx_response.tx.as_bytes()) {
-                    Ok(unmarshalled_tx) => {
-                        info!("decoded response debug:\n{:?}", unmarshalled_tx);
-                        if let Err(e) =
-                            process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
-                        {
-                            error!("Error in process_parsed: {:?}", e);
-                        }
+            info!("tx_response:\n{:?}", tx_response);
+            match TxV1::decode(tx_response.tx.as_bytes()) {
+                // match TxV1::decode(tx_response.tx.as_bytes()) {
+                Ok(unmarshalled_tx) => {
+                    info!("decoded response debug:\n{:?}", unmarshalled_tx);
+                    if let Err(e) =
+                    process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
+                    {
+                        error!("Error in process_parsed: {:?}", e);
                     }
-                    Err(e) => {
-                        error!("Error decoding: {:?}", e);
-                    }
+                }
+                Err(e) => {
+                    error!("Error decoding: {:?}", e);
                 }
             }
         }

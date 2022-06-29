@@ -1,10 +1,10 @@
-use anyhow::anyhow;
-use diesel::prelude::*;
-// use schemars::schema::SingleOrVec::Vec;
-use tendermint_rpc::endpoint::tx::Response;
-
 use std::vec::Vec;
 
+use anyhow::anyhow;
+use diesel::prelude::*;
+use tendermint_rpc::endpoint::tx::Response;
+
+use crate::config::IndexerConfig;
 use crate::db::models::{NewTransaction, Transaction};
 use crate::db::schema::transaction::dsl::*;
 use crate::indexing::indexer_registry::IndexerRegistry;
@@ -33,36 +33,31 @@ pub fn insert_transaction(
 }
 
 
-
 pub fn get_transactions(
-    start_range: i64,
-    end_range: i64,
+    config: &IndexerConfig,
     indexer_registry: &IndexerRegistry,
 ) -> anyhow::Result<Vec<Response>> {
     if let Some(database_connection) = &indexer_registry.db {
-        let txs = read_transaction(start_range, end_range, database_connection)?;
+        let txs = read_transaction(config, database_connection)?;
 
         let mut responses = Vec::new();
-
         for tx in txs {
             let parsed_response: Response = serde_json::from_value(tx.response)?;
             responses.push(parsed_response);
         }
-
         Ok(responses)
     } else {
-        Err(anyhow!("Error: You need to define the database. "))
+        Err(anyhow!("Error: You need to define the database if you're trying to read from it."))
     }
 }
 
 fn read_transaction(
-    start_range: i64,
-    end_range: i64,
-    db_connection: &PgConnection,
+    config: &IndexerConfig,
+    db_connection: &PgConnection
 ) -> anyhow::Result<Vec<Transaction>> {
     match transaction
-        .filter(height.gt(start_range))
-        .filter(height.lt(end_range))
+        .filter(height.gt(config.tendermint_initial_block as i64))
+        .filter(height.lt(config.tendermint_final_block as i64))
         .load::<Transaction>(db_connection) {
         Ok(_rows) => Ok(_rows),
         Err(e) => Err(anyhow!("Error: {:?}", e)),
