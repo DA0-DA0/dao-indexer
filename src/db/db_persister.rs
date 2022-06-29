@@ -3,7 +3,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use log::debug;
 use sea_orm::entity::prelude::*;
-use sea_orm::sea_query::{Alias, IntoIden, Query};
+use sea_orm::sea_query::{Alias, Expr, IntoIden, Query};
 use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 // use sea_orm::sea_query::{Alias, Cond, Expr, Iden, IntoIden, OnConflict, Query};
 // use sea_orm::{
@@ -67,15 +67,44 @@ impl Persister for DatabasePersister {
             "saving table_name:{}, column_name:{}, value:{}, id:{:?}, db:{:?}",
             table_name, column_name, value, id, self.db
         );
-        let cols = vec![Alias::new(column_name).into_iden()];
+        let string_data_type = Datatype::String;
+        let mut vals: Vec<Value> = vec![];
+        let mut update = false;
+        let cols = match id {
+            Some(id) => {
+                update = true;
+                vals.push((*id as i64).into());
+                vec![
+                    Alias::new("id").into_iden(),
+                    Alias::new(column_name).into_iden(),
+                ]
+            }
+            None => {
+                vec![Alias::new(column_name).into_iden()]
+            }
+        };
 
-        let mut stmt = Query::insert();
-        stmt.into_table(Alias::new(table_name))
-            .columns(cols.clone());
-        let data_type = Datatype::String;
-        let val = data_type.value_with_datatype(Some(value));
-        let vals = vec![val];
-        stmt.values_panic(vals);
+        let val = string_data_type.value_with_datatype(Some(value));
+        vals.push(val);
+
+        let builder = self.db.get_database_backend();
+
+        if update {
+            let mut stmt = Query::update()
+                .table(Alias::new(table_name))
+                .values(vals)
+                .and_where(Expr::col(Alias::new("id").into_iden()).eq(id.unwrap()));
+
+            self.db.execute(builder.build(stmt)).await?;
+
+            // stmt.values_panic(vals);
+        } else {
+            let mut stmt = Query::insert()
+                .into_table(Alias::new(table_name))
+                .columns(cols.clone());
+            stmt.values_panic(vals);
+            self.db.execute(builder.build(stmt)).await?;
+        }
         // if upsert {
         //     stmt.on_conflict(
         //         OnConflict::column(NodeIden::Name)
@@ -96,8 +125,6 @@ impl Persister for DatabasePersister {
         //     stmt.values_panic(vals);
         // }
 
-        let builder = self.db.get_database_backend();
-        self.db.execute(builder.build(&stmt)).await?;
         Ok(0)
     }
 }
