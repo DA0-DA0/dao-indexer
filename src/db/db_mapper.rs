@@ -108,7 +108,7 @@ impl DatabaseMapper {
             .insert(message_name.to_string(), relation);
         Ok(())
     }
-    
+
     pub async fn persist_message<T>(
         &mut self,
         persister: &mut dyn Persister<T>,
@@ -125,10 +125,19 @@ impl DatabaseMapper {
         }
         let mapping = mapping.unwrap();
 
+        println!("mapping.keys: {:#?}\nmsg: {:#?}", mapping.keys(), msg);
         for field_name in mapping.keys() {
             if let Some(val) = msg.get(field_name) {
                 println!("Saving {}:{}={}", table_name, field_name, val);
-                if let Ok(updated_id) = persister.save(table_name, field_name, val, &record_id).await {
+                if let Ok(updated_id) = persister
+                    .save(
+                        table_name,
+                        field_name,
+                        val,
+                        &record_id,
+                    )
+                    .await
+                {
                     if record_id.is_none() {
                         record_id = Some(updated_id);
                     }

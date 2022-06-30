@@ -627,7 +627,11 @@ pub mod tests {
                     rows_affected: 1,
                 },
                 MockExecResult {
-                    last_insert_id: 16,
+                    last_insert_id: 15,
+                    rows_affected: 1,
+                },
+                MockExecResult {
+                    last_insert_id: 15,
                     rows_affected: 1,
                 },
             ])
@@ -652,6 +656,27 @@ pub mod tests {
         ]
         .join(" ");
         compare_table_create_statements(built_table, &expected_sql);
+
+        let msg_str = r#"
+        {
+            "simple_field_one": "simple_field_one value",
+            "simple_field_two": 33
+        }"#;
+        let msg_dictionary = serde_json::from_str(msg_str).unwrap();
+        println!("msg_dictionary now:\n{:#?}", msg_dictionary);
+
+        let mut persister = new_mock_persister();
+
+        let result = registry
+            .db_builder
+            .value_mapper
+            .persist_message(&mut persister, "SimpleMessage", &msg_dictionary)
+            .await;
+
+        println!("{:#?}", persister.db.into_transaction_log());
+        assert!(result.is_ok());
+        let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -686,11 +711,13 @@ pub mod tests {
         let msg_dictionary = serde_json::json!(msg_str);
 
         let mut persister = new_mock_persister();
+
         let result = registry
             .db_builder
             .value_mapper
             .persist_message(&mut persister, "SimpleRelatedMessage", &msg_dictionary)
             .await;
+
         println!("{:#?}", persister.db.into_transaction_log());
         assert!(result.is_ok());
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);

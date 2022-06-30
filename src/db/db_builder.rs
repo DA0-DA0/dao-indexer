@@ -47,6 +47,14 @@ impl DatabaseBuilder {
             .columns
             .entry(table_name.to_string())
             .or_insert_with(HashMap::new);
+        self.value_mapper
+            .add_mapping(
+                table_name.to_string(),
+                column_name.to_string(),
+                table_name.to_string(),
+                column_name.to_string(),
+            )
+            .unwrap();
         columns
             .entry(column_name.to_string())
             .or_insert_with(|| ColumnDef::new(Alias::new(&db_column_name(column_name))))
