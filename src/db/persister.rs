@@ -2,15 +2,21 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
 
+// pub type PersistColumnNames<'a> = dyn IntoIterator<Item = &'a str, IntoIter = dyn core::iter::Iterator<Item = &'a str>>;
+// pub type PersistValues<'a> = dyn IntoIterator<Item = &'a Value, IntoIter = dyn core::iter::Iterator<Item = &'a Value>>;
+
+pub type PersistColumnNames<'a> = &'a Vec<&'a str>;
+pub type PersistValues<'a> = &'a Vec<Value>;
+
 /// Trait for persisting a message.
 /// T is the ID type.
 #[async_trait]
-pub trait Persister<T = usize> {
-    async fn save(
+pub trait Persister<T = u64> {
+    async fn save<'a>(
         &mut self,
         table_name: &str,
-        column_name: &str,
-        value: &Value,
+        column_names: PersistColumnNames,
+        values: PersistValues,
         id: &Option<T>,
     ) -> Result<T>;
 }
@@ -44,13 +50,14 @@ pub mod tests {
 
     #[async_trait]
     impl Persister<usize> for TestPersister {
-        async fn save(
-            &mut self,
-            table_name: &str,
-            column_name: &str,
-            value: &Value,
-            id: &Option<usize>,
-        ) -> anyhow::Result<usize> {
+
+            async fn save<'a>(
+                &mut self,
+                table_name: &str,
+                column_names: PersistColumnNames,
+                values: PersistValues,
+                id: &Option<usize>,
+            ) -> Result<usize> {
             let records: &mut HashMap<usize, Record> = self
                 .tables
                 .entry(table_name.to_string())
@@ -61,7 +68,13 @@ pub mod tests {
             };
 
             let record = records.entry(id).or_insert_with(BTreeMap::new);
-            record.insert(column_name.to_string(), value.clone());
+
+            let values = values.iter();
+            for column_name in column_names {
+                if let Some(value) = values.next() {
+                    record.insert(column_name.to_string(), value.clone());
+                }
+            }
 
             Ok(id)
         }
@@ -73,8 +86,8 @@ pub mod tests {
         let id = persister
             .save(
                 "contacts",
-                "first_name",
-                &Value::String("Gavin".to_string()),
+                vec!["first_name"].iter(),
+                vec![&Value::String("Gavin".to_string())].iter(),
                 &None,
             )
             .await

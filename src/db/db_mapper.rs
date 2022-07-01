@@ -115,8 +115,6 @@ impl DatabaseMapper {
         table_name: &str,
         msg: &Value,
     ) -> anyhow::Result<Option<T>> {
-        println!("persist_msg {}, {:#?}", table_name, msg);
-
         let mut record_id: Option<T> = None;
 
         let mapping = self.mappings.get(table_name);
@@ -125,7 +123,9 @@ impl DatabaseMapper {
         }
         let mapping = mapping.unwrap();
 
-        println!("mapping.keys: {:#?}\nmsg: {:#?}", mapping.keys(), msg);
+        // So the strategy here is to recursively go through the message
+        // persisting the relational messages first and then the top-level
+        // messages given the IDs from the persisted related messages.
         for field_name in mapping.keys() {
             if let Some(val) = msg.get(field_name) {
                 println!("Saving {}:{}={}", table_name, field_name, val);
