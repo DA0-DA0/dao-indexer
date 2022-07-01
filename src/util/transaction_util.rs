@@ -39,7 +39,6 @@ pub fn get_transactions(
 ) -> anyhow::Result<Vec<Response>> {
     if let Some(database_connection) = &indexer_registry.db {
         let txs = read_transaction(config, database_connection)?;
-
         let mut responses = Vec::new();
         for tx in txs {
             let parsed_response: Response = serde_json::from_value(tx.response)?;
