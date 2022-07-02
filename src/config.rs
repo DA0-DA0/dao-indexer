@@ -130,7 +130,7 @@ impl IndexerConfig {
             .unwrap_or(0);
 
         let write_transactions_in_database: bool = env::var("STORE_TRANSACTIONS")
-            .unwrap_or_else(|_| "true".to_string())
+            .unwrap_or_else(|_| "false".to_string())
             .parse::<bool>()
             .unwrap_or(true);
 
