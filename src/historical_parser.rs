@@ -15,10 +15,10 @@ use prost::Message;
 use std::cmp::min;
 use std::collections::BTreeMap;
 use tendermint::abci::responses::Event;
+use tendermint_rpc::endpoint::tx::Response;
 use tendermint_rpc::endpoint::tx_search::Response as TxSearchResponse;
 use tendermint_rpc::query::Query;
 use tendermint_rpc::Client;
-use tendermint_rpc::endpoint::tx::Response;
 use tendermint_rpc::HttpClient as TendermintClient;
 use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
@@ -87,16 +87,16 @@ pub fn index_search_result(
         }
         Err(e) => {
             warn!(
-                    "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
-                    e
-                );
+                "Error unmarshalling: {:?} via Tx::from_bytes, trying v1beta decode",
+                e
+            );
             info!("tx_response:\n{:?}", tx_response);
             match TxV1::decode(tx_response.tx.as_bytes()) {
                 // match TxV1::decode(tx_response.tx.as_bytes()) {
                 Ok(unmarshalled_tx) => {
                     info!("decoded response debug:\n{:?}", unmarshalled_tx);
                     if let Err(e) =
-                    process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
+                        process_parsed_v1beta(registry, &unmarshalled_tx, &events, msg_set)
                     {
                         error!("Error in process_parsed: {:?}", e);
                     }

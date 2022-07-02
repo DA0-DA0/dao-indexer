@@ -32,7 +32,6 @@ pub fn insert_transaction(
     }
 }
 
-
 pub fn get_transactions(
     config: &IndexerConfig,
     indexer_registry: &IndexerRegistry,
@@ -46,18 +45,21 @@ pub fn get_transactions(
         }
         Ok(responses)
     } else {
-        Err(anyhow!("Error: You need to define the database if you're trying to read from it."))
+        Err(anyhow!(
+            "Error: You need to define the database if you're trying to read from it."
+        ))
     }
 }
 
 fn read_transaction(
     config: &IndexerConfig,
-    db_connection: &PgConnection
+    db_connection: &PgConnection,
 ) -> anyhow::Result<Vec<Transaction>> {
     match transaction
         .filter(height.gt(config.tendermint_initial_block as i64))
         .filter(height.lt(config.tendermint_final_block as i64))
-        .load::<Transaction>(db_connection) {
+        .load::<Transaction>(db_connection)
+    {
         Ok(_rows) => Ok(_rows),
         Err(e) => Err(anyhow!("Error: {:?}", e)),
     }

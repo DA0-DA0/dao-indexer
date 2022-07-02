@@ -65,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
 
     let txs = get_transactions(&config, &registry)?;
 
-    info!("Linearly processing number of {} transactions \n", txs.len());
+    info!("Linearly processing {} transactions \n", txs.len());
 
     for tx in txs {
         index_search_result(&tx, &registry, &config, default_msg_set())?;
