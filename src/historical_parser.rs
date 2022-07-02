@@ -72,7 +72,6 @@ pub fn index_search_result(
     if config.write_transactions_in_database {
         insert_transaction(tx_response, registry)?;
     }
-    let msg_set = msg_set.clone();
     let mut events = BTreeMap::default();
     let block_height = tx_response.height;
     map_from_events(&tx_response.tx_result.events, &mut events)?;
