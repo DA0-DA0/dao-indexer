@@ -134,7 +134,7 @@ impl DatabaseMapper {
                 values.push(value);
             }
         }
-        if columns.len() > 0 {
+        if !columns.is_empty() {
             let saved_id = persister
                 .save(table_name, &columns[..], &values[..], &record_id)
                 .await?;

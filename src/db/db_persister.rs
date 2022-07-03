@@ -9,7 +9,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 //     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, FromQueryResult,
 //     JoinType, JsonValue, QueryFilter, Value,
 // };
-use super::persister::{PersistColumnNames, PersistValues, Persister};
+use super::persister::Persister;
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
 
@@ -70,20 +70,20 @@ impl Persister<u64> for DatabasePersister {
         let string_data_type = Datatype::String;
         let mut update = false;
         let mut cols = vec![];
+        let mut insert_columns = vec![];
         let mut vals = vec![];
-        let mut value_index = 0;
-        if let Some(id) = id {
+        if id.is_some() {
             update = true;
         }
-        for column_name in column_names {
+        for (value_index, column_name) in column_names.iter().enumerate() {
             let val = values[value_index];
             let val = string_data_type.value_with_datatype(Some(val));
-            value_index += 1;
+            let column_ident = Alias::new(column_name).into_iden();
             if update {
-                let col_ident = Alias::new(column_name).into_iden();
-                cols.push((col_ident, val));
+                cols.push((column_ident, val));
             } else {
                 vals.push(val);
+                insert_columns.push(column_ident);
             }
         }
         // let mut vals = vec![];
@@ -106,8 +106,9 @@ impl Persister<u64> for DatabasePersister {
             Ok(result.last_insert_id())
             // stmt.values_panic(vals);
         } else {
-            let mut stmt = Query::insert()
+            let stmt = Query::insert()
                 .into_table(Alias::new(table_name))
+                .columns(insert_columns)
                 .values(vals)?
                 .to_owned();
             let result = self.db.execute(builder.build(&stmt)).await?;
@@ -169,7 +170,8 @@ pub mod tests {
             .await?;
         let id = Some(id);
         let log = persister.db.into_transaction_log();
-        println!("{:?} log:\n{:#?}", id, log);
+        let log_msg = format!("{:?} log:\n{:#?}", id, log);
+        println!("{}", log_msg);
         Ok(())
     }
 }

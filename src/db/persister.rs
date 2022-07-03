@@ -84,12 +84,12 @@ pub mod tests {
         let id = persister
             .save(
                 "contacts",
-                &vec![
+                &[
                     &"first_name".to_string(),
                     &"last_name".to_string(),
                     &"birth_year".to_string(),
                 ],
-                &vec![
+                &[
                     &Value::String("Gavin".to_string()),
                     &Value::String("Doughtie".to_string()),
                     &serde_json::json!(1962u64),
@@ -99,7 +99,7 @@ pub mod tests {
             .await
             .unwrap();
 
-        println!("Persisted:\n{:#?}", persister);
+        println!("Persisted {}:\n{:#?}", id, persister);
         Ok(())
     }
 }
