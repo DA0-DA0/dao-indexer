@@ -68,12 +68,11 @@ pub mod tests {
 
             let record = records.entry(id).or_insert_with(BTreeMap::new);
 
-            for column_name in column_names {
-                if let Some(value) = values.get(0) {
-                    record.insert(column_name.to_string(), (*value).clone());
+            for (value_index, column_name) in column_names.iter().enumerate() {
+                if let Some(value) = values.get(value_index) {
+                    record.insert((*column_name).clone(), (**value).clone());
                 }
             }
-
             Ok(id)
         }
     }
