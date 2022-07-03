@@ -5,19 +5,19 @@ use serde_json::Value;
 // pub type PersistColumnNames<'a> = dyn IntoIterator<Item = &'a str, IntoIter = dyn core::iter::Iterator<Item = &'a str>>;
 // pub type PersistValues<'a> = dyn IntoIterator<Item = &'a Value, IntoIter = dyn core::iter::Iterator<Item = &'a Value>>;
 
-pub type PersistColumnNames<'a> = &'a Vec<&'a str>;
-pub type PersistValues<'a> = &'a Vec<Value>;
+pub type PersistColumnNames<'a> = &'a [&'a String];
+pub type PersistValues<'a> = &'a [&'a Value];
 
 /// Trait for persisting a message.
 /// T is the ID type.
 #[async_trait]
 pub trait Persister<T = u64> {
     async fn save<'a>(
-        &mut self,
-        table_name: &str,
-        column_names: PersistColumnNames,
-        values: PersistValues,
-        id: &Option<T>,
+        &'a mut self,
+        table_name: &'a str,
+        column_names: &'a [&'a String],
+        values: &'a [&'a Value],
+        id: &'a Option<T>,
     ) -> Result<T>;
 }
 
@@ -50,14 +50,13 @@ pub mod tests {
 
     #[async_trait]
     impl Persister<usize> for TestPersister {
-
-            async fn save<'a>(
-                &mut self,
-                table_name: &str,
-                column_names: PersistColumnNames,
-                values: PersistValues,
-                id: &Option<usize>,
-            ) -> Result<usize> {
+        async fn save<'a>(
+            &'a mut self,
+            table_name: &'a str,
+            column_names: &'a [&'a String],
+            values: &'a [&'a Value],
+            id: &'a Option<usize>,
+        ) -> Result<usize> {
             let records: &mut HashMap<usize, Record> = self
                 .tables
                 .entry(table_name.to_string())
@@ -69,10 +68,9 @@ pub mod tests {
 
             let record = records.entry(id).or_insert_with(BTreeMap::new);
 
-            let values = values.iter();
             for column_name in column_names {
-                if let Some(value) = values.next() {
-                    record.insert(column_name.to_string(), value.clone());
+                if let Some(value) = values.get(0) {
+                    record.insert(column_name.to_string(), (*value).clone());
                 }
             }
 
@@ -86,45 +84,20 @@ pub mod tests {
         let id = persister
             .save(
                 "contacts",
-                vec!["first_name"].iter(),
-                vec![&Value::String("Gavin".to_string())].iter(),
+                &vec![
+                    &"first_name".to_string(),
+                    &"last_name".to_string(),
+                    &"birth_year".to_string(),
+                ],
+                &vec![
+                    &Value::String("Gavin".to_string()),
+                    &Value::String("Doughtie".to_string()),
+                    &serde_json::json!(1962u64),
+                ],
                 &None,
             )
             .await
             .unwrap();
-        persister
-            .save(
-                "contacts",
-                "last_name",
-                &Value::String("Doughtie".to_string()),
-                &Some(id),
-            )
-            .await?;
-        let year = serde_json::json!(1962u64);
-        persister
-            .save("contacts", "birth_year", &year, &Some(id))
-            .await?;
-
-        let id = persister
-            .save(
-                "contacts",
-                "first_name",
-                &Value::String("Kristina".to_string()),
-                &None,
-            )
-            .await?;
-        persister
-            .save(
-                "contacts",
-                "last_name",
-                &Value::String("Helwing".to_string()),
-                &Some(id),
-            )
-            .await?;
-        let year = serde_json::json!(1978);
-        persister
-            .save("contacts", "birth_year", &year, &Some(id))
-            .await?;
 
         println!("Persisted:\n{:#?}", persister);
         Ok(())

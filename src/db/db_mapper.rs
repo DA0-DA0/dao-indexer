@@ -126,22 +126,20 @@ impl DatabaseMapper {
         // So the strategy here is to recursively go through the message
         // persisting the relational messages first and then the top-level
         // messages given the IDs from the persisted related messages.
-        for field_name in mapping.keys() {
-            if let Some(val) = msg.get(field_name) {
-                println!("Saving {}:{}={}", table_name, field_name, val);
-                if let Ok(updated_id) = persister
-                    .save(
-                        table_name,
-                        field_name,
-                        val,
-                        &record_id,
-                    )
-                    .await
-                {
-                    if record_id.is_none() {
-                        record_id = Some(updated_id);
-                    }
-                }
+        let mut columns = vec![];
+        let mut values = vec![];
+        for (key, field_mapping) in &*mapping {
+            if let Some(value) = msg.get(&field_mapping.field_name) {
+                columns.push(key);
+                values.push(value);
+            }
+        }
+        if columns.len() > 0 {
+            let saved_id = persister
+                .save(table_name, &columns[..], &values[..], &record_id)
+                .await?;
+            if record_id.is_none() {
+                record_id = Some(saved_id);
             }
         }
         Ok(record_id)

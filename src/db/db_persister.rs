@@ -1,4 +1,3 @@
-use super::persister::Persister;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::debug;
@@ -10,8 +9,8 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 //     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, FromQueryResult,
 //     JoinType, JsonValue, QueryFilter, Value,
 // };
+use super::persister::{PersistColumnNames, PersistValues, Persister};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::iter::Iterator;
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
@@ -56,61 +55,64 @@ impl DatabasePersister {
 }
 
 #[async_trait]
-impl Persister for DatabasePersister {
-    async fn save(
-        &mut self,
-        table_name: &str,
-        column_name: &str,
-        value: &serde_json::Value,
-        id: &Option<usize>,
-    ) -> Result<usize> {
+impl Persister<u64> for DatabasePersister {
+    async fn save<'a>(
+        &'a mut self,
+        table_name: &'a str,
+        column_names: &'a [&'a String],
+        values: &'a [&'a serde_json::Value],
+        id: &'a Option<u64>,
+    ) -> Result<u64> {
         debug!(
-            "saving table_name:{}, column_name:{}, value:{}, id:{:?}, db:{:?}",
-            table_name, column_name, value, id, self.db
+            "saving table_name:{}, column_names:{:#?}, values:{:#?}, id:{:?}, db:{:?}",
+            table_name, column_names, values, id, self.db
         );
         let string_data_type = Datatype::String;
-        let mut vals: Vec<Value> = vec![];
         let mut update = false;
-        let cols = match id {
-            Some(id) => {
-                update = true;
-                vals.push((*id as i64).into());
-                vec![
-                    Alias::new("id").into_iden(),
-                    Alias::new(column_name).into_iden(),
-                ]
+        let mut cols = vec![];
+        let mut vals = vec![];
+        let mut value_index = 0;
+        if let Some(id) = id {
+            update = true;
+        }
+        for column_name in column_names {
+            let val = values[value_index];
+            let val = string_data_type.value_with_datatype(Some(val));
+            value_index += 1;
+            if update {
+                let col_ident = Alias::new(column_name).into_iden();
+                cols.push((col_ident, val));
+            } else {
+                vals.push(val);
             }
-            None => {
-                vec![Alias::new(column_name).into_iden()]
-            }
-        };
-
-        let val = string_data_type.value_with_datatype(Some(value));
-        vals.push(val.clone());
-
+        }
+        // let mut vals = vec![];
+        // for value in values {
+        //     let val = string_data_type.value_with_datatype(Some(value));
+        //     vals.push(val.clone());
+        // }
         let builder = self.db.get_database_backend();
 
         if update {
             let stmt = Query::update()
                 .table(Alias::new(table_name))
-                .value(Alias::new(column_name).into_iden(), val)
+                .values(cols)
                 // .values::<Value>(vals.iter().collect_tuple().unwrap())
                 .and_where(Expr::col(Alias::new("id").into_iden()).eq::<i64>(id.unwrap() as i64))
                 .to_owned();
 
             let result = self.db.execute(builder.build(&stmt)).await?;
             println!("{:#?}", result);
-            Ok(result.last_insert_id() as usize)
+            Ok(result.last_insert_id())
             // stmt.values_panic(vals);
         } else {
             let mut stmt = Query::insert()
                 .into_table(Alias::new(table_name))
-                .columns(cols.clone())
+                .values(vals)?
                 .to_owned();
-            stmt.values_panic(vals);
             let result = self.db.execute(builder.build(&stmt)).await?;
             println!("{:#?}", result);
-            Ok(result.last_insert_id() as usize)
+            Ok(result.last_insert_id())
         }
         // if upsert {
         //     stmt.on_conflict(
@@ -158,14 +160,16 @@ pub mod tests {
             .into_connection();
         let mut persister = DatabasePersister::new(db);
         let id = persister
-            .save("Contact", "first_name", &json!("Gavin"), &None)
+            .save(
+                "Contact",
+                &[&"first_name".to_string(), &"last_name".to_string()],
+                &[&json!("Gavin"), &json!("Doughtie")],
+                &None,
+            )
             .await?;
         let id = Some(id);
-        persister
-            .save("Contact", "last_name", &json!("Doughtie"), &id)
-            .await?;
         let log = persister.db.into_transaction_log();
-        println!("log:\n{:#?}", log);
+        println!("{:?} log:\n{:#?}", id, log);
         Ok(())
     }
 }
