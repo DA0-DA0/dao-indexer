@@ -142,8 +142,10 @@ impl Persister<u64> for DatabasePersister {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+    // use diesel::IntoSql;
+    use sea_orm::{DatabaseBackend, DbBackend, Transaction, MockDatabase, MockExecResult};
     use serde_json::json;
+    use crate::db::db_test::is_sql_equivalent;
 
     #[tokio::test]
     async fn test_basic_persistence() -> anyhow::Result<()> {
@@ -160,18 +162,24 @@ pub mod tests {
             ])
             .into_connection();
         let mut persister = DatabasePersister::new(db);
+        let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie")];
         let id = persister
             .save(
                 "Contact",
                 &[&"first_name".to_string(), &"last_name".to_string()],
-                &[&json!("Gavin"), &json!("Doughtie")],
+                values,
                 &None,
             )
             .await?;
         let id = Some(id);
         let log = persister.db.into_transaction_log();
-        let log_msg = format!("{:?} log:\n{:#?}", id, log);
+        //let db_postgres = DbBackend::Postgres;
+        //let built = db_postgres.build(&log[0].stmts[0]);
+        let generated_sql = "";// log[0].as_sql().to_string();
+        let log_msg = format!("{:?} log:\n{:#?}", id, log);        
         println!("{}", log_msg);
+        let expected_sql = "";
+        assert!(is_sql_equivalent(expected_sql, generated_sql));
         Ok(())
     }
 }
