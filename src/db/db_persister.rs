@@ -88,7 +88,7 @@ impl Persister<u64> for DatabasePersister {
             let val = match input_val {
                 JsonValue::String(_v) => Datatype::String.value_with_datatype(Some(input_val)),
                 JsonValue::Number(_v) => Datatype::BigInt.value_with_datatype(Some(input_val)),
-                _ => Datatype::String.value_with_datatype(Some(input_val))
+                _ => Datatype::String.value_with_datatype(Some(input_val)),
             };
             let column_ident = Alias::new(column_name).into_iden();
             if update {
@@ -154,7 +154,7 @@ impl Persister<u64> for DatabasePersister {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use sea_orm::{DatabaseBackend, Transaction, MockDatabase, MockExecResult};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
     use serde_json::json;
 
     #[tokio::test]
@@ -176,7 +176,11 @@ pub mod tests {
         let id = persister
             .save(
                 "Contact",
-                &[&"first_name".to_string(), &"last_name".to_string(), &"birth_year".to_string()],
+                &[
+                    &"first_name".to_string(),
+                    &"last_name".to_string(),
+                    &"birth_year".to_string(),
+                ],
                 values,
                 &None,
             )
@@ -184,12 +188,11 @@ pub mod tests {
         let id = Some(id);
         println!("{:?}", id);
         let log = persister.db.into_transaction_log();
-        let expected_log = vec![
-                Transaction::from_sql_and_values(
-                    DatabaseBackend::Postgres,
-                    r#"INSERT INTO "Contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
-                    vec!["Gavin".into(), "Doughtie".into(), 1990_i64.into()]
-                )];
+        let expected_log = vec![Transaction::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            r#"INSERT INTO "Contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
+            vec!["Gavin".into(), "Doughtie".into(), 1990_i64.into()],
+        )];
         assert_eq!(expected_log, log);
         Ok(())
     }
