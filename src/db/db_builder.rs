@@ -87,7 +87,9 @@ impl DatabaseBuilder {
         let foreign_key = format!("{}_id", source_property_name);
 
         self.column(source_table_name, &foreign_key).integer();
-        self.column(destination_table_name, "id").integer();
+        self.column(destination_table_name, "id")
+            .unique_key()
+            .integer();
 
         let db_source_table_name = db_table_name(source_table_name);
         let db_destination_table_name = db_table_name(destination_table_name);
@@ -155,8 +157,11 @@ impl DatabaseBuilder {
             for create_statement in constraints.iter() {
                 // alter the table to add constraints
                 let statement = builder.build(create_statement);
-                println!("Executing foreign key statement {}\n{:#?}", table_name, statement);
-                // seaql_db.execute(statement).await?;
+                println!(
+                    "Executing foreign key statement {}\n{:#?}",
+                    table_name, statement
+                );
+                seaql_db.execute(statement).await?;
             }
         }
         Ok(())
