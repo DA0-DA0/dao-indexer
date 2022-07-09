@@ -32,6 +32,9 @@ impl DatabaseBuilder {
         }
     }
     pub fn table(&mut self, table_name: &str) -> &mut TableCreateStatement {
+        if table_name == "Empty" {
+            eprintln!("who is trying to create an empty table?");
+        }
         self.tables
             .entry(table_name.to_string())
             .or_insert_with(|| {
@@ -85,9 +88,9 @@ impl DatabaseBuilder {
         self.column(destination_table_name, "id").integer();
         let mut foreign_key_create = ForeignKeyCreateStatement::new()
             .name(&foreign_key)
-            .from_tbl(Alias::new(source_table_name))
+            .from_tbl(Alias::new(&db_table_name(source_table_name)))
             .from_col(Alias::new(source_property_name))
-            .to_tbl(Alias::new(destination_table_name))
+            .to_tbl(Alias::new(&db_table_name(destination_table_name)))
             .to_col(Alias::new("id"))
             .to_owned();
         self.table(destination_table_name)
@@ -125,7 +128,11 @@ impl DatabaseBuilder {
             ));
         }
         let builder = seaql_db.get_database_backend();
-        for (_table_name, table_def) in self.tables.iter() {
+        for (table_name, table_def) in self.tables.iter() {
+            println!("building {}", table_name);
+            if table_name == "Empty" {
+                println!("empty table name");
+            }
             let statement = builder.build(table_def);
             seaql_db.execute(statement).await?;
         }

@@ -18,6 +18,8 @@ use std::iter::Iterator;
 pub enum Datatype {
     #[sea_orm(string_value = "Int")]
     Int,
+    #[sea_orm(string_value = "BigInt")]
+    BigInt,
     #[sea_orm(string_value = "String")]
     String,
 }
@@ -26,6 +28,13 @@ impl Datatype {
     pub fn value_with_datatype(&self, value: Option<&JsonValue>) -> Value {
         match self {
             Datatype::Int => {
+                if let Some(value) = value {
+                    value.as_i64().into()
+                } else {
+                    None::<i64>.into()
+                }
+            }
+            Datatype::BigInt => {
                 if let Some(value) = value {
                     value.as_i64().into()
                 } else {
@@ -60,14 +69,13 @@ impl Persister<u64> for DatabasePersister {
         &'a mut self,
         table_name: &'a str,
         column_names: &'a [&'a String],
-        values: &'a [&'a serde_json::Value],
+        values: &'a [&'a JsonValue],
         id: &'a Option<u64>,
     ) -> Result<u64> {
         debug!(
             "saving table_name:{}, column_names:{:#?}, values:{:#?}, id:{:?}, db:{:?}",
             table_name, column_names, values, id, self.db
         );
-        let string_data_type = Datatype::String;
         let mut update = false;
         let mut cols = vec![];
         let mut insert_columns = vec![];
@@ -76,8 +84,12 @@ impl Persister<u64> for DatabasePersister {
             update = true;
         }
         for (value_index, column_name) in column_names.iter().enumerate() {
-            let val = values[value_index];
-            let val = string_data_type.value_with_datatype(Some(val));
+            let input_val = values[value_index];
+            let val = match input_val {
+                JsonValue::String(_v) => Datatype::String.value_with_datatype(Some(input_val)),
+                JsonValue::Number(_v) => Datatype::BigInt.value_with_datatype(Some(input_val)),
+                _ => Datatype::String.value_with_datatype(Some(input_val))
+            };
             let column_ident = Alias::new(column_name).into_iden();
             if update {
                 cols.push((column_ident, val));
@@ -142,10 +154,8 @@ impl Persister<u64> for DatabasePersister {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    // use diesel::IntoSql;
-    use sea_orm::{DatabaseBackend, DbBackend, Transaction, MockDatabase, MockExecResult};
+    use sea_orm::{DatabaseBackend, Transaction, MockDatabase, MockExecResult};
     use serde_json::json;
-    use crate::db::db_test::is_sql_equivalent;
 
     #[tokio::test]
     async fn test_basic_persistence() -> anyhow::Result<()> {
@@ -162,24 +172,25 @@ pub mod tests {
             ])
             .into_connection();
         let mut persister = DatabasePersister::new(db);
-        let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie")];
+        let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
         let id = persister
             .save(
                 "Contact",
-                &[&"first_name".to_string(), &"last_name".to_string()],
+                &[&"first_name".to_string(), &"last_name".to_string(), &"birth_year".to_string()],
                 values,
                 &None,
             )
             .await?;
         let id = Some(id);
+        println!("{:?}", id);
         let log = persister.db.into_transaction_log();
-        //let db_postgres = DbBackend::Postgres;
-        //let built = db_postgres.build(&log[0].stmts[0]);
-        let generated_sql = "";// log[0].as_sql().to_string();
-        let log_msg = format!("{:?} log:\n{:#?}", id, log);        
-        println!("{}", log_msg);
-        let expected_sql = "";
-        assert!(is_sql_equivalent(expected_sql, generated_sql));
+        let expected_log = vec![
+                Transaction::from_sql_and_values(
+                    DatabaseBackend::Postgres,
+                    r#"INSERT INTO "Contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
+                    vec!["Gavin".into(), "Doughtie".into(), 1990_i64.into()]
+                )];
+        assert_eq!(expected_log, log);
         Ok(())
     }
 }
