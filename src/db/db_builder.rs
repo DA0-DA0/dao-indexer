@@ -4,7 +4,7 @@ use sea_orm::sea_query::{
     /* ForeignKey, ForeignKeyAction,*/ Table, TableCreateStatement,
 };
 use sea_orm::{ConnectionTrait, DatabaseConnection};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::db_mapper::DatabaseMapper;
 
@@ -19,6 +19,7 @@ pub fn db_column_name(input_name: &str) -> String {
 #[derive(Debug)]
 pub struct DatabaseBuilder {
     tables: BTreeMap<String, TableCreateStatement>,
+    table_constraints: BTreeMap<String, HashSet<String>>,
     columns: BTreeMap<String, HashMap<String, ColumnDef>>,
     pub value_mapper: DatabaseMapper,
 }
@@ -27,6 +28,7 @@ impl DatabaseBuilder {
     pub fn new() -> Self {
         DatabaseBuilder {
             tables: BTreeMap::new(),
+            table_constraints: BTreeMap::new(),
             columns: BTreeMap::new(),
             value_mapper: DatabaseMapper::new(),
         }
@@ -93,8 +95,17 @@ impl DatabaseBuilder {
             .to_tbl(Alias::new(&db_table_name(destination_table_name)))
             .to_col(Alias::new("id"))
             .to_owned();
-        self.table(destination_table_name)
-            .foreign_key(&mut foreign_key_create);
+
+        let fk_key = foreign_key_create.to_string(PostgresQueryBuilder);
+        let constraints_set = self
+            .table_constraints
+            .entry(destination_table_name.to_string())
+            .or_insert_with(HashSet::new);
+        if !constraints_set.contains(&fk_key) {
+            constraints_set.insert(fk_key);
+            self.table(destination_table_name)
+                .foreign_key(&mut foreign_key_create);
+        }
 
         Ok(())
     }
