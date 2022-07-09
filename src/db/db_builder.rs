@@ -19,7 +19,8 @@ pub fn db_column_name(input_name: &str) -> String {
 #[derive(Debug)]
 pub struct DatabaseBuilder {
     tables: BTreeMap<String, TableCreateStatement>,
-    table_constraints: BTreeMap<String, HashSet<String>>,
+    table_constraints_filter: BTreeMap<String, HashSet<String>>,
+    table_constraints: BTreeMap<String, Vec<ForeignKeyCreateStatement>>,
     columns: BTreeMap<String, HashMap<String, ColumnDef>>,
     pub value_mapper: DatabaseMapper,
 }
@@ -28,15 +29,13 @@ impl DatabaseBuilder {
     pub fn new() -> Self {
         DatabaseBuilder {
             tables: BTreeMap::new(),
+            table_constraints_filter: BTreeMap::new(),
             table_constraints: BTreeMap::new(),
             columns: BTreeMap::new(),
             value_mapper: DatabaseMapper::new(),
         }
     }
     pub fn table(&mut self, table_name: &str) -> &mut TableCreateStatement {
-        if table_name == "Empty" {
-            eprintln!("who is trying to create an empty table?");
-        }
         self.tables
             .entry(table_name.to_string())
             .or_insert_with(|| {
@@ -86,25 +85,32 @@ impl DatabaseBuilder {
             source_property_name,
         )?;
         let foreign_key = format!("{}_id", source_property_name);
+
         self.column(source_table_name, &foreign_key).integer();
         self.column(destination_table_name, "id").integer();
-        let mut foreign_key_create = ForeignKeyCreateStatement::new()
+
+        let db_source_table_name = db_table_name(source_table_name);
+        let db_destination_table_name = db_table_name(destination_table_name);
+        let foreign_key_create = ForeignKeyCreateStatement::new()
             .name(&foreign_key)
-            .from_tbl(Alias::new(&db_table_name(source_table_name)))
-            .from_col(Alias::new(source_property_name))
-            .to_tbl(Alias::new(&db_table_name(destination_table_name)))
+            .from_tbl(Alias::new(&db_source_table_name))
+            .from_col(Alias::new(&foreign_key))
+            .to_tbl(Alias::new(&db_destination_table_name))
             .to_col(Alias::new("id"))
             .to_owned();
 
         let fk_key = foreign_key_create.to_string(PostgresQueryBuilder);
         let constraints_set = self
-            .table_constraints
+            .table_constraints_filter
             .entry(destination_table_name.to_string())
             .or_insert_with(HashSet::new);
         if !constraints_set.contains(&fk_key) {
             constraints_set.insert(fk_key);
-            self.table(destination_table_name)
-                .foreign_key(&mut foreign_key_create);
+            let constraints = self
+                .table_constraints
+                .entry(destination_table_name.to_string())
+                .or_insert(vec![]);
+            constraints.push(foreign_key_create);
         }
 
         Ok(())
@@ -140,12 +146,18 @@ impl DatabaseBuilder {
         }
         let builder = seaql_db.get_database_backend();
         for (table_name, table_def) in self.tables.iter() {
-            println!("building {}", table_name);
-            if table_name == "Empty" {
-                println!("empty table name");
-            }
             let statement = builder.build(table_def);
+            println!("Executing {}\n{:#?}", table_name, statement);
             seaql_db.execute(statement).await?;
+        }
+        // Now that all the tables are created, we can add the rest of the fields and constraints
+        for (table_name, constraints) in self.table_constraints.iter() {
+            for create_statement in constraints.iter() {
+                // alter the table to add constraints
+                let statement = builder.build(create_statement);
+                println!("Executing foreign key statement {}\n{:#?}", table_name, statement);
+                // seaql_db.execute(statement).await?;
+            }
         }
         Ok(())
     }
