@@ -20,7 +20,7 @@ pub fn db_column_name(input_name: &str) -> String {
 pub struct DatabaseBuilder {
     tables: BTreeMap<String, TableCreateStatement>,
     columns: BTreeMap<String, HashMap<String, ColumnDef>>,
-    value_mapper: DatabaseMapper,
+    pub value_mapper: DatabaseMapper,
 }
 
 impl DatabaseBuilder {
@@ -32,6 +32,9 @@ impl DatabaseBuilder {
         }
     }
     pub fn table(&mut self, table_name: &str) -> &mut TableCreateStatement {
+        if table_name == "Empty" {
+            eprintln!("who is trying to create an empty table?");
+        }
         self.tables
             .entry(table_name.to_string())
             .or_insert_with(|| {
@@ -47,6 +50,14 @@ impl DatabaseBuilder {
             .columns
             .entry(table_name.to_string())
             .or_insert_with(HashMap::new);
+        self.value_mapper
+            .add_mapping(
+                table_name.to_string(),
+                column_name.to_string(),
+                table_name.to_string(),
+                column_name.to_string(),
+            )
+            .unwrap();
         columns
             .entry(column_name.to_string())
             .or_insert_with(|| ColumnDef::new(Alias::new(&db_column_name(column_name))))
@@ -77,9 +88,9 @@ impl DatabaseBuilder {
         self.column(destination_table_name, "id").integer();
         let mut foreign_key_create = ForeignKeyCreateStatement::new()
             .name(&foreign_key)
-            .from_tbl(Alias::new(source_table_name))
+            .from_tbl(Alias::new(&db_table_name(source_table_name)))
             .from_col(Alias::new(source_property_name))
-            .to_tbl(Alias::new(destination_table_name))
+            .to_tbl(Alias::new(&db_table_name(destination_table_name)))
             .to_col(Alias::new("id"))
             .to_owned();
         self.table(destination_table_name)
@@ -117,7 +128,11 @@ impl DatabaseBuilder {
             ));
         }
         let builder = seaql_db.get_database_backend();
-        for (_table_name, table_def) in self.tables.iter() {
+        for (table_name, table_def) in self.tables.iter() {
+            println!("building {}", table_name);
+            if table_name == "Empty" {
+                println!("empty table name");
+            }
             let statement = builder.build(table_def);
             seaql_db.execute(statement).await?;
         }

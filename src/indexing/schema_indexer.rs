@@ -17,6 +17,7 @@ use schemars::schema::{
 };
 // use tendermint::abci::transaction::Data;
 use anyhow::anyhow;
+use serde_json::Value;
 use std::collections::BTreeSet;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -91,99 +92,6 @@ impl SchemaIndexer {
             registry_keys: vec![RegistryKey::new(id)],
             root_keys: vec![],
         }
-    }
-
-    pub fn get_column_def_unused(
-        &self,
-        property_name: &str,
-        schema: &Schema,
-        schema_name: &str,
-        _parent_name: &str,
-        data: &SchemaData,
-    ) -> String {
-        let mut column_def: String = "".to_string();
-        let mut is_ref = false;
-        let mut is_subschema = false;
-        match schema {
-            Schema::Object(schema) => {
-                if let Some(reference) = &schema.reference {
-                    is_ref = true;
-                    column_def = format!("{} REFERENCE to {}", property_name, reference);
-                }
-                if let Some(_subschemas) = &schema.subschemas {
-                    is_subschema = true;
-                    let mut ref_key = "CANNOT FIND REF".to_string();
-                    if let Some(ref_value) = data.ref_roots.get(property_name) {
-                        ref_key = ref_value.to_string();
-                    }
-                    column_def = format!("{} SUBSCHEMA ({})", property_name, ref_key);
-                }
-                if let Some(type_instance) = &schema.instance_type {
-                    match type_instance {
-                        SingleOrVec::Single(single_val) => match *single_val.as_ref() {
-                            InstanceType::Boolean => {
-                                column_def = format!("{} BOOLEAN", property_name);
-                            }
-                            InstanceType::String => {
-                                column_def = format!("{} TEXT NOT NULL", property_name);
-                            }
-                            InstanceType::Integer => {
-                                column_def = format!("{} NUMERIC(78) NOT NULL", property_name);
-                            }
-                            InstanceType::Number => {
-                                column_def = format!("{} NUMERIC(78) NOT NULL", property_name);
-                            }
-                            InstanceType::Object => {
-                                column_def =
-                                    format!("{}_{} REFERENCE OBJECT", schema_name, property_name);
-                            }
-                            InstanceType::Null => {
-                                column_def = format!("{} NULL", property_name);
-                            }
-                            InstanceType::Array => {
-                                column_def = format!("{} ARRAY", property_name);
-                            }
-                        },
-                        SingleOrVec::Vec(vec_val) => {
-                            // This is the test for an optional type:
-                            if vec_val.len() > 1 && vec_val[vec_val.len() - 1] == InstanceType::Null
-                            {
-                                let optional_val = vec_val[0];
-                                match optional_val {
-                                    InstanceType::Boolean => {
-                                        column_def = format!("{} BOOLEAN", property_name);
-                                    }
-                                    InstanceType::String => {
-                                        column_def = format!("{} TEXT", property_name);
-                                    }
-                                    InstanceType::Integer => {
-                                        column_def = format!("{} NUMERIC(78)", property_name);
-                                    }
-                                    InstanceType::Number => {
-                                        column_def = format!("{} NUMERIC(78)", property_name);
-                                    }
-                                    _ => {
-                                        column_def = format!(
-                                            "{} {:?} Not handled",
-                                            property_name, optional_val
-                                        );
-                                    }
-                                }
-                            } else {
-                                warn!("unexpected");
-                            }
-                        }
-                    }
-                } else if !is_ref && !is_subschema {
-                    println!("{} is neither a ref nor a known property", property_name);
-                }
-            }
-            Schema::Bool(bool_val) => {
-                column_def = format!("{} BOOLEAN {}", property_name, bool_val);
-                println!("bool schema {} for {}", bool_val, property_name);
-            }
-        }
-        column_def
     }
 
     fn process_subschema(
@@ -505,6 +413,20 @@ impl Indexer for SchemaIndexer {
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
     }
+    // Indexes a message and its transaction events
+    fn index<'a>(
+        &'a self,
+        // The registry of indexers
+        _registry: &'a IndexerRegistry,
+        // All the transaction events in a map of "event.id": Vec<String> values.
+        _events: &'a EventMap,
+        // Generic serde-parsed value dictionary
+        _msg_dictionary: &'a Value,
+        // The decoded string value of the message
+        _msg_str: &'a str,
+    ) -> anyhow::Result<()> {
+        Ok(())
+    }
     fn initialize_schemas<'a>(
         &'a mut self,
         builder: &'a mut DatabaseBuilder,
@@ -520,8 +442,9 @@ impl Indexer for SchemaIndexer {
     }
     // TODO(gavindoughtie): We can validate `msg` against the Schema and return our key
     // if it succeeds.
-    // fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
-    // }
+    fn extract_message_key(&self, _msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+        Some(RegistryKey::new(self.id()))
+    }
 }
 
 #[test]
@@ -687,56 +610,164 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
     }
 }
 
-#[test]
-fn test_simple_message() {
-    use schemars::schema_for;
+#[cfg(test)]
+pub mod tests {
+    use crate::db::db_persister::DatabasePersister;
 
-    let name = stringify!(SimpleMessage);
-    let schema = schema_for!(SimpleMessage);
-    let mut registry = get_test_registry(name, schema);
-    assert!(registry.initialize().is_ok(), "failed to init indexer");
-    let built_table = registry.db_builder.table(name);
-    let expected_sql = vec![
-        r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
-        r#""simple_field_one" text,"#,
-        r#""simple_field_two" integer"#,
-        r#")"#,
-    ]
-    .join(" ");
-    compare_table_create_statements(built_table, &expected_sql);
-}
+    use super::*;
+    use tokio::test;
 
-#[test]
-fn test_simple_related_message() {
-    use schemars::schema_for;
-    let name = stringify!(SimpleRelatedMessage);
-    let schema = schema_for!(SimpleRelatedMessage);
-    let mut registry = get_test_registry(name, schema);
-    assert!(registry.initialize().is_ok(), "failed to init indexer");
-    let expected_sql = vec![
-        r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
-        r#""title" text,"#,
-        r#""message_id" integer,"#,
-        r#""sub_message_id" integer)"#,
-    ]
-    .join(" ");
-    let built_table = registry.db_builder.table(name);
-    compare_table_create_statements(built_table, &expected_sql);
-}
+    fn new_mock_persister() -> DatabasePersister {
+        use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
 
-#[test]
-fn test_visit() {
-    use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-    use schemars::schema_for;
-
-    let schema3 = schema_for!(Cw3DaoInstantiateMsg);
-    let label = stringify!(Cw3DaoInstantiateMsg);
-    let mut indexer = SchemaIndexer::new(label.to_string(), vec![]);
-    let mut builder = DatabaseBuilder::new();
-    let mut visitor = SchemaVisitor::new(&mut indexer, &mut builder);
-    let result = visitor.visit_root_schema(&schema3);
-    if result.is_err() {
-        eprintln!("failed {:#?}", result);
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results(vec![
+                MockExecResult {
+                    last_insert_id: 15,
+                    rows_affected: 1,
+                },
+                MockExecResult {
+                    last_insert_id: 15,
+                    rows_affected: 1,
+                },
+                MockExecResult {
+                    last_insert_id: 15,
+                    rows_affected: 1,
+                },
+            ])
+            .into_connection();
+        DatabasePersister::new(db)
     }
-    assert!(result.is_ok());
+
+    #[test]
+    async fn test_simple_message() {
+        use schemars::schema_for;
+
+        let name = stringify!(SimpleMessage);
+        let schema = schema_for!(SimpleMessage);
+        let mut registry = get_test_registry(name, schema);
+        assert!(registry.initialize().is_ok(), "failed to init indexer");
+        let built_table = registry.db_builder.table(name);
+        let expected_sql = vec![
+            r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
+            r#""simple_field_one" text,"#,
+            r#""simple_field_two" integer"#,
+            r#")"#,
+        ]
+        .join(" ");
+        compare_table_create_statements(built_table, &expected_sql);
+
+        let msg_str = r#"
+        {
+            "simple_field_one": "simple_field_one value",
+            "simple_field_two": 33
+        }"#;
+        let msg_dictionary = serde_json::from_str(msg_str).unwrap();
+        println!("msg_dictionary now:\n{:#?}", msg_dictionary);
+
+        let mut persister = new_mock_persister();
+
+        let result = registry
+            .db_builder
+            .value_mapper
+            .persist_message(&mut persister, "SimpleMessage", &msg_dictionary)
+            .await;
+
+        println!("{:#?}", persister.db.into_transaction_log());
+        assert!(result.is_ok());
+        let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    async fn test_simple_related_message() {
+        use schemars::schema_for;
+        let name = stringify!(SimpleRelatedMessage);
+        let schema = schema_for!(SimpleRelatedMessage);
+        let mut registry = get_test_registry(name, schema);
+        assert!(registry.initialize().is_ok(), "failed to init indexer");
+        let expected_sql = vec![
+            r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
+            r#""title" text,"#,
+            r#""message_id" integer,"#,
+            r#""sub_message_id" integer)"#,
+        ]
+        .join(" ");
+        let built_table = registry.db_builder.table(name);
+        compare_table_create_statements(built_table, &expected_sql);
+
+        let msg_str = r#"
+    {
+        "title": "SimpleRelatedMessage Title",
+        "message": {
+            "simple_field_one": "simple_field_one value",
+            "simple_field_two": 33
+        },
+        sub_message: {
+            "type_a_contract_address": "type a contract address value",
+            "type_a_count": 99
+        },
+    }"#;
+        let msg_dictionary = serde_json::json!(msg_str);
+
+        let mut persister = new_mock_persister();
+
+        let result = registry
+            .db_builder
+            .value_mapper
+            .persist_message(&mut persister, "SimpleRelatedMessage", &msg_dictionary)
+            .await;
+
+        println!("{:#?}", persister.db.into_transaction_log());
+        assert!(result.is_ok());
+        let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    async fn test_visit() {
+        use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+        use schemars::schema_for;
+        let mut persister = new_mock_persister();
+        let schema3 = schema_for!(Cw3DaoInstantiateMsg);
+        let label = stringify!(Cw3DaoInstantiateMsg);
+        let mut indexer = SchemaIndexer::new(label.to_string(), vec![]);
+        let mut builder = DatabaseBuilder::new();
+        let mut visitor = SchemaVisitor::new(&mut indexer, &mut builder);
+        let result = visitor.visit_root_schema(&schema3);
+        if result.is_err() {
+            eprintln!("failed {:#?}", result);
+        }
+        let msg_string = r#"
+    {
+        "name": "Unit Test Dao",
+        "description": "Unit Test Dao Description",
+        "gov_token: {
+
+        },
+        "staking_contract": {
+
+        },
+        "threshold": {
+
+        }
+        "max_voting_period": {
+
+        },
+        "proposal_deposit_amount": {
+
+        },
+        "refund_failed_proposals": true,
+        "image_url": "logo.png",
+        "only_members_execute": true,
+        "automatically_add_cw20s": true
+    }
+    "#;
+        let msg = serde_json::json!(msg_string);
+        let result = builder
+            .value_mapper
+            .persist_message(&mut persister, label, &msg)
+            .await;
+        assert!(result.is_ok());
+    }
 }

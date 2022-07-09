@@ -109,14 +109,12 @@ impl DatabaseMapper {
         Ok(())
     }
 
-    pub fn persist_message<T>(
+    pub async fn persist_message<T>(
         &mut self,
         persister: &mut dyn Persister<T>,
         table_name: &str,
         msg: &Value,
     ) -> anyhow::Result<Option<T>> {
-        println!("persist_msg {}, {:#?}", table_name, msg);
-
         let mut record_id: Option<T> = None;
 
         let mapping = self.mappings.get(table_name);
@@ -125,14 +123,23 @@ impl DatabaseMapper {
         }
         let mapping = mapping.unwrap();
 
-        for field_name in mapping.keys() {
-            if let Some(val) = msg.get(field_name) {
-                println!("Saving {}:{}={}", table_name, field_name, val);
-                if let Ok(updated_id) = persister.save(table_name, field_name, val, &record_id) {
-                    if record_id.is_none() {
-                        record_id = Some(updated_id);
-                    }
-                }
+        // So the strategy here is to recursively go through the message
+        // persisting the relational messages first and then the top-level
+        // messages given the IDs from the persisted related messages.
+        let mut columns = vec![];
+        let mut values = vec![];
+        for (key, field_mapping) in &*mapping {
+            if let Some(value) = msg.get(&field_mapping.field_name) {
+                columns.push(key);
+                values.push(value);
+            }
+        }
+        if !columns.is_empty() {
+            let saved_id = persister
+                .save(table_name, &columns[..], &values[..], &record_id)
+                .await?;
+            if record_id.is_none() {
+                record_id = Some(saved_id);
             }
         }
         Ok(record_id)
@@ -149,9 +156,10 @@ impl Default for DatabaseMapper {
 mod tests {
     use super::*;
     use crate::db::persister::tests::TestPersister;
+    use tokio::test;
 
     #[test]
-    fn test_mapper_to_persistence() -> anyhow::Result<()> {
+    async fn test_mapper_to_persistence() -> anyhow::Result<()> {
         let mut mapper = DatabaseMapper::new();
         let message_name = "Contact".to_string();
         let first_name_field_name = "first_name".to_string();
@@ -191,10 +199,10 @@ mod tests {
         let mut persister = TestPersister::new();
         let record_one_id = mapper
             .persist_message(&mut persister, &message_name, &record_one)
-            .unwrap();
+            .await?;
         let record_two_id = mapper
             .persist_message(&mut persister, &message_name, &record_two)
-            .unwrap();
+            .await?;
 
         let records_for_message = persister.tables.get(&message_name).unwrap();
         let persisted_record_one = records_for_message.get(&record_one_id.unwrap()).unwrap();
