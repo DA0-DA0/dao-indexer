@@ -1,19 +1,13 @@
+use super::persister::Persister;
 use anyhow::Result;
 use async_trait::async_trait;
+use core::fmt::Debug;
 use log::debug;
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query::{Alias, Expr, IntoIden, Query};
 use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
-// use sea_orm::sea_query::{Alias, Cond, Expr, Iden, IntoIden, OnConflict, Query};
-// use sea_orm::{
-//     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, FromQueryResult,
-//     JoinType, JsonValue, QueryFilter, Value,
-// };
-use super::persister::Persister;
-use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
-// use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
@@ -65,10 +59,6 @@ impl DatabasePersister {
     }
 }
 
-unsafe impl Send for DatabasePersister {}
-
-unsafe impl Sync for DatabasePersister {}
-
 #[async_trait]
 impl Persister<u64> for DatabasePersister {
     async fn save<'a>(
@@ -104,11 +94,7 @@ impl Persister<u64> for DatabasePersister {
                 insert_columns.push(column_ident);
             }
         }
-        // let mut vals = vec![];
-        // for value in values {
-        //     let val = string_data_type.value_with_datatype(Some(value));
-        //     vals.push(val.clone());
-        // }
+
         let builder = self.db.get_database_backend();
 
         if update {
@@ -119,7 +105,6 @@ impl Persister<u64> for DatabasePersister {
                 .to_owned();
 
             let result = self.db.execute(builder.build(&stmt)).await?;
-            println!("{:#?}", result);
             Ok(result.last_insert_id())
         } else {
             let stmt = Query::insert()
@@ -128,30 +113,8 @@ impl Persister<u64> for DatabasePersister {
                 .values(vals)?
                 .to_owned();
             let result = self.db.execute(builder.build(&stmt)).await?;
-            println!("{:#?}", result);
             Ok(result.last_insert_id())
         }
-        // if upsert {
-        //     stmt.on_conflict(
-        //         OnConflict::column(NodeIden::Name)
-        //             .update_columns(cols)
-        //             .to_owned(),
-        //     );
-        // }
-
-        // for node_json in node_json_batch.nodes.into_iter() {
-        //     let mut vals = vec![node_json.name.as_str().into()];
-        //     for attribute in attributes.iter() {
-        //         let name = &attribute.name;
-        //         let val = attribute
-        //             .datatype
-        //             .value_with_datatype(node_json.attributes.get(name));
-        //         vals.push(val);
-        //     }
-        //     stmt.values_panic(vals);
-        // }
-
-        // Ok(0)
     }
 }
 

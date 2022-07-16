@@ -1,7 +1,7 @@
 use convert_case::{Case, Casing};
+use log::debug;
 use sea_orm::sea_query::{
-    Alias, ColumnDef, ForeignKeyCreateStatement, PostgresQueryBuilder,
-    /* ForeignKey, ForeignKeyAction,*/ Table, TableCreateStatement,
+    Alias, ColumnDef, ForeignKeyCreateStatement, PostgresQueryBuilder, Table, TableCreateStatement,
 };
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -91,7 +91,8 @@ impl DatabaseBuilder {
         self.column(source_table_name, &foreign_key).integer();
 
         if !self.unique_key_map.contains(destination_table_name) {
-            self.unique_key_map.insert(destination_table_name.to_string());
+            self.unique_key_map
+                .insert(destination_table_name.to_string());
             self.column(destination_table_name, "id")
                 .unique_key()
                 .integer();
@@ -155,7 +156,7 @@ impl DatabaseBuilder {
         let builder = seaql_db.get_database_backend();
         for (table_name, table_def) in self.tables.iter() {
             let statement = builder.build(table_def);
-            println!("Executing {}\n{:#?}", table_name, statement);
+            debug!("Executing {}\n{:#?}", table_name, statement);
             seaql_db.execute(statement).await?;
         }
         // Now that all the tables are created, we can add the rest of the fields and constraints
@@ -163,7 +164,7 @@ impl DatabaseBuilder {
             for create_statement in constraints.iter() {
                 // alter the table to add constraints
                 let statement = builder.build(create_statement);
-                println!(
+                debug!(
                     "Executing foreign key statement {}\n{:#?}",
                     table_name, statement
                 );

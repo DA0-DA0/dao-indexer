@@ -4,9 +4,6 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-// use uuid::Uuid;
-// use core::fmt::Display;
-// use futures::future::{BoxFuture, FutureExt};
 
 /// Relational mapping
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -152,7 +149,7 @@ impl DatabaseMapper {
         let mut child_id_columns: Vec<&str> = vec![];
         let mut child_id_values: Vec<Value> = vec![];
         let relationships = self.relationships.get(table_name);
-        for (key, field_mapping) in &*mapping {
+        for (key, field_mapping) in mapping {
             if let Some(value) = msg.get(&field_mapping.field_name) {
                 if field_mapping.recursive {
                     if let Some(relationships) = relationships {
