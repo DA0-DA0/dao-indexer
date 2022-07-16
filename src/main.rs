@@ -1,4 +1,7 @@
 use clap::Command;
+pub use cw20::Cw20ExecuteMsg;
+use cw3_dao_2_5::msg::ExecuteMsg as Cw3DaoExecuteMsg_025;
+use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::block_synchronizer;
@@ -10,6 +13,12 @@ use dao_indexer::indexing::msg_cw3dao_indexer::{
 use dao_indexer::indexing::msg_cw3multisig_indexer::{
     Cw3MultisigExecuteMsgIndexer, Cw3MultisigInstantiateMsgIndexer,
 };
+
+use cw3_multisig::msg::ExecuteMsg as Cw3MultisigExecuteMsg25;
+use cw3_multisig::msg::InstantiateMsg as Cw3MultisigInstantiateMsg25;
+
+use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg25;
+
 use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::schema_indexer::{SchemaIndexer, SchemaRef};
@@ -67,33 +76,96 @@ async fn main() -> anyhow::Result<()> {
 
     // Schema indexer is switched off by default while it's in progress
     if config.schema_indexer {
-        let instantiate_msg_schema = schema_for!(Cw3DaoInstantiateMsg_030);
-        let instantiate_msg_label = "Cw3DaoInstantiateMsg";
-        let instantiate_msg_indexer = SchemaIndexer::new(
-            instantiate_msg_label.to_string(),
+        // TODO(gavindoughtie): I'm *sure* we can make a macro for this
+        // pattern, so we can do:
+        // register_indexer!(registry, [Cw3DaoInstantiateMsg, Cw3DaoInstantiateMsg25], "0.3.0");
+        let msg_label = "Cw3DaoInstantiateMsg";
+        let msg_indexer = SchemaIndexer::new(
+            msg_label.to_string(),
             vec![
                 SchemaRef {
-                    name: instantiate_msg_label.to_string(),
-                    schema: instantiate_msg_schema,
+                    name: "Cw3DaoInstantiateMsg".to_string(),
+                    schema: schema_for!(Cw3DaoInstantiateMsg_030),
                     version: "0.3.0",
                 },
+                SchemaRef {
+                    name: "Cw3DaoInstantiateMsg25".to_string(),
+                    schema: schema_for!(Cw3DaoInstantiateMsg25),
+                    version: "0.2.5",
+                },
+            ],
+        );
+        registry.register(Box::from(msg_indexer), None);
+
+        let msg_label = "Cw3DaoExecuteMsg";
+        let msg_indexer = SchemaIndexer::new(
+            msg_label.to_string(),
+            vec![
                 SchemaRef {
                     name: "Cw3DaoExecuteMsg".to_string(),
                     schema: schema_for!(Cw3DaoExecuteMsg_030),
                     version: "0.3.0",
                 },
+                SchemaRef {
+                    name: "Cw3DaoExecuteMsg25".to_string(),
+                    schema: schema_for!(Cw3DaoExecuteMsg_025),
+                    version: "0.2.5",
+                },
             ],
         );
-        registry.register(Box::from(instantiate_msg_indexer), None);
+        registry.register(Box::from(msg_indexer), None);
+
+        let msg_label = "Cw20ExecuteMsg";
+        let msg_indexer = SchemaIndexer::new(
+            msg_label.to_string(),
+            vec![SchemaRef {
+                name: "Cw20ExecuteMsg".to_string(),
+                schema: schema_for!(Cw20ExecuteMsg),
+                version: "0.13.2",
+            }],
+        );
+        registry.register(Box::from(msg_indexer), None);
+
+        let msg_label = "Cw3MultisigExecuteMsg";
+        let msg_indexer = SchemaIndexer::new(
+            msg_label.to_string(),
+            vec![SchemaRef {
+                name: "Cw3MultisigExecuteMsg25".to_string(),
+                schema: schema_for!(Cw3MultisigExecuteMsg25),
+                version: "0.2.5",
+            }],
+        );
+        registry.register(Box::from(msg_indexer), None);
+
+        let msg_label = "Cw3MultisigInstantiateMsg";
+        let msg_indexer = SchemaIndexer::new(
+            msg_label.to_string(),
+            vec![SchemaRef {
+                name: "Cw3MultisigInstantiateMsg25".to_string(),
+                schema: schema_for!(Cw3MultisigInstantiateMsg25),
+                version: "0.2.5",
+            }],
+        );
+        registry.register(Box::from(msg_indexer), None);
+
+        let msg_label = "StakeCw20ExecuteMsg";
+        let msg_indexer = SchemaIndexer::new(
+            msg_label.to_string(),
+            vec![SchemaRef {
+                name: "StakeCw20ExecuteMsg25".to_string(),
+                schema: schema_for!(StakeCw20ExecuteMsg25),
+                version: "0.2.5",
+            }],
+        );
+        registry.register(Box::from(msg_indexer), None);
+    } else {
+        registry.register(Box::from(cw20_indexer), None);
+        registry.register(Box::from(cw3multisig_instantiate_indexer), None);
+        registry.register(Box::from(cw3multisig_execute_indexer), None);
+        registry.register(Box::from(cw3dao_instantiate_indexer), None);
+        registry.register(Box::from(cw3dao_indexer), None);
+        registry.register(Box::from(cw20_stake_indexer), None);
     }
-
-    registry.register(Box::from(cw20_indexer), None);
-    registry.register(Box::from(cw3multisig_instantiate_indexer), None);
-    registry.register(Box::from(cw3multisig_execute_indexer), None);
-    registry.register(Box::from(cw3dao_instantiate_indexer), None);
-    registry.register(Box::from(cw3dao_indexer), None);
-    registry.register(Box::from(cw20_stake_indexer), None);
-
     registry.initialize()?;
 
     if let Some(seaql_db) = &registry.seaql_db {

@@ -1,4 +1,5 @@
 use super::persister::Persister;
+use async_recursion::async_recursion;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -39,6 +40,8 @@ pub struct FieldMapping {
     pub table_name: String,
     pub column_name: String,
     // TODO(gavindoughtie): will probably need a policy defining HOW to put a value in a field
+    pub recursive: bool,
+    pub related_table: String,
 }
 
 impl FieldMapping {
@@ -47,19 +50,24 @@ impl FieldMapping {
         field_name: String,
         table_name: String,
         column_name: String,
+        recursive: bool,
+        related_table: String,
     ) -> Self {
         FieldMapping {
             message_name,
             field_name,
             table_name,
             column_name,
+            recursive,
+            related_table,
         }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DatabaseMapper {
-    pub relationships: HashMap<String, DatabaseRelationship>,
+    // Maps from message name to a map of field names to DB relationships
+    pub relationships: HashMap<String, HashMap<String, DatabaseRelationship>>,
 
     // Map from a message name to a dictionary of mappings
     pub mappings: HashMap<String, HashMap<String, FieldMapping>>,
@@ -89,7 +97,14 @@ impl DatabaseMapper {
             .mappings
             .entry(message_name.clone())
             .or_insert_with(HashMap::new);
-        let mapping = FieldMapping::new(message_name, field_name, table_name, column_name.clone());
+        let mapping = FieldMapping::new(
+            message_name,
+            field_name,
+            table_name,
+            column_name.clone(),
+            false,
+            "".to_string(),
+        );
         message_mappings.insert(column_name, mapping);
         Ok(())
     }
@@ -104,38 +119,73 @@ impl DatabaseMapper {
         println!("add_mapping(add_relational_mapping: {}, field_name: {}, table_name: {}, column_name: {})", message_name, field_name, table_name, column_name);
         let relation =
             DatabaseRelationship::new(message_name, field_name, table_name, column_name, None);
-        self.relationships
-            .insert(message_name.to_string(), relation);
+        let message_relationships = self
+            .relationships
+            .entry(message_name.to_string())
+            .or_insert_with(HashMap::new);
+        message_relationships.insert(field_name.to_string(), relation);
         Ok(())
     }
 
-    pub fn persist_message<T>(
-        &mut self,
-        persister: &mut dyn Persister<T>,
+    #[async_recursion]
+    pub async fn persist_message(
+        &self,
+        persister: &mut dyn Persister<u64>,
         table_name: &str,
         msg: &Value,
-    ) -> anyhow::Result<Option<T>> {
-        println!("persist_msg {}, {:#?}", table_name, msg);
-
-        let mut record_id: Option<T> = None;
-
+        record_id: Option<u64>,
+    ) -> anyhow::Result<u64> {
         let mapping = self.mappings.get(table_name);
         if mapping.is_none() {
             return Err(anyhow::anyhow!("no mapping for {}", table_name));
         }
         let mapping = mapping.unwrap();
 
-        for field_name in mapping.keys() {
-            if let Some(val) = msg.get(field_name) {
-                println!("Saving {}:{}={}", table_name, field_name, val);
-                if let Ok(updated_id) = persister.save(table_name, field_name, val, &record_id) {
-                    if record_id.is_none() {
-                        record_id = Some(updated_id);
+        // So the strategy here is to recursively go through the message
+        // persisting the relational messages first and then the top-level
+        // messages given the IDs from the persisted related messages.
+        let mut columns: Vec<&str> = vec![];
+        let mut values: Vec<&Value> = vec![];
+        let mut child_id_columns: Vec<&str> = vec![];
+        let mut child_id_values: Vec<Value> = vec![];
+        let relationships = self.relationships.get(table_name);
+        for (key, field_mapping) in mapping {
+            if let Some(value) = msg.get(&field_mapping.field_name) {
+                if field_mapping.recursive {
+                    if let Some(relationships) = relationships {
+                        if let Some(field_relationship) =
+                            relationships.get(&field_mapping.field_name)
+                        {
+                            let child_id = self
+                                .persist_message(
+                                    persister,
+                                    &field_mapping.related_table,
+                                    value,
+                                    None,
+                                )
+                                .await?;
+                            let child_id_value = serde_json::json!(child_id);
+                            child_id_columns.push(&field_relationship.destination_column);
+                            child_id_values.push(child_id_value);
+                        }
                     }
+                } else {
+                    columns.push(key);
+                    values.push(value);
                 }
             }
         }
-        Ok(record_id)
+        let mut db_id = 0;
+        columns.append(&mut child_id_columns);
+        for child_id_value in child_id_values.iter() {
+            values.push(child_id_value);
+        }
+        if !columns.is_empty() {
+            db_id = persister
+                .save(table_name, &columns[..], &values[..], &record_id)
+                .await?;
+        }
+        Ok(db_id)
     }
 }
 
@@ -148,10 +198,11 @@ impl Default for DatabaseMapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::persister::tests::TestPersister;
+    use crate::db::persister::tests::*;
+    use tokio::test;
 
     #[test]
-    fn test_mapper_to_persistence() -> anyhow::Result<()> {
+    async fn test_mapper_to_persistence() -> anyhow::Result<()> {
         let mut mapper = DatabaseMapper::new();
         let message_name = "Contact".to_string();
         let first_name_field_name = "first_name".to_string();
@@ -188,17 +239,17 @@ mod tests {
           "birth_year": 1978u64
         });
 
-        let mut persister = TestPersister::new();
-        let record_one_id = mapper
-            .persist_message(&mut persister, &message_name, &record_one)
-            .unwrap();
-        let record_two_id = mapper
-            .persist_message(&mut persister, &message_name, &record_two)
-            .unwrap();
+        let mut persister = TestPersister::<u64>::new();
+        let record_one_id: u64 = mapper
+            .persist_message(&mut persister, &message_name, &record_one, None)
+            .await?;
+        let record_two_id: u64 = mapper
+            .persist_message(&mut persister, &message_name, &record_two, None)
+            .await?;
 
         let records_for_message = persister.tables.get(&message_name).unwrap();
-        let persisted_record_one = records_for_message.get(&record_one_id.unwrap()).unwrap();
-        let persisted_record_two = records_for_message.get(&record_two_id.unwrap()).unwrap();
+        let persisted_record_one = records_for_message.get(&record_one_id).unwrap();
+        let persisted_record_two = records_for_message.get(&record_two_id).unwrap();
         assert_eq!(
             record_one.get(first_name_field_name.clone()).unwrap(),
             persisted_record_one.get(&first_name_field_name).unwrap()
