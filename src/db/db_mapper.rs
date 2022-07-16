@@ -196,7 +196,7 @@ impl Default for DatabaseMapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::persister::tests::TestPersister;
+    use crate::db::persister::tests::*;
     use tokio::test;
 
     #[test]

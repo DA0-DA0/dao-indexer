@@ -186,9 +186,9 @@ pub mod tests {
             .save(
                 "Contact",
                 &[
-                    &"first_name".to_string(),
-                    &"last_name".to_string(),
-                    &"birth_year".to_string(),
+                    "first_name",
+                    "last_name",
+                    "birth_year"
                 ],
                 values,
                 &None,

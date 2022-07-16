@@ -32,7 +32,7 @@ pub mod tests {
     impl<T> TestPersister<T> {
         #[allow(dead_code)]
         pub fn new() -> Self {
-            let mut tables: BTreeMap<String, HashMap<T, Record>> = BTreeMap::new();
+            let tables: BTreeMap<String, HashMap<T, Record>> = BTreeMap::new();
             TestPersister {
                 tables
             }
@@ -75,7 +75,7 @@ pub mod tests {
     }
 
     #[async_trait]
-    impl Persister<u64> for TestPersister {
+    impl Persister<u64> for TestPersister<u64> {
         async fn save<'a>(
             &'a mut self,
             table_name: &'a str,
@@ -92,7 +92,7 @@ pub mod tests {
                 _ => records.len() as u64,
             };
 
-            let record = records.entry(id as usize).or_insert_with(BTreeMap::new);
+            let record = records.entry(id).or_insert_with(BTreeMap::new);
 
             for (value_index, column_name) in column_names.iter().enumerate() {
                 if let Some(value) = values.get(value_index) {
@@ -110,9 +110,9 @@ pub mod tests {
             .save(
                 "contacts",
                 &[
-                    &"first_name".to_string(),
-                    &"last_name".to_string(),
-                    &"birth_year".to_string(),
+                    "first_name",
+                    "last_name",
+                    "birth_year"
                 ],
                 &[
                     &Value::String("Gavin".to_string()),
