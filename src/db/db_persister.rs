@@ -12,6 +12,8 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 use super::persister::Persister;
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
+use core::fmt::Debug;
+// use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
@@ -63,12 +65,20 @@ impl DatabasePersister {
     }
 }
 
+unsafe impl Send for DatabasePersister {
+
+}
+
+unsafe impl Sync for DatabasePersister {
+
+}
+
 #[async_trait]
 impl Persister<u64> for DatabasePersister {
     async fn save<'a>(
         &'a mut self,
         table_name: &'a str,
-        column_names: &'a [&'a String],
+        column_names: &'a [&'a str],
         values: &'a [&'a JsonValue],
         id: &'a Option<u64>,
     ) -> Result<u64> {
@@ -109,14 +119,13 @@ impl Persister<u64> for DatabasePersister {
             let stmt = Query::update()
                 .table(Alias::new(table_name))
                 .values(cols)
-                // .values::<Value>(vals.iter().collect_tuple().unwrap())
-                .and_where(Expr::col(Alias::new("id").into_iden()).eq::<i64>(id.unwrap() as i64))
+                .and_where(Expr::col(Alias::new("id").into_iden()).eq::<u64>(id.unwrap()))
                 .to_owned();
 
             let result = self.db.execute(builder.build(&stmt)).await?;
             println!("{:#?}", result);
             Ok(result.last_insert_id())
-            // stmt.values_panic(vals);
+
         } else {
             let stmt = Query::insert()
                 .into_table(Alias::new(table_name))

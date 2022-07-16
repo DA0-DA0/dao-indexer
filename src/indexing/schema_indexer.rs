@@ -670,7 +670,7 @@ pub mod tests {
         let result = registry
             .db_builder
             .value_mapper
-            .persist_message(&mut persister, "SimpleMessage", &msg_dictionary)
+            .persist_message(&mut persister, "SimpleMessage", &msg_dictionary, None)
             .await;
 
         println!("{:#?}", persister.db.into_transaction_log());
@@ -715,7 +715,7 @@ pub mod tests {
         let result = registry
             .db_builder
             .value_mapper
-            .persist_message(&mut persister, "SimpleRelatedMessage", &msg_dictionary)
+            .persist_message(&mut persister, "SimpleRelatedMessage", &msg_dictionary, None)
             .await;
 
         println!("{:#?}", persister.db.into_transaction_log());
@@ -766,7 +766,7 @@ pub mod tests {
         let msg = serde_json::json!(msg_string);
         let result = builder
             .value_mapper
-            .persist_message(&mut persister, label, &msg)
+            .persist_message(&mut persister, label, &msg, None)
             .await;
         assert!(result.is_ok());
     }

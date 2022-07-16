@@ -2,22 +2,18 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
 
-// pub type PersistColumnNames<'a> = dyn IntoIterator<Item = &'a str, IntoIter = dyn core::iter::Iterator<Item = &'a str>>;
-// pub type PersistValues<'a> = dyn IntoIterator<Item = &'a Value, IntoIter = dyn core::iter::Iterator<Item = &'a Value>>;
-
-pub type PersistColumnNames<'a> = &'a [&'a String];
+pub type PersistColumnNames<'a> = &'a [&'a str];
 pub type PersistValues<'a> = &'a [&'a Value];
 
 /// Trait for persisting a message.
-/// T is the ID type.
 #[async_trait]
-pub trait Persister<T = u64> {
+pub trait Persister<T> : Send {
     async fn save<'a>(
         &'a mut self,
         table_name: &'a str,
-        column_names: &'a [&'a String],
+        column_names: &'a [&'a str],
         values: &'a [&'a Value],
-        id: &'a Option<T>,
+        id: &'a Option<T>
     ) -> Result<T>;
 }
 
@@ -29,15 +25,16 @@ pub mod tests {
 
     type Record = BTreeMap<String, Value>;
     #[derive(Debug)]
-    pub struct TestPersister {
-        pub tables: BTreeMap<String, HashMap<usize, Record>>,
+    pub struct TestPersister<T = usize> {
+        pub tables: BTreeMap<String, HashMap<T, Record>>,
     }
 
-    impl TestPersister {
+    impl<T> TestPersister<T> {
         #[allow(dead_code)]
         pub fn new() -> Self {
+            let mut tables: BTreeMap<String, HashMap<T, Record>> = BTreeMap::new();
             TestPersister {
-                tables: BTreeMap::new(),
+                tables
             }
         }
     }
@@ -53,7 +50,7 @@ pub mod tests {
         async fn save<'a>(
             &'a mut self,
             table_name: &'a str,
-            column_names: &'a [&'a String],
+            column_names: &'a [&'a str],
             values: &'a [&'a Value],
             id: &'a Option<usize>,
         ) -> Result<usize> {
@@ -70,7 +67,36 @@ pub mod tests {
 
             for (value_index, column_name) in column_names.iter().enumerate() {
                 if let Some(value) = values.get(value_index) {
-                    record.insert((*column_name).clone(), (**value).clone());
+                    record.insert(column_name.to_string(), (**value).clone());
+                }
+            }
+            Ok(id)
+        }
+    }
+
+    #[async_trait]
+    impl Persister<u64> for TestPersister {
+        async fn save<'a>(
+            &'a mut self,
+            table_name: &'a str,
+            column_names: &'a [&'a str],
+            values: &'a [&'a Value],
+            id: &'a Option<u64>,
+        ) -> Result<u64> {
+            let records = self
+                .tables
+                .entry(table_name.to_string())
+                .or_insert_with(HashMap::new);
+            let id = match id {
+                Some(id) => *id,
+                _ => records.len() as u64,
+            };
+
+            let record = records.entry(id as usize).or_insert_with(BTreeMap::new);
+
+            for (value_index, column_name) in column_names.iter().enumerate() {
+                if let Some(value) = values.get(value_index) {
+                    record.insert(column_name.to_string(), (**value).clone());
                 }
             }
             Ok(id)
@@ -79,8 +105,8 @@ pub mod tests {
 
     #[test]
     async fn test_persister_trait() -> anyhow::Result<()> {
-        let mut persister = TestPersister::new();
-        let id = persister
+        let mut persister: TestPersister<usize> = TestPersister::<usize>::new();
+        let id: usize = persister
             .save(
                 "contacts",
                 &[
