@@ -1,0 +1,63 @@
+---
+version: "2.0"
+
+services:
+  postgres:
+    image: postgres:14
+    expose:
+      - port: 5432
+    env:
+      - "POSTGRES_DB=postgres"
+      - "POSTGRES_USER=postgres"
+      - "POSTGRES_PASSWORD=postgres123"
+  indexer:
+    image: bmorphism/dao-indexer:v0.0.1-alfalfa
+    env:
+      - "POSTGRES_NAME=postgres"
+      - "POSTGRES_USER=postgres"
+      - "POSTGRES_PASSWORD=postgres123"
+      - "POSTGRES_PERSISTENCE=true"
+      - "ENABLE_INDEXER=true"
+      - "TENDERMINT_INITIAL_BLOCK_HEIGHT=1055000"
+      - "TENDERMINT_WEBSOCKET_URL=ws://141.94.253.173:26657/websocket"
+      - "TENDERMINT_RPC_URL=http://141.94.253.173:26657"
+      - "RUST_LOG=debug"
+      - "TENDERMINT_SAVE_ALL_BLOCKS=true"
+      - "RUST_BACKTRACE=full"
+      - "DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres"
+    expose:
+      - port: 9999
+        as: 9999
+        to:
+          - global: true
+    depends_on:
+      - service: postgres
+
+
+profiles:
+  compute:
+    indexer:
+      resources:
+        cpu:
+          units: 2
+        memory:
+          size: 1Gi
+        storage:
+          size: 1Gi
+  placement:
+    akash:
+      attributes:
+        host: akash
+      signedBy:
+        anyOf:
+          - "akash1365yvmc4s7awdyj3n2sav7xfx76adc6dnmlx63"
+      pricing:
+        indexer: 
+          denom: uakt
+          amount: 100000
+
+deployment:
+  indexer:
+    akash:
+      profile: indexer
+      count: 1

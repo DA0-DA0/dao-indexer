@@ -1,5 +1,5 @@
 FROM cosmwasm/wasmd:v0.18.0 as wasmd
-FROM cosmwasm/rust-optimizer:0.11.5 as rust-optimizer
+FROM cosmwasm/rust-optimizer:0.12.6 as rust-optimizer
 FROM ubuntu:20.04
 # FROM postgres:14
 
