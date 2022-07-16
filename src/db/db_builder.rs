@@ -23,6 +23,7 @@ pub struct DatabaseBuilder {
     table_constraints: BTreeMap<String, Vec<ForeignKeyCreateStatement>>,
     columns: BTreeMap<String, HashMap<String, ColumnDef>>,
     pub value_mapper: DatabaseMapper,
+    unique_key_map: HashSet<String>,
 }
 
 impl DatabaseBuilder {
@@ -33,6 +34,7 @@ impl DatabaseBuilder {
             table_constraints: BTreeMap::new(),
             columns: BTreeMap::new(),
             value_mapper: DatabaseMapper::new(),
+            unique_key_map: HashSet::new(),
         }
     }
     pub fn table(&mut self, table_name: &str) -> &mut TableCreateStatement {
@@ -87,9 +89,13 @@ impl DatabaseBuilder {
         let foreign_key = format!("{}_id", source_property_name);
 
         self.column(source_table_name, &foreign_key).integer();
-        self.column(destination_table_name, "id")
-            .unique_key()
-            .integer();
+
+        if !self.unique_key_map.contains(destination_table_name) {
+            self.unique_key_map.insert(destination_table_name.to_string());
+            self.column(destination_table_name, "id")
+                .unique_key()
+                .integer();
+        }
 
         let db_source_table_name = db_table_name(source_table_name);
         let db_destination_table_name = db_table_name(destination_table_name);

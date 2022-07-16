@@ -304,12 +304,12 @@ impl SchemaIndexer {
                                                 InstanceType::Integer => {
                                                     db_builder
                                                         .column(table_name, property_name)
-                                                        .big_integer_len(78);
+                                                        .big_integer();
                                                 }
                                                 InstanceType::Number => {
                                                     db_builder
                                                         .column(table_name, property_name)
-                                                        .big_integer_len(78);
+                                                        .big_integer();
                                                 }
                                                 InstanceType::Null => {
                                                     println!(
