@@ -160,7 +160,12 @@ impl DatabaseMapper {
                             relationships.get(&field_mapping.field_name)
                         {
                             let child_id = self
-                                .persist_message(persister, &field_mapping.related_table, value, None)
+                                .persist_message(
+                                    persister,
+                                    &field_mapping.related_table,
+                                    value,
+                                    None,
+                                )
                                 .await?;
                             let child_id_value = serde_json::json!(child_id);
                             child_id_columns.push(&field_relationship.destination_column);

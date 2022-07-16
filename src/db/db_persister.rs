@@ -10,9 +10,9 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 //     JoinType, JsonValue, QueryFilter, Value,
 // };
 use super::persister::Persister;
+use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
-use core::fmt::Debug;
 // use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
@@ -65,13 +65,9 @@ impl DatabasePersister {
     }
 }
 
-unsafe impl Send for DatabasePersister {
+unsafe impl Send for DatabasePersister {}
 
-}
-
-unsafe impl Sync for DatabasePersister {
-
-}
+unsafe impl Sync for DatabasePersister {}
 
 #[async_trait]
 impl Persister<u64> for DatabasePersister {
@@ -125,7 +121,6 @@ impl Persister<u64> for DatabasePersister {
             let result = self.db.execute(builder.build(&stmt)).await?;
             println!("{:#?}", result);
             Ok(result.last_insert_id())
-
         } else {
             let stmt = Query::insert()
                 .into_table(Alias::new(table_name))
@@ -185,11 +180,7 @@ pub mod tests {
         let id = persister
             .save(
                 "Contact",
-                &[
-                    "first_name",
-                    "last_name",
-                    "birth_year"
-                ],
+                &["first_name", "last_name", "birth_year"],
                 values,
                 &None,
             )

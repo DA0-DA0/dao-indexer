@@ -715,7 +715,12 @@ pub mod tests {
         let result = registry
             .db_builder
             .value_mapper
-            .persist_message(&mut persister, "SimpleRelatedMessage", &msg_dictionary, None)
+            .persist_message(
+                &mut persister,
+                "SimpleRelatedMessage",
+                &msg_dictionary,
+                None,
+            )
             .await;
 
         println!("{:#?}", persister.db.into_transaction_log());

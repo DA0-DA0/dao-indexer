@@ -7,13 +7,13 @@ pub type PersistValues<'a> = &'a [&'a Value];
 
 /// Trait for persisting a message.
 #[async_trait]
-pub trait Persister<T> : Send {
+pub trait Persister<T>: Send {
     async fn save<'a>(
         &'a mut self,
         table_name: &'a str,
         column_names: &'a [&'a str],
         values: &'a [&'a Value],
-        id: &'a Option<T>
+        id: &'a Option<T>,
     ) -> Result<T>;
 }
 
@@ -33,9 +33,7 @@ pub mod tests {
         #[allow(dead_code)]
         pub fn new() -> Self {
             let tables: BTreeMap<String, HashMap<T, Record>> = BTreeMap::new();
-            TestPersister {
-                tables
-            }
+            TestPersister { tables }
         }
     }
 
@@ -109,11 +107,7 @@ pub mod tests {
         let id: usize = persister
             .save(
                 "contacts",
-                &[
-                    "first_name",
-                    "last_name",
-                    "birth_year"
-                ],
+                &["first_name", "last_name", "birth_year"],
                 &[
                     &Value::String("Gavin".to_string()),
                     &Value::String("Doughtie".to_string()),
