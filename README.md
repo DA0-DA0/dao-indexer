@@ -2,6 +2,9 @@
 # CosmWasm Rust Indexer
 A Rust application that queries the Tendermint APIs via both RPC and socket connections and updates a Postgres database with relevant information.
 
+# PRE-ALPHA, DEVELOPERS ONLY PLEASE
+This codebase is under heavy development. You're welcome to it, of course (it's MIT and all) but it's not a production solution yet. If you ARE a Rust developer interested in indexing cosmwasm/cosmos blockchain messages into a database, we welcome your pull requests. 
+
 ## Setup
 
 ### Database Setup
@@ -37,6 +40,9 @@ Below will run the actual program.
 ```
 cargo run
 ```
+
+# Schema Indexer
+A major project currently in progress uses the `JsonShema` trait all CosmWasm messages derive in order to automatically construct and populate various database tables for the contract messages. This is currently disabled by default as the code doesn't function yet. We hope to make the schema indexer the primary mechanism for mapping contract messages into database tables by the time of our production releases.
 
 # Akash Deployment
 
