@@ -4,6 +4,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use super::db_util::{foreign_key, db_column_name, db_table_name};
 
 /// Relational mapping
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,10 +25,10 @@ impl DatabaseRelationship {
         join_table: Option<String>,
     ) -> DatabaseRelationship {
         DatabaseRelationship {
-            source_table: source_table.to_string(),
-            source_column: source_column.to_string(),
-            destination_table: destination_table.to_string(),
-            destination_column: destination_column.to_string(),
+            source_table: db_table_name(source_table),
+            source_column: foreign_key(source_column),
+            destination_table: db_table_name(destination_table),
+            destination_column: db_column_name(destination_column),
             join_table,
         }
     }
@@ -124,6 +125,19 @@ impl DatabaseMapper {
             .entry(message_name.to_string())
             .or_insert_with(HashMap::new);
         message_relationships.insert(field_name.to_string(), relation);
+        let message_mappings = self
+            .mappings
+            .entry(message_name.to_string())
+            .or_insert_with(HashMap::new);
+        let mapping = FieldMapping::new(
+            message_name.to_string(),
+            field_name.to_string(),
+            table_name.to_string(),
+            column_name.to_string(),
+            true,
+            table_name.to_string(),
+        );
+        message_mappings.insert(column_name.to_string(), mapping);
         Ok(())
     }
 
@@ -228,8 +242,8 @@ impl Default for DatabaseMapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::persister::tests::*;
     use crate::db::db_persister::DatabasePersister;
+    use crate::db::persister::tests::*;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use tokio::test;
 
@@ -288,10 +302,7 @@ mod tests {
             address_message_name.clone(),
             zip.clone(),
         )?;
-        mapper.add_relational_mapping(
-            "Contact", // source_table_name
-            "address", "address", "id",
-        )?;
+        mapper.add_relational_mapping("Contact", "address", "address", "id")?;
         let relational_message = serde_json::from_str(
             r#"
         {
@@ -324,7 +335,7 @@ mod tests {
         let _record_one_id: u64 = mapper
             .persist_message(&mut persister, &message_name, &relational_message, None)
             .await?;
-        let log = persister.db.into_transaction_log();            
+        let log = persister.db.into_transaction_log();
         println!("persisted:\n{:#?}", log);
         // let records_for_message = persister.tables.get(&message_name).unwrap();
         // let persisted_record_one = records_for_message.get(&record_one_id).unwrap();

@@ -1,4 +1,3 @@
-use convert_case::{Case, Casing};
 use log::debug;
 use sea_orm::sea_query::{
     Alias, ColumnDef, ForeignKeyCreateStatement, PostgresQueryBuilder, Table, TableCreateStatement,
@@ -7,14 +6,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::db_mapper::DatabaseMapper;
-
-pub fn db_table_name(input_name: &str) -> String {
-    input_name.to_case(Case::Snake)
-}
-
-pub fn db_column_name(input_name: &str) -> String {
-    input_name.to_case(Case::Snake)
-}
+use super::db_util::{db_column_name, db_table_name, foreign_key, DEFAULT_ID_COLUMN_NAME};
 
 #[derive(Debug)]
 pub struct DatabaseBuilder {
@@ -73,7 +65,8 @@ impl DatabaseBuilder {
     }
 
     /// Adds a database relationship between a field on one table and a different
-    /// table. Defaults to using "fieldname_id" on one table and "id" on the other.
+    /// table. Defaults to using "fieldname_id" on one table and DEFAULT_ID_COLUMN_NAME
+    /// ("id") on the other.
     pub fn add_relation(
         &mut self,
         source_table_name: &str,
@@ -86,14 +79,14 @@ impl DatabaseBuilder {
             destination_table_name,
             source_property_name,
         )?;
-        let foreign_key = format!("{}_id", source_property_name);
+        let fk = foreign_key(source_property_name);
 
-        self.column(source_table_name, &foreign_key).integer();
+        self.column(source_table_name, &fk).integer();
 
         if !self.unique_key_map.contains(destination_table_name) {
             self.unique_key_map
                 .insert(destination_table_name.to_string());
-            self.column(destination_table_name, "id")
+            self.column(destination_table_name, DEFAULT_ID_COLUMN_NAME)
                 .unique_key()
                 .integer();
         }
@@ -101,11 +94,11 @@ impl DatabaseBuilder {
         let db_source_table_name = db_table_name(source_table_name);
         let db_destination_table_name = db_table_name(destination_table_name);
         let foreign_key_create = ForeignKeyCreateStatement::new()
-            .name(&foreign_key)
+            .name(&fk)
             .from_tbl(Alias::new(&db_source_table_name))
-            .from_col(Alias::new(&foreign_key))
+            .from_col(Alias::new(&fk))
             .to_tbl(Alias::new(&db_destination_table_name))
-            .to_col(Alias::new("id"))
+            .to_col(Alias::new(DEFAULT_ID_COLUMN_NAME))
             .to_owned();
 
         let fk_key = foreign_key_create.to_string(PostgresQueryBuilder);
