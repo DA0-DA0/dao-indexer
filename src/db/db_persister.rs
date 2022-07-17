@@ -8,6 +8,7 @@ use sea_orm::sea_query::{Alias, Expr, IntoIden, Query};
 use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
+use super::db_util::{db_column_name, db_table_name, DEFAULT_ID_COLUMN_NAME};
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
@@ -86,7 +87,7 @@ impl Persister<u64> for DatabasePersister {
                 JsonValue::Number(_v) => Datatype::BigInt.value_with_datatype(Some(input_val)),
                 _ => Datatype::String.value_with_datatype(Some(input_val)),
             };
-            let column_ident = Alias::new(column_name).into_iden();
+            let column_ident = Alias::new(&db_column_name(column_name)).into_iden();
             if update {
                 cols.push((column_ident, val));
             } else {
@@ -99,16 +100,16 @@ impl Persister<u64> for DatabasePersister {
 
         if update {
             let stmt = Query::update()
-                .table(Alias::new(table_name))
+                .table(Alias::new(&db_table_name(table_name)))
                 .values(cols)
-                .and_where(Expr::col(Alias::new("id").into_iden()).eq::<u64>(id.unwrap()))
+                .and_where(Expr::col(Alias::new(DEFAULT_ID_COLUMN_NAME).into_iden()).eq::<u64>(id.unwrap()))
                 .to_owned();
 
             let result = self.db.execute(builder.build(&stmt)).await?;
             Ok(result.last_insert_id())
         } else {
             let stmt = Query::insert()
-                .into_table(Alias::new(table_name))
+                .into_table(Alias::new(&db_table_name(table_name)))
                 .columns(insert_columns)
                 .values(vals)?
                 .to_owned();

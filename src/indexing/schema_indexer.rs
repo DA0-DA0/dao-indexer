@@ -603,7 +603,8 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
 
         if let Statement::CreateTable { columns, .. } = expected_ast {
             let expected_columns = HashSet::<ColumnDef>::from_iter(columns.iter().cloned());
-            assert_eq!(expected_columns, built_columns);
+            let diff = expected_columns.difference(&built_columns);            
+            assert!(diff.count() == 0);
         }
     } else {
         panic!(r#"unable to compare sql"#);
@@ -688,9 +689,9 @@ pub mod tests {
         assert!(registry.initialize().is_ok(), "failed to init indexer");
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
+            r#""sub_message_id" integer,"#,
             r#""title" text,"#,
-            r#""message_id" integer,"#,
-            r#""sub_message_id" integer)"#,
+            r#""message_id" integer )"#,
         ]
         .join(" ");
         let built_table = registry.db_builder.table(name);
@@ -703,12 +704,12 @@ pub mod tests {
             "simple_field_one": "simple_field_one value",
             "simple_field_two": 33
         },
-        sub_message: {
+        "sub_message": {
             "type_a_contract_address": "type a contract address value",
             "type_a_count": 99
-        },
+        }
     }"#;
-        let msg_dictionary = serde_json::json!(msg_str);
+        let msg_dictionary = serde_json::from_str(msg_str).unwrap();
 
         let mut persister = new_mock_persister();
 
@@ -723,7 +724,7 @@ pub mod tests {
             )
             .await;
 
-        println!("{:#?}", persister.db.into_transaction_log());
+        println!("{:?}\n{:#?}", result, persister.db.into_transaction_log());
         assert!(result.is_ok());
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());

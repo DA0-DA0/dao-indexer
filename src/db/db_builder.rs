@@ -77,7 +77,7 @@ impl DatabaseBuilder {
             source_table_name,
             source_property_name,
             destination_table_name,
-            source_property_name,
+            DEFAULT_ID_COLUMN_NAME,
         )?;
         let fk = foreign_key(source_property_name);
 
@@ -88,6 +88,7 @@ impl DatabaseBuilder {
                 .insert(destination_table_name.to_string());
             self.column(destination_table_name, DEFAULT_ID_COLUMN_NAME)
                 .unique_key()
+                .auto_increment()
                 .integer();
         }
 

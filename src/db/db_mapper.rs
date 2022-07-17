@@ -4,7 +4,6 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use super::db_util::{foreign_key, db_column_name, db_table_name};
 
 /// Relational mapping
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -18,17 +17,17 @@ pub struct DatabaseRelationship {
 
 impl DatabaseRelationship {
     pub fn new(
-        source_table: &str,
-        source_column: &str,
-        destination_table: &str,
-        destination_column: &str,
+        source_table: String,
+        source_column: String,
+        destination_table: String,
+        destination_column: String,
         join_table: Option<String>,
     ) -> DatabaseRelationship {
         DatabaseRelationship {
-            source_table: db_table_name(source_table),
-            source_column: foreign_key(source_column),
-            destination_table: db_table_name(destination_table),
-            destination_column: db_column_name(destination_column),
+            source_table,
+            source_column,
+            destination_table,
+            destination_column,
             join_table,
         }
     }
@@ -110,34 +109,42 @@ impl DatabaseMapper {
         Ok(())
     }
 
+    // Points from "MessageName.field_name to RelatedMessageName.related_column_name"
     pub fn add_relational_mapping(
         &mut self,
         message_name: &str,
         field_name: &str,
-        table_name: &str,
-        column_name: &str,
+        related_message_name: &str,
+        related_column_name: &str,
     ) -> anyhow::Result<()> {
-        debug!("add_mapping(add_relational_mapping: {}, field_name: {}, table_name: {}, column_name: {})", message_name, field_name, table_name, column_name);
-        let relation =
-            DatabaseRelationship::new(message_name, field_name, table_name, column_name, None);
+        debug!("add_mapping(add_relational_mapping: {}, field_name: {}, table_name: {}, column_name: {})", message_name, field_name, related_message_name, related_column_name);
+        let relation = DatabaseRelationship::new(
+            message_name.to_string(),
+            field_name.to_string(),
+            related_message_name.to_string(),
+            related_column_name.to_string(),
+            None,
+        );
         let message_relationships = self
             .relationships
             .entry(message_name.to_string())
             .or_insert_with(HashMap::new);
         message_relationships.insert(field_name.to_string(), relation);
+
         let message_mappings = self
             .mappings
             .entry(message_name.to_string())
             .or_insert_with(HashMap::new);
+
         let mapping = FieldMapping::new(
             message_name.to_string(),
             field_name.to_string(),
-            table_name.to_string(),
-            column_name.to_string(),
+            related_message_name.to_string(),
+            related_column_name.to_string(),
             true,
-            table_name.to_string(),
+            related_message_name.to_string(),
         );
-        message_mappings.insert(column_name.to_string(), mapping);
+        message_mappings.insert(field_name.to_string(), mapping);
         Ok(())
     }
 
@@ -178,44 +185,22 @@ impl DatabaseMapper {
         for (key, value) in msg {
             if let Some(relationships) = relationships {
                 if let Some(field_relationship) = relationships.get(key) {
-                    println!("{:#?}", field_relationship);
-                    let child_id = self
-                        .persist_message(
-                            persister,
-                            &field_relationship.destination_table,
-                            value,
-                            None,
-                        )
-                        .await?;
-                    let child_id_value = serde_json::json!(child_id);
-                    child_id_columns.push(&field_relationship.destination_column);
-                    child_id_values.push(child_id_value);
+                    println!("field_relationship: {:#?}", field_relationship);
+                    if let Some(field_mapping) = mapping.get(key) {
+                        println!("field_mapping: {:#?}", field_mapping);
+                        let child_id = self
+                            .persist_message(persister, &field_mapping.related_table, value, None)
+                            .await?;
+                        let child_id_value = serde_json::json!(child_id);
+                        child_id_columns.push(&field_relationship.destination_column);
+                        child_id_values.push(child_id_value);
+                    }
                 }
             }
             if let Some(field_mapping) = mapping.get(key) {
                 debug!("persisting {:#?} {}={:#?}", field_mapping, key, value);
-                // if field_mapping.recursive {
-                //     if let Some(relationships) = relationships {
-                //         if let Some(field_relationship) =
-                //             relationships.get(&field_mapping.field_name)
-                //         {
-                //             let child_id = self
-                //                 .persist_message(
-                //                     persister,
-                //                     &field_mapping.related_table,
-                //                     value,
-                //                     None,
-                //                 )
-                //                 .await?;
-                //             let child_id_value = serde_json::json!(child_id);
-                //             child_id_columns.push(&field_relationship.destination_column);
-                //             child_id_values.push(child_id_value);
-                //         }
-                //     }
-                // } else {
                 columns.push(key);
                 values.push(value);
-                // }
             }
         }
 
