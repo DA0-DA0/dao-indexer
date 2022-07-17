@@ -116,7 +116,7 @@ impl DatabaseMapper {
         table_name: &str,
         column_name: &str,
     ) -> anyhow::Result<()> {
-        println!("add_mapping(add_relational_mapping: {}, field_name: {}, table_name: {}, column_name: {})", message_name, field_name, table_name, column_name);
+        debug!("add_mapping(add_relational_mapping: {}, field_name: {}, table_name: {}, column_name: {})", message_name, field_name, table_name, column_name);
         let relation =
             DatabaseRelationship::new(message_name, field_name, table_name, column_name, None);
         let message_relationships = self
@@ -140,6 +140,17 @@ impl DatabaseMapper {
             return Err(anyhow::anyhow!("no mapping for {}", table_name));
         }
         let mapping = mapping.unwrap();
+        let object_msg = match msg {
+            Value::Object(msg) => Some(msg),
+            _ => None,
+        };
+        if object_msg.is_none() {
+            return Err(anyhow::anyhow!(
+                "unable to persist non-object message {:#?}",
+                msg
+            ));
+        }
+        let msg = object_msg.unwrap();
 
         // So the strategy here is to recursively go through the message
         // persisting the relational messages first and then the top-level
@@ -149,32 +160,51 @@ impl DatabaseMapper {
         let mut child_id_columns: Vec<&str> = vec![];
         let mut child_id_values: Vec<Value> = vec![];
         let relationships = self.relationships.get(table_name);
-        for (key, field_mapping) in mapping {
-            if let Some(value) = msg.get(&field_mapping.field_name) {
-                if field_mapping.recursive {
-                    if let Some(relationships) = relationships {
-                        if let Some(field_relationship) =
-                            relationships.get(&field_mapping.field_name)
-                        {
-                            let child_id = self
-                                .persist_message(
-                                    persister,
-                                    &field_mapping.related_table,
-                                    value,
-                                    None,
-                                )
-                                .await?;
-                            let child_id_value = serde_json::json!(child_id);
-                            child_id_columns.push(&field_relationship.destination_column);
-                            child_id_values.push(child_id_value);
-                        }
-                    }
-                } else {
-                    columns.push(key);
-                    values.push(value);
+
+        for (key, value) in msg {
+            if let Some(relationships) = relationships {
+                if let Some(field_relationship) = relationships.get(key) {
+                    println!("{:#?}", field_relationship);
+                    let child_id = self
+                        .persist_message(
+                            persister,
+                            &field_relationship.destination_table,
+                            value,
+                            None,
+                        )
+                        .await?;
+                    let child_id_value = serde_json::json!(child_id);
+                    child_id_columns.push(&field_relationship.destination_column);
+                    child_id_values.push(child_id_value);
                 }
             }
+            if let Some(field_mapping) = mapping.get(key) {
+                debug!("persisting {:#?} {}={:#?}", field_mapping, key, value);
+                // if field_mapping.recursive {
+                //     if let Some(relationships) = relationships {
+                //         if let Some(field_relationship) =
+                //             relationships.get(&field_mapping.field_name)
+                //         {
+                //             let child_id = self
+                //                 .persist_message(
+                //                     persister,
+                //                     &field_mapping.related_table,
+                //                     value,
+                //                     None,
+                //                 )
+                //                 .await?;
+                //             let child_id_value = serde_json::json!(child_id);
+                //             child_id_columns.push(&field_relationship.destination_column);
+                //             child_id_values.push(child_id_value);
+                //         }
+                //     }
+                // } else {
+                columns.push(key);
+                values.push(value);
+                // }
+            }
         }
+
         let mut db_id = 0;
         columns.append(&mut child_id_columns);
         for child_id_value in child_id_values.iter() {
@@ -199,7 +229,107 @@ impl Default for DatabaseMapper {
 mod tests {
     use super::*;
     use crate::db::persister::tests::*;
+    use crate::db::db_persister::DatabasePersister;
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use tokio::test;
+
+    #[test]
+    async fn test_relational_persistence() -> anyhow::Result<()> {
+        let mut mapper = DatabaseMapper::new();
+        let message_name = "Contact".to_string();
+        let first_name_field_name = "first_name".to_string();
+        let last_name_field_name = "last_name".to_string();
+        let birth_year_field_name = "birth_year".to_string();
+        mapper.add_mapping(
+            message_name.clone(),
+            first_name_field_name.clone(),
+            message_name.clone(),
+            first_name_field_name.clone(),
+        )?;
+        mapper.add_mapping(
+            message_name.clone(),
+            last_name_field_name.clone(),
+            message_name.clone(),
+            last_name_field_name.clone(),
+        )?;
+        mapper.add_mapping(
+            message_name.clone(),
+            birth_year_field_name.clone(),
+            message_name.clone(),
+            birth_year_field_name.clone(),
+        )?;
+
+        let address_message_name = "address".to_string();
+        let street = "street".to_string();
+        let city = "city".to_string();
+        let state = "state".to_string();
+        let zip = "zip".to_string();
+        mapper.add_mapping(
+            address_message_name.clone(),
+            street.clone(),
+            address_message_name.clone(),
+            street.clone(),
+        )?;
+        mapper.add_mapping(
+            address_message_name.clone(),
+            city.clone(),
+            address_message_name.clone(),
+            city.clone(),
+        )?;
+        mapper.add_mapping(
+            address_message_name.clone(),
+            state.clone(),
+            address_message_name.clone(),
+            state.clone(),
+        )?;
+        mapper.add_mapping(
+            address_message_name.clone(),
+            zip.clone(),
+            address_message_name.clone(),
+            zip.clone(),
+        )?;
+        mapper.add_relational_mapping(
+            "Contact", // source_table_name
+            "address", "address", "id",
+        )?;
+        let relational_message = serde_json::from_str(
+            r#"
+        {
+            "first_name": "Gavin",
+            "last_name": "Doughtie",
+            "birth_year": "1990",
+            "address": {
+                "street": "123 Not Telling You",
+                "city": "San Francisco",
+                "state": "CA",
+                "zip": "94000"
+            }
+        }
+        "#,
+        )
+        .unwrap();
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results(vec![
+                MockExecResult {
+                    last_insert_id: 15,
+                    rows_affected: 1,
+                },
+                MockExecResult {
+                    last_insert_id: 16,
+                    rows_affected: 1,
+                },
+            ])
+            .into_connection();
+        let mut persister = DatabasePersister::new(db);
+        let _record_one_id: u64 = mapper
+            .persist_message(&mut persister, &message_name, &relational_message, None)
+            .await?;
+        let log = persister.db.into_transaction_log();            
+        println!("persisted:\n{:#?}", log);
+        // let records_for_message = persister.tables.get(&message_name).unwrap();
+        // let persisted_record_one = records_for_message.get(&record_one_id).unwrap();
+        Ok(())
+    }
 
     #[test]
     async fn test_mapper_to_persistence() -> anyhow::Result<()> {

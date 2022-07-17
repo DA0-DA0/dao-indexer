@@ -140,7 +140,7 @@ pub mod tests {
             .into_connection();
         let mut persister = DatabasePersister::new(db);
         let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
-        let id = persister
+        let _id = persister
             .save(
                 "Contact",
                 &["first_name", "last_name", "birth_year"],
@@ -148,8 +148,7 @@ pub mod tests {
                 &None,
             )
             .await?;
-        let id = Some(id);
-        println!("{:?}", id);
+        // let id = Some(id);
         let log = persister.db.into_transaction_log();
         let expected_log = vec![Transaction::from_sql_and_values(
             DatabaseBackend::Postgres,
