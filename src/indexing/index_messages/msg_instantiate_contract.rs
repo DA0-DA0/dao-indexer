@@ -1,6 +1,6 @@
-use super::event_map::EventMap;
-use super::index_message::IndexMessage;
-use super::indexer_registry::IndexerRegistry;
+use crate::indexing::event_map::EventMap;
+use crate::indexing::index_message::IndexMessage;
+use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::db::models::NewContract;
 use crate::util::contract_util::{get_contract_addresses, insert_contract};
 use anyhow::anyhow;
@@ -85,7 +85,7 @@ fn create_new_contract<'a>(
 #[cfg(test)]
 mod tests {
     use crate::indexing::event_map::EventMap;
-    use crate::indexing::msg_instantiate_contract::create_new_contract;
+    use crate::indexing::index_messages::msg_instantiate_contract::create_new_contract;
     use cosmrs::{cosmwasm::MsgInstantiateContract, AccountId};
 
     #[test]

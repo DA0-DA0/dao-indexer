@@ -8,15 +8,15 @@ use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::index_search_result;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
-use dao_indexer::indexing::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
-use dao_indexer::indexing::msg_cw3dao_indexer::{
+use dao_indexer::indexing::indexers::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
+use dao_indexer::indexing::indexers::msg_cw3dao_indexer::{
     Cw3DaoExecuteMsgIndexer, Cw3DaoInstantiateMsgIndexer,
 };
-use dao_indexer::indexing::msg_cw3multisig_indexer::{
+use dao_indexer::indexing::indexers::msg_cw3multisig_indexer::{
     Cw3MultisigExecuteMsgIndexer, Cw3MultisigInstantiateMsgIndexer,
 };
 use dao_indexer::indexing::msg_set::default_msg_set;
-use dao_indexer::indexing::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
+use dao_indexer::indexing::indexers::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::util::transaction_util::get_transactions;
 
 #[tokio::main]

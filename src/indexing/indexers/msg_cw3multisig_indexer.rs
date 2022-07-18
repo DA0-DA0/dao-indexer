@@ -1,7 +1,7 @@
-use super::indexer::{
+use crate::indexing::indexer::{
     registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
-use super::indexer_registry::RegistryKey;
+use crate::indexing::indexer_registry::RegistryKey;
 use cw3_multisig::msg::ExecuteMsg as Cw3MultisigExecuteMsg;
 use cw3_multisig::msg::InstantiateMsg as Cw3MultisigInstantiateMsg;
 

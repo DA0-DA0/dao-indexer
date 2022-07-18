@@ -1,6 +1,6 @@
-use super::event_map::EventMap;
-use super::index_message::IndexMessage;
-use super::indexer_registry::IndexerRegistry;
+use crate::indexing::event_map::EventMap;
+use crate::indexing::index_message::IndexMessage;
+use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::util::debug::dump_events;
 pub use cw3_multisig::msg::ExecuteMsg;
 use log::warn;

@@ -1,7 +1,7 @@
-use super::debug::index_message;
-use super::event_map::EventMap;
-use super::index_message::IndexMessage;
-use super::indexer_registry::IndexerRegistry;
+use crate::indexing::debug::index_message;
+use crate::indexing::event_map::EventMap;
+use crate::indexing::index_message::IndexMessage;
+use crate::indexing::indexer_registry::IndexerRegistry;
 use cosmrs::proto::cosmos::bank::v1beta1::MsgSend;
 pub use cw20::Cw20ExecuteMsg;
 

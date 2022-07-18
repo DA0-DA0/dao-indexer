@@ -1,6 +1,6 @@
-use super::event_map::EventMap;
-use super::index_message::IndexMessage;
-use super::indexer_registry::IndexerRegistry;
+use crate::indexing::event_map::EventMap;
+use crate::indexing::index_message::IndexMessage;
+use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::util::contract_util::get_contract_addresses;
 use crate::util::dao::{get_tx_height_from_events, insert_dao, insert_dao_25};
 

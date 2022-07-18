@@ -1,6 +1,6 @@
-use super::event_map::EventMap;
-use super::index_message::IndexMessage;
-use super::indexer_registry::IndexerRegistry;
+use crate::indexing::event_map::EventMap;
+use crate::indexing::index_message::IndexMessage;
+use crate::indexing::indexer_registry::IndexerRegistry;
 use crate::util::debug::{dump_events, dump_execute_contract};
 use crate::util::update_balance::update_balance_from_events;
 use anyhow::anyhow;
