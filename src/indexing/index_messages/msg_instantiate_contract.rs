@@ -1,7 +1,7 @@
+use crate::db::models::NewContract;
 use crate::indexing::event_map::EventMap;
 use crate::indexing::index_message::IndexMessage;
 use crate::indexing::indexer_registry::IndexerRegistry;
-use crate::db::models::NewContract;
 use crate::util::contract_util::{get_contract_addresses, insert_contract};
 use anyhow::anyhow;
 use bigdecimal::BigDecimal;

@@ -15,8 +15,8 @@ use dao_indexer::indexing::indexers::msg_cw3dao_indexer::{
 use dao_indexer::indexing::indexers::msg_cw3multisig_indexer::{
     Cw3MultisigExecuteMsgIndexer, Cw3MultisigInstantiateMsgIndexer,
 };
-use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::indexing::indexers::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
+use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::util::transaction_util::get_transactions;
 
 #[tokio::main]
