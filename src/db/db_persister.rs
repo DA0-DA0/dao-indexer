@@ -1,3 +1,4 @@
+use super::db_util::{db_column_name, db_table_name, DEFAULT_ID_COLUMN_NAME};
 use super::persister::Persister;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -8,7 +9,6 @@ use sea_orm::sea_query::{Alias, Expr, IntoIden, Query};
 use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
-use super::db_util::{db_column_name, db_table_name, DEFAULT_ID_COLUMN_NAME};
 
 #[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
@@ -102,7 +102,10 @@ impl Persister<u64> for DatabasePersister {
             let stmt = Query::update()
                 .table(Alias::new(&db_table_name(table_name)))
                 .values(cols)
-                .and_where(Expr::col(Alias::new(DEFAULT_ID_COLUMN_NAME).into_iden()).eq::<u64>(id.unwrap()))
+                .and_where(
+                    Expr::col(Alias::new(DEFAULT_ID_COLUMN_NAME).into_iden())
+                        .eq::<u64>(id.unwrap()),
+                )
                 .to_owned();
 
             let result = self.db.execute(builder.build(&stmt)).await?;
@@ -141,7 +144,7 @@ pub mod tests {
             .into_connection();
         let mut persister = DatabasePersister::new(db);
         let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
-        let _id = persister
+        let id = persister
             .save(
                 "Contact",
                 &["first_name", "last_name", "birth_year"],
@@ -149,11 +152,11 @@ pub mod tests {
                 &None,
             )
             .await?;
-        // let id = Some(id);
+        assert_eq!(15, id);
         let log = persister.db.into_transaction_log();
         let expected_log = vec![Transaction::from_sql_and_values(
             DatabaseBackend::Postgres,
-            r#"INSERT INTO "Contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
+            r#"INSERT INTO "contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
             vec!["Gavin".into(), "Doughtie".into(), 1990_i64.into()],
         )];
         assert_eq!(expected_log, log);

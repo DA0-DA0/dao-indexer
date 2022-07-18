@@ -34,13 +34,19 @@ impl DatabaseRelationship {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum FieldMappingPolicy {
+    Value,
+    ManyToOne,
+    ManyToMany,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FieldMapping {
     pub message_name: String,
     pub field_name: String,
     pub table_name: String,
     pub column_name: String,
-    // TODO(gavindoughtie): will probably need a policy defining HOW to put a value in a field
-    pub recursive: bool,
+    pub policy: FieldMappingPolicy,
     pub related_table: String,
 }
 
@@ -50,16 +56,16 @@ impl FieldMapping {
         field_name: String,
         table_name: String,
         column_name: String,
-        recursive: bool,
         related_table: String,
+        policy: FieldMappingPolicy,
     ) -> Self {
         FieldMapping {
             message_name,
             field_name,
             table_name,
             column_name,
-            recursive,
             related_table,
+            policy,
         }
     }
 }
@@ -102,8 +108,8 @@ impl DatabaseMapper {
             field_name,
             table_name,
             column_name.clone(),
-            false,
             "".to_string(),
+            FieldMappingPolicy::Value,
         );
         message_mappings.insert(column_name, mapping);
         Ok(())
@@ -117,7 +123,14 @@ impl DatabaseMapper {
         related_message_name: &str,
         related_column_name: &str,
     ) -> anyhow::Result<()> {
-        debug!("add_mapping(add_relational_mapping: {}, field_name: {}, table_name: {}, column_name: {})", message_name, field_name, related_message_name, related_column_name);
+        debug!(
+            r#"add_mapping(add_relational_mapping:
+            {}, "
+            field_name: {},
+            table_name: {},
+            column_name: {})"#,
+            message_name, field_name, related_message_name, related_column_name
+        );
         let relation = DatabaseRelationship::new(
             message_name.to_string(),
             field_name.to_string(),
@@ -141,8 +154,8 @@ impl DatabaseMapper {
             field_name.to_string(),
             related_message_name.to_string(),
             related_column_name.to_string(),
-            true,
             related_message_name.to_string(),
+            FieldMappingPolicy::ManyToOne,
         );
         message_mappings.insert(field_name.to_string(), mapping);
         Ok(())
