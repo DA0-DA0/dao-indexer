@@ -23,7 +23,6 @@ jobs:
         with:
           toolchain: nightly
           command: test
-          args: --locked
         env:
           RUST_BACKTRACE: 1
 
