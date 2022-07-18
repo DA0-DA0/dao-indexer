@@ -11,12 +11,12 @@ use super::indexer_registry::{IndexerRegistry, RegistryKey};
 
 use serde::{Deserialize, Serialize};
 
+use crate::db::db_util::foreign_key;
+use anyhow::anyhow;
 use log::{debug, warn};
 use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
-// use tendermint::abci::transaction::Data;
-use anyhow::anyhow;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -106,9 +106,7 @@ impl SchemaIndexer {
             for schema in all_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        db_builder
-                            .column(parent_name, &format!("{}_id", name))
-                            .integer();
+                        db_builder.column(parent_name, &foreign_key(name)).integer();
                         self.process_schema_object(
                             schema_object,
                             parent_name,
@@ -198,7 +196,6 @@ impl SchemaIndexer {
         }
         let table_name = name;
         if let Some(subschema) = &schema.subschemas {
-            println!("{} is a subschema", name);
             return self.process_subschema(subschema, name, parent_name, data, db_builder);
         } else if schema.instance_type.is_none() {
             if schema.reference.is_none() {
@@ -217,7 +214,6 @@ impl SchemaIndexer {
                     let required = &schema.object.as_ref().unwrap().required;
                     for (property_name, schema) in properties {
                         if let Schema::Object(property_object_schema) = schema {
-                            // println!("property_object_schema:\n{:#?}", property_object_schema);
                             if let Some(subschemas) = &property_object_schema.subschemas {
                                 self.process_subschema(
                                     subschemas,
@@ -228,8 +224,10 @@ impl SchemaIndexer {
                                 )?;
                             }
                             if let Some(ref_property) = &property_object_schema.reference {
-                                let backpointer_table_name = &ref_property[14..]; // Clip off "#/definitions/"
-                                println!(
+                                // Clip off "#/definitions/"
+                                let backpointer_table_name =
+                                    &ref_property["#/definitions/".len()..];
+                                debug!(
                                     r#"Adding relation from {}.{} back to {}"#,
                                     table_name, property_name, backpointer_table_name
                                 );
@@ -250,13 +248,8 @@ impl SchemaIndexer {
                                                 data,
                                                 db_builder,
                                             )?;
-                                            println!(
-                                                "{}.{} is the ID of a {}",
-                                                name, property_name, property_name
-                                            );
                                         }
                                         InstanceType::Boolean => {
-                                            // self.add_column_def(table_name, data, "BOOLEAN column".to_string());
                                             db_builder.column(table_name, property_name).boolean();
                                         }
                                         InstanceType::String => {
@@ -266,17 +259,16 @@ impl SchemaIndexer {
                                             db_builder.column(table_name, property_name).integer();
                                         }
                                         InstanceType::Number => {
-                                            // self.add_column_def(table_name, data, "Number column".to_string());
                                             db_builder.column(table_name, property_name).float();
                                         }
                                         InstanceType::Array => {
-                                            println!(
+                                            eprintln!(
                                                 "not handling array instance for {}:{}",
                                                 table_name, property_name
                                             );
                                         }
                                         InstanceType::Null => {
-                                            println!(
+                                            eprintln!(
                                                 "not handling Null instance for {}:{}",
                                                 table_name, property_name
                                             );
@@ -296,7 +288,6 @@ impl SchemaIndexer {
                                                         .boolean();
                                                 }
                                                 InstanceType::String => {
-                                                    // column_def = format!("{} TEXT", property_name);
                                                     db_builder
                                                         .column(table_name, property_name)
                                                         .text();
@@ -312,19 +303,19 @@ impl SchemaIndexer {
                                                         .big_integer();
                                                 }
                                                 InstanceType::Null => {
-                                                    println!(
+                                                    eprintln!(
                                                         "Not handling Null type for {}",
                                                         property_name
                                                     );
                                                 }
                                                 InstanceType::Object => {
-                                                    println!(
+                                                    eprintln!(
                                                         "Not handling Object type for {}",
                                                         property_name
                                                     );
                                                 }
                                                 InstanceType::Array => {
-                                                    println!(
+                                                    eprintln!(
                                                         "Not handling Array type for {}",
                                                         property_name
                                                     );
@@ -364,7 +355,6 @@ impl SchemaIndexer {
                     }
                 }
                 InstanceType::String => {
-                    // self.add_column_def(table_name, data, format!("{} STRING column", name));
                     db_builder.column(table_name, name).string();
                 }
                 InstanceType::Null => {
@@ -372,25 +362,20 @@ impl SchemaIndexer {
                     db_builder
                         .column(table_name, &format!("{}_id", name))
                         .integer();
-                    // self.add_column_def(table_name, data, "Null column".to_string());
                 }
                 InstanceType::Boolean => {
-                    // self.add_column_def(table_name, data, "BOOLEAN column".to_string());
                     db_builder.column(table_name, name).boolean();
                 }
                 InstanceType::Array => {
-                    // self.add_column_def(table_name, data, "Array column".to_string());
                     warn!(
                         "Not handling Array instance type for {}/{}",
                         table_name, name
                     );
                 }
                 InstanceType::Number => {
-                    // self.add_column_def(table_name, data, "Number column".to_string());
                     db_builder.column(table_name, name).float();
                 }
                 InstanceType::Integer => {
-                    // self.add_column_def(table_name, data, "Integer column".to_string());
                     db_builder.column(table_name, name).integer();
                 }
             },
@@ -431,8 +416,6 @@ impl Indexer for SchemaIndexer {
         &'a mut self,
         builder: &'a mut DatabaseBuilder,
     ) -> anyhow::Result<()> {
-        println!("initialize_schemas for schema_indexer {}", self.id);
-        // let builder = &mut registry.db_builder;
         let schemas = self.schemas.clone();
         let mut visitor = SchemaVisitor::new(self, builder);
         for schema in schemas.iter() {
@@ -470,7 +453,8 @@ fn test_schema_indexer_init() {
             },
         ],
     );
-    println!("indexer:\n{:#?}", indexer);
+    let pos = indexer.schemas.iter().position(|schema| schema.name == "Cw3DaoInstantiateMsg");
+    assert!(pos.is_some());
 }
 
 pub struct SchemaVisitor<'a> {
@@ -502,7 +486,7 @@ impl<'a> SchemaVisitor<'a> {
                     self.db_builder,
                 )?;
             } else {
-                println!("Bool schema for {:#?}", schema);
+                eprintln!("Bool schema?");
             }
         }
         self.visit_schema_object(&root.schema, &parent_name)
@@ -591,7 +575,6 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
     let dialect = PostgreSqlDialect {}; // or AnsiDialect
 
     let built_sql = db_postgres.build(built_statement).to_string();
-    println!("built:\n{}\nexpected:\n{}", built_sql, expected_sql);
     let built_ast = &Parser::parse_sql(&dialect, &built_sql).unwrap()[0];
     let expected_ast = &Parser::parse_sql(&dialect, expected_sql).unwrap()[0];
 
@@ -603,7 +586,8 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
 
         if let Statement::CreateTable { columns, .. } = expected_ast {
             let expected_columns = HashSet::<ColumnDef>::from_iter(columns.iter().cloned());
-            assert_eq!(expected_columns, built_columns);
+            let diff = expected_columns.difference(&built_columns);
+            assert!(diff.count() == 0);
         }
     } else {
         panic!(r#"unable to compare sql"#);
@@ -688,9 +672,9 @@ pub mod tests {
         assert!(registry.initialize().is_ok(), "failed to init indexer");
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
+            r#""sub_message_id" integer,"#,
             r#""title" text,"#,
-            r#""message_id" integer,"#,
-            r#""sub_message_id" integer)"#,
+            r#""message_id" integer )"#,
         ]
         .join(" ");
         let built_table = registry.db_builder.table(name);
@@ -703,12 +687,12 @@ pub mod tests {
             "simple_field_one": "simple_field_one value",
             "simple_field_two": 33
         },
-        sub_message: {
+        "sub_message": {
             "type_a_contract_address": "type a contract address value",
             "type_a_count": 99
-        },
+        }
     }"#;
-        let msg_dictionary = serde_json::json!(msg_str);
+        let msg_dictionary = serde_json::from_str(msg_str).unwrap();
 
         let mut persister = new_mock_persister();
 
@@ -722,8 +706,6 @@ pub mod tests {
                 None,
             )
             .await;
-
-        println!("{:#?}", persister.db.into_transaction_log());
         assert!(result.is_ok());
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
@@ -743,32 +725,20 @@ pub mod tests {
         if result.is_err() {
             eprintln!("failed {:#?}", result);
         }
-        let msg_string = r#"
-    {
-        "name": "Unit Test Dao",
-        "description": "Unit Test Dao Description",
-        "gov_token: {
-
-        },
-        "staking_contract": {
-
-        },
-        "threshold": {
-
-        }
-        "max_voting_period": {
-
-        },
-        "proposal_deposit_amount": {
-
-        },
-        "refund_failed_proposals": true,
-        "image_url": "logo.png",
-        "only_members_execute": true,
-        "automatically_add_cw20s": true
-    }
-    "#;
-        let msg = serde_json::json!(msg_string);
+        let msg_string = r#"{
+            "name": "Unit Test Dao",
+            "description": "Unit Test Dao Description",
+            "gov_token": {},
+            "staking_contract": {},
+            "threshold": {},
+            "max_voting_period": {},
+            "proposal_deposit_amount": {},
+            "refund_failed_proposals": true,
+            "image_url": "logo.png",
+            "only_members_execute": true,
+            "automatically_add_cw20s": true
+          }"#;
+        let msg = serde_json::from_str(msg_string).unwrap();
         let result = builder
             .value_mapper
             .persist_message(&mut persister, label, &msg, None)

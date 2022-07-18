@@ -1,3 +1,4 @@
+use super::db_util::{db_column_name, db_table_name, DEFAULT_ID_COLUMN_NAME};
 use super::persister::Persister;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -86,7 +87,7 @@ impl Persister<u64> for DatabasePersister {
                 JsonValue::Number(_v) => Datatype::BigInt.value_with_datatype(Some(input_val)),
                 _ => Datatype::String.value_with_datatype(Some(input_val)),
             };
-            let column_ident = Alias::new(column_name).into_iden();
+            let column_ident = Alias::new(&db_column_name(column_name)).into_iden();
             if update {
                 cols.push((column_ident, val));
             } else {
@@ -99,16 +100,19 @@ impl Persister<u64> for DatabasePersister {
 
         if update {
             let stmt = Query::update()
-                .table(Alias::new(table_name))
+                .table(Alias::new(&db_table_name(table_name)))
                 .values(cols)
-                .and_where(Expr::col(Alias::new("id").into_iden()).eq::<u64>(id.unwrap()))
+                .and_where(
+                    Expr::col(Alias::new(DEFAULT_ID_COLUMN_NAME).into_iden())
+                        .eq::<u64>(id.unwrap()),
+                )
                 .to_owned();
 
             let result = self.db.execute(builder.build(&stmt)).await?;
             Ok(result.last_insert_id())
         } else {
             let stmt = Query::insert()
-                .into_table(Alias::new(table_name))
+                .into_table(Alias::new(&db_table_name(table_name)))
                 .columns(insert_columns)
                 .values(vals)?
                 .to_owned();
@@ -148,12 +152,11 @@ pub mod tests {
                 &None,
             )
             .await?;
-        let id = Some(id);
-        println!("{:?}", id);
+        assert_eq!(15, id);
         let log = persister.db.into_transaction_log();
         let expected_log = vec![Transaction::from_sql_and_values(
             DatabaseBackend::Postgres,
-            r#"INSERT INTO "Contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
+            r#"INSERT INTO "contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
             vec!["Gavin".into(), "Doughtie".into(), 1990_i64.into()],
         )];
         assert_eq!(expected_log, log);
