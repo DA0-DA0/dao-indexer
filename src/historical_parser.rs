@@ -29,8 +29,7 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
     for event in events {
         let event_name = &event.type_str;
         for attribute in &event.attributes {
-            let attribute_key: &str = &attribute.key.to_string();
-            let event_key = format!("{}.{}", event_name, attribute_key);
+            let event_key = format!("{}.{}", event_name, attribute.key);
             let attributes = if let Some(existing_attributes) = event_map.get_mut(&event_key) {
                 existing_attributes
             } else {

@@ -162,7 +162,7 @@ impl<'a> IndexerRegistry {
     }
 }
 
-impl<'a> Register for IndexerRegistry {
+impl Register for IndexerRegistry {
     fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>) {
         let id = self.indexers.len();
         if let Some(registry_key) = registry_key {
@@ -182,7 +182,7 @@ struct TestIndexer {
     my_root_keys: Vec<String>,
 }
 
-impl<'a> Indexer for TestIndexer {
+impl Indexer for TestIndexer {
     type MessageType = ();
 
     fn id(&self) -> String {

@@ -21,7 +21,7 @@ impl IndexMessage for ExecuteMsg {
         if let Some(wasm_actions) = event_map.get("wasm.action") {
             // TODO(gavin.doughtie): Handle propose, vote
             if !wasm_actions.is_empty() && wasm_actions[0] == "execute" {
-                for (i, action_type) in (&wasm_actions[1..]).iter().enumerate() {
+                for (i, action_type) in (wasm_actions[1..]).iter().enumerate() {
                     match action_type.as_str() {
                         "transfer" => {
                             if let Err(e) = update_balance_from_events(registry, i, event_map) {
