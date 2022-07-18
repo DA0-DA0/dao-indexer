@@ -1,9 +1,9 @@
-use super::event_map::EventMap;
-use super::index_message::IndexMessage;
-use super::indexer::{
-    registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
+use crate::indexing::event_map::EventMap;
+use crate::indexing::index_message::IndexMessage;
+use crate::indexing::indexer::{
+    Indexer, registry_keys_from_iter, RegistryKeysType, root_keys_from_iter, RootKeysType,
 };
-use super::indexer_registry::{IndexerRegistry, RegistryKey};
+use crate::indexing::indexer_registry::{IndexerRegistry, RegistryKey};
 use crate::util::contract_util::get_contract_addresses;
 use crate::util::dao::{get_single_event_item, get_tx_height_from_events, insert_dao};
 use crate::util::gov_token::gov_token_from_msg;
@@ -155,8 +155,8 @@ impl Indexer for Cw3DaoInstantiateMsgIndexer {
     // This is the fallback indexer if all the direct deserialization has failed.
     fn index_message_dictionary<'a>(
         &'a self,
-        registry: &'a super::indexer_registry::IndexerRegistry,
-        events: &'a super::event_map::EventMap,
+        registry: &'a IndexerRegistry,
+        events: &'a EventMap,
         msg_dictionary: &'a Value,
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {

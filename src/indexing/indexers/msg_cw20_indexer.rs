@@ -1,8 +1,8 @@
-use super::indexer::{
+use crate::indexing::indexer::{
     registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
 
-use super::indexer_registry::RegistryKey;
+use crate::indexing::indexer_registry::RegistryKey;
 pub use cw20::Cw20ExecuteMsg;
 use log::debug;
 use serde_json::Value;

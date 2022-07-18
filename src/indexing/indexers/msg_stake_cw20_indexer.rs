@@ -1,7 +1,7 @@
-use super::indexer::{
-    registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
+use crate::indexing::indexer::{
+    Indexer, registry_keys_from_iter, RegistryKeysType, root_keys_from_iter, RootKeysType,
 };
-use super::indexer_registry::RegistryKey;
+use crate::indexing::indexer_registry::RegistryKey;
 use log::debug;
 use serde_json::Value;
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
@@ -38,7 +38,7 @@ impl Indexer for StakeCw20ExecuteMsgIndexer {
     fn root_keys(&self) -> RootKeysType {
         root_keys_from_iter(self.root_keys.iter())
     }
-    fn required_root_keys(&self) -> super::indexer::RootKeysType {
+    fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
     }
 
