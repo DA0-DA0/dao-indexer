@@ -22,8 +22,10 @@ use std::collections::BTreeSet;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
+
+#[allow(unused_variables)]
 impl IndexMessage for SchemaIndexerGenericMessage {
-    fn index_message(&self, _registry: &IndexerRegistry, _events: &EventMap) -> anyhow::Result<()> {
+    fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
         Ok(())
     }
 }
