@@ -19,8 +19,8 @@ use cw3_multisig::msg::InstantiateMsg as Cw3MultisigInstantiateMsg25;
 
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg25;
 
-use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::indexing::indexers::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
+use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::indexing::schema_indexer::{SchemaIndexer, SchemaRef};
 use dao_indexer::indexing::tx::process_tx_info;
 use diesel::pg::PgConnection;

@@ -1,7 +1,7 @@
 use crate::indexing::event_map::EventMap;
 use crate::indexing::index_message::IndexMessage;
 use crate::indexing::indexer::{
-    Indexer, registry_keys_from_iter, RegistryKeysType, root_keys_from_iter, RootKeysType,
+    registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
 use crate::indexing::indexer_registry::{IndexerRegistry, RegistryKey};
 use crate::util::contract_util::get_contract_addresses;

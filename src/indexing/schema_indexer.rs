@@ -455,7 +455,10 @@ fn test_schema_indexer_init() {
             },
         ],
     );
-    let pos = indexer.schemas.iter().position(|schema| schema.name == "Cw3DaoInstantiateMsg");
+    let pos = indexer
+        .schemas
+        .iter()
+        .position(|schema| schema.name == "Cw3DaoInstantiateMsg");
     assert!(pos.is_some());
 }
 

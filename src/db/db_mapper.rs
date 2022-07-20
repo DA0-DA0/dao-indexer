@@ -1,10 +1,10 @@
+use super::db_util::foreign_key;
 use super::persister::Persister;
 use async_recursion::async_recursion;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use super::db_util::foreign_key;
 
 /// Relational mapping
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -209,7 +209,7 @@ impl DatabaseMapper {
                     }
                 } else {
                     columns.push(key);
-                    values.push(value);    
+                    values.push(value);
                 }
             } else if mapping.get(key).is_some() {
                 columns.push(key);
@@ -336,16 +336,27 @@ mod tests {
             .persist_message(&mut persister, &message_name, &relational_message, None)
             .await?;
         let log = persister.db.into_transaction_log();
-        let expected_log = vec![Transaction::from_sql_and_values(
-            DatabaseBackend::Postgres,
-            r#"INSERT INTO "address" ("city", "state", "street", "zip") VALUES ($1, $2, $3, $4)"#,
-            vec!["San Francisco".into(), "CA".into(), "123 Not Telling You".into(), "94000".into()],
-        ),
-        Transaction::from_sql_and_values(
-            DatabaseBackend::Postgres,
-            r#"INSERT INTO "contact" ("birth_year", "first_name", "last_name", "address_id") VALUES ($1, $2, $3, $4)"#,
-            vec!["1990".into(), "Gavin".into(), "Doughtie".into(), 15i64.into()]
-        )
+        let expected_log = vec![
+            Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "address" ("city", "state", "street", "zip") VALUES ($1, $2, $3, $4)"#,
+                vec![
+                    "San Francisco".into(),
+                    "CA".into(),
+                    "123 Not Telling You".into(),
+                    "94000".into(),
+                ],
+            ),
+            Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "contact" ("birth_year", "first_name", "last_name", "address_id") VALUES ($1, $2, $3, $4)"#,
+                vec![
+                    "1990".into(),
+                    "Gavin".into(),
+                    "Doughtie".into(),
+                    15i64.into(),
+                ],
+            ),
         ];
         assert_eq!(expected_log, log);
 
