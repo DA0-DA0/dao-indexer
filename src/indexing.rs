@@ -1,11 +1,11 @@
 pub mod debug;
 pub mod event_map;
 pub mod index_message;
+pub mod index_messages;
 pub mod indexer;
 pub mod indexer_registry;
+pub mod indexers;
 pub mod msg_set;
 pub mod parse;
 pub mod schema_indexer;
 pub mod tx;
-pub mod index_messages;
-pub mod indexers;

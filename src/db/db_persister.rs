@@ -10,7 +10,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
 
-#[derive(Debug, Clone, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
 pub enum Datatype {
     #[sea_orm(string_value = "Int")]

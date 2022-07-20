@@ -1,5 +1,5 @@
 use crate::indexing::indexer::{
-    Indexer, registry_keys_from_iter, RegistryKeysType, root_keys_from_iter, RootKeysType,
+    registry_keys_from_iter, root_keys_from_iter, Indexer, RegistryKeysType, RootKeysType,
 };
 use crate::indexing::indexer_registry::RegistryKey;
 use log::debug;
