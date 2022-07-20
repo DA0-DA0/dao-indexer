@@ -198,9 +198,7 @@ impl DatabaseMapper {
         for (key, value) in msg {
             if let Some(relationships) = relationships {
                 if let Some(field_relationship) = relationships.get(key) {
-                    println!("field_relationship: {:#?}", field_relationship);
                     if let Some(field_mapping) = mapping.get(key) {
-                        println!("field_mapping: {:#?}", field_mapping);
                         let child_id = self
                             .persist_message(persister, &field_mapping.related_table, value, None)
                             .await?;
@@ -210,8 +208,7 @@ impl DatabaseMapper {
                     }
                 }
             }
-            if let Some(field_mapping) = mapping.get(key) {
-                debug!("persisting {:#?} {}={:#?}", field_mapping, key, value);
+            if mapping.get(key).is_some() {
                 columns.push(key);
                 values.push(value);
             }
