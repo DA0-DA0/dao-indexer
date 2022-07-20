@@ -400,20 +400,18 @@ impl Indexer for SchemaIndexer {
     fn required_root_keys(&self) -> RootKeysType {
         root_keys_from_iter([].into_iter())
     }
+
     // Indexes a message and its transaction events
     fn index<'a>(
         &'a self,
-        // The registry of indexers
         _registry: &'a IndexerRegistry,
-        // All the transaction events in a map of "event.id": Vec<String> values.
         _events: &'a EventMap,
-        // Generic serde-parsed value dictionary
         _msg_dictionary: &'a Value,
-        // The decoded string value of the message
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {
         Ok(())
     }
+
     fn initialize_schemas<'a>(
         &'a mut self,
         builder: &'a mut DatabaseBuilder,
@@ -425,6 +423,7 @@ impl Indexer for SchemaIndexer {
         }
         Ok(())
     }
+
     // TODO(gavindoughtie): We can validate `msg` against the Schema and return our key
     // if it succeeds.
     fn extract_message_key(&self, _msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
@@ -478,7 +477,7 @@ impl<'a> SchemaVisitor<'a> {
     }
     /// Override this method to modify a [`RootSchema`] and (optionally) its subschemas.
     ///
-    /// When overriding this method, you will usually want to call the [`visit_root_schema`] function to visit subschemas.
+    /// When overriding this method, you will usually want to call the [`SchemaVisitor::visit_root_schema`] function to visit subschemas.
     pub fn visit_root_schema(&mut self, root: &RootSchema) -> anyhow::Result<()> {
         let parent_name = self.indexer.id();
         for (root_def_name, schema) in root.definitions.iter() {
@@ -499,7 +498,7 @@ impl<'a> SchemaVisitor<'a> {
 
     /// Override this method to modify a [`Schema`] and (optionally) its subschemas.
     ///
-    /// When overriding this method, you will usually want to call the [`visit_schema`] function to visit subschemas.
+    /// When overriding this method, you will usually want to call the [`SchemaVisitor::visit_schema`] function to visit subschemas.
     pub fn visit_schema(&mut self, schema: &Schema, parent_name: &str) -> anyhow::Result<()> {
         if let Schema::Object(schema_val) = schema {
             return self.visit_schema_object(schema_val, parent_name);
@@ -567,38 +566,6 @@ fn get_test_registry(name: &str, schema: RootSchema) -> IndexerRegistry {
     registry
 }
 
-use sea_orm::sea_query::TableCreateStatement;
-pub fn compare_table_create_statements(built_statement: &TableCreateStatement, expected_sql: &str) {
-    use sea_orm::DbBackend;
-    let db_postgres = DbBackend::Postgres;
-
-    use sqlparser::ast::{ColumnDef, Statement};
-    use sqlparser::dialect::PostgreSqlDialect;
-    use sqlparser::parser::Parser;
-    use std::collections::HashSet;
-
-    let dialect = PostgreSqlDialect {}; // or AnsiDialect
-
-    let built_sql = db_postgres.build(built_statement).to_string();
-    let built_ast = &Parser::parse_sql(&dialect, &built_sql).unwrap()[0];
-    let expected_ast = &Parser::parse_sql(&dialect, expected_sql).unwrap()[0];
-
-    // Because of the stupid non-deterministic nature of how the sql generation works, we
-    // have to compare the members.
-
-    if let Statement::CreateTable { columns, .. } = built_ast {
-        let built_columns = HashSet::<ColumnDef>::from_iter(columns.iter().cloned());
-
-        if let Statement::CreateTable { columns, .. } = expected_ast {
-            let expected_columns = HashSet::<ColumnDef>::from_iter(columns.iter().cloned());
-            let diff = expected_columns.difference(&built_columns);
-            assert!(diff.count() == 0);
-        }
-    } else {
-        panic!(r#"unable to compare sql"#);
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
     use crate::db::db_persister::DatabasePersister;
@@ -630,6 +597,7 @@ pub mod tests {
 
     #[test]
     async fn test_simple_message() {
+        use crate::db::db_test::compare_table_create_statements;
         use schemars::schema_for;
 
         let name = stringify!(SimpleMessage);
@@ -670,7 +638,9 @@ pub mod tests {
 
     #[test]
     async fn test_simple_related_message() {
+        use crate::db::db_test::compare_table_create_statements;
         use schemars::schema_for;
+
         let name = stringify!(SimpleRelatedMessage);
         let schema = schema_for!(SimpleRelatedMessage);
         let mut registry = get_test_registry(name, schema);
