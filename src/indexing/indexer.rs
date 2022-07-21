@@ -1,3 +1,4 @@
+//! Indexer framework.
 use super::event_map::EventMap;
 use super::indexer_registry::{IndexerRegistry, RegistryKey};
 use crate::db::db_builder::DatabaseBuilder;
@@ -28,6 +29,8 @@ fn has_all(keys: RootKeysType, msg: &Value) -> bool {
     true
 }
 
+/// Base indexer trait. This is the entry point for all messages coming into the system.
+#[doc(alias = "indexer")]
 pub trait Indexer {
     type MessageType: DeserializeOwned + IndexMessage;
 
@@ -40,21 +43,25 @@ pub trait Indexer {
         Ok(())
     }
 
-    fn initialize_schemas(&mut self, _builder: &mut DatabaseBuilder) -> anyhow::Result<()> {
+    /// Entry point for initializing database infrastructure before indexing starts.
+    #[allow(unused_variables)]
+    fn initialize_schemas(&mut self, builder: &mut DatabaseBuilder) -> anyhow::Result<()> {
         // Implementors can do whatevah
         Ok(())
     }
 
-    // Indexes a message and its transaction events
+    /// Indexes a message and its transaction events
+    /// # Arguments
+    ///
+    /// * `registry` - The registry of all indexers; serves as a global context
+    /// * `events` - All the transaction events in a map of "event.id": Vec<String> values.
+    /// * `msg_dictionary` - Generic serde-parsed value dictionary object.
+    /// * `msg_str` - The decoded raw string value of a message.
     fn index<'a>(
         &'a self,
-        // The registry of indexers
         registry: &'a IndexerRegistry,
-        // All the transaction events in a map of "event.id": Vec<String> values.
         events: &'a EventMap,
-        // Generic serde-parsed value dictionary
         msg_dictionary: &'a Value,
-        // The decoded string value of the message
         msg_str: &'a str,
     ) -> anyhow::Result<()> {
         match serde_json::from_str::<Self::MessageType>(msg_str) {
@@ -66,16 +73,14 @@ pub trait Indexer {
         }
     }
 
+    /// This is the fallback indexer if deserializing a message into `Self::MessageType` fails.
+    #[allow(unused_variables)]
     fn index_message_dictionary<'a>(
         &'a self,
-        // The registry of indexers
-        _registry: &'a IndexerRegistry,
-        // All the transaction events in a map of "event.id": Vec<String> values.
-        _events: &'a EventMap,
-        // Generic serde-parsed value dictionary
+        registry: &'a IndexerRegistry,
+        events: &'a EventMap,
         msg_dictionary: &'a Value,
-        // The decoded string value of the message
-        _msg_str: &'a str,
+        msg_str: &'a str,
     ) -> anyhow::Result<()> {
         warn!(
             "{} failed to deserialize and no message dictionary handler for message\n{:#?}",
@@ -85,22 +90,22 @@ pub trait Indexer {
         Ok(())
     }
 
-    // ID of this indexer. Used internally in indexer implementations
-    // and in debugging.
+    /// ID of this indexer. Used internally in indexer implementations
+    /// and in debugging.
     fn id(&self) -> String;
 
-    // Keys that this indexer wants to have its "index" method called for.
+    /// Keys that this indexer wants to have its "index" method called for.
     fn registry_keys(&self) -> RegistryKeysType;
 
-    // Iterator over the root keys in a given
-    // message, used by the default extract_message_key
-    // implementation
+    /// Iterator over the root keys in a given
+    /// message, used by the default extract_message_key
+    /// implementation
     fn root_keys(&self) -> RootKeysType;
 
-    // Iterator over the root keys in a given
-    // message, used by the default extract_message_key
-    // implementation. If a message contains ALL of these
-    // keys, then it is definitely of the required type.
+    /// Iterator over the root keys in a given
+    /// message, used by the default extract_message_key
+    /// implementation. If a message contains ALL of these
+    /// keys, then it is definitely of the required type.
     fn required_root_keys(&self) -> RootKeysType;
 
     fn has_required_root_keys(&self) -> bool {
@@ -117,9 +122,10 @@ pub trait Indexer {
         None
     }
 
-    // Extract the key from a given message. This should be one of the keys
-    // returned in registry_keys or None.
-    fn extract_message_key(&self, msg: &Value, _msg_string: &str) -> Option<RegistryKey> {
+    /// Extract the key from a given message. This should be one of the keys
+    /// returned in `registry_keys` or None.
+    #[allow(unused_variables)]
+    fn extract_message_key(&self, msg: &Value, msg_string: &str) -> Option<RegistryKey> {
         if self.has_required_root_keys() {
             let required_roots = self.required_root_keys();
             if has_all(required_roots, msg) {
@@ -131,9 +137,10 @@ pub trait Indexer {
     }
 }
 
-// IndexerDyn is needed in order to have dynamic dispatch on Indexer. Rust doesn't allow dynamic
-// dispatch on traits with associated types.
-// See https://users.rust-lang.org/t/dynamic-dispatch-and-associated-types/39584/2
+/// IndexerDyn is needed in order to have dynamic dispatch on Indexer. Rust doesn't allow dynamic
+/// dispatch on traits with associated types. IndexerDyn is used inside the IndexerRegistry
+/// so it can handle implementors of the Indexer trait polymorphically.
+/// See <https://users.rust-lang.org/t/dynamic-dispatch-and-associated-types/39584/2>
 pub trait IndexerDyn {
     fn initialize_dyn<'a>(&'a self, registry: &'a IndexerRegistry) -> anyhow::Result<()>;
     fn index_dyn<'a>(

@@ -1,3 +1,4 @@
+use super::db_util::foreign_key;
 use super::persister::Persister;
 use async_recursion::async_recursion;
 use log::debug;
@@ -191,34 +192,35 @@ impl DatabaseMapper {
         // messages given the IDs from the persisted related messages.
         let mut columns: Vec<&str> = vec![];
         let mut values: Vec<&Value> = vec![];
-        let mut child_id_columns: Vec<&str> = vec![];
+        let mut child_id_columns: Vec<String> = vec![];
         let mut child_id_values: Vec<Value> = vec![];
         let relationships = self.relationships.get(table_name);
 
         for (key, value) in msg {
             if let Some(relationships) = relationships {
                 if let Some(field_relationship) = relationships.get(key) {
-                    println!("field_relationship: {:#?}", field_relationship);
                     if let Some(field_mapping) = mapping.get(key) {
-                        println!("field_mapping: {:#?}", field_mapping);
                         let child_id = self
                             .persist_message(persister, &field_mapping.related_table, value, None)
                             .await?;
                         let child_id_value = serde_json::json!(child_id);
-                        child_id_columns.push(&field_relationship.destination_column);
+                        child_id_columns.push(foreign_key(&field_relationship.source_column));
                         child_id_values.push(child_id_value);
                     }
+                } else {
+                    columns.push(key);
+                    values.push(value);
                 }
-            }
-            if let Some(field_mapping) = mapping.get(key) {
-                debug!("persisting {:#?} {}={:#?}", field_mapping, key, value);
+            } else if mapping.get(key).is_some() {
                 columns.push(key);
                 values.push(value);
             }
         }
 
         let mut db_id = 0;
-        columns.append(&mut child_id_columns);
+        for child_column_id in child_id_columns.iter() {
+            columns.push(child_column_id);
+        }
         for child_id_value in child_id_values.iter() {
             values.push(child_id_value);
         }
@@ -242,7 +244,7 @@ mod tests {
     use super::*;
     use crate::db::db_persister::DatabasePersister;
     use crate::db::persister::tests::*;
-    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
     use tokio::test;
 
     #[test]
@@ -334,7 +336,30 @@ mod tests {
             .persist_message(&mut persister, &message_name, &relational_message, None)
             .await?;
         let log = persister.db.into_transaction_log();
-        println!("persisted:\n{:#?}", log);
+        let expected_log = vec![
+            Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "address" ("city", "state", "street", "zip") VALUES ($1, $2, $3, $4)"#,
+                vec![
+                    "San Francisco".into(),
+                    "CA".into(),
+                    "123 Not Telling You".into(),
+                    "94000".into(),
+                ],
+            ),
+            Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "contact" ("birth_year", "first_name", "last_name", "address_id") VALUES ($1, $2, $3, $4)"#,
+                vec![
+                    "1990".into(),
+                    "Gavin".into(),
+                    "Doughtie".into(),
+                    15i64.into(),
+                ],
+            ),
+        ];
+        assert_eq!(expected_log, log);
+
         // let records_for_message = persister.tables.get(&message_name).unwrap();
         // let persisted_record_one = records_for_message.get(&record_one_id).unwrap();
         Ok(())
