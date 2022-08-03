@@ -264,10 +264,11 @@ impl SchemaIndexer {
                                             db_builder.column(table_name, property_name).float();
                                         }
                                         InstanceType::Array => {
-                                            eprintln!(
-                                                "not handling array instance for {}:{}",
-                                                table_name, property_name
-                                            );
+                                            db_builder.many_many(table_name, property_name);
+                                            // eprintln!(
+                                            //     "not handling array instance for {}:{}",
+                                            //     table_name, property_name
+                                            // );
                                         }
                                         InstanceType::Null => {
                                             eprintln!(
@@ -718,6 +719,8 @@ pub mod tests {
             .value_mapper
             .persist_message(&mut persister, label, &msg, None)
             .await;
+        builder.finalize_columns();
+        println!("{}", builder.sql_string().unwrap());
         assert!(result.is_ok());
     }
 }
