@@ -165,7 +165,7 @@ impl DatabaseMapper {
     #[async_recursion]
     pub async fn persist_message(
         &self,
-        persister: &mut dyn Persister<u64>,
+        persister: &mut dyn Persister<Id = u64>,
         table_name: &str,
         msg: &Value,
         record_id: Option<u64>,
@@ -225,9 +225,10 @@ impl DatabaseMapper {
             values.push(child_id_value);
         }
         if !columns.is_empty() {
-            db_id = persister
-                .save(table_name, &columns[..], &values[..], &record_id)
-                .await?;
+            // let p = &mut persister.as_mut();
+            db_id = (*persister)
+                .save(table_name, &columns[..], &values[..], record_id)
+                .await?
         }
         Ok(db_id)
     }
@@ -403,7 +404,7 @@ mod tests {
           "birth_year": 1978u64
         });
 
-        let mut persister = TestPersister::<u64>::new();
+        let mut persister = TestPersister::new();
         let record_one_id: u64 = mapper
             .persist_message(&mut persister, &message_name, &record_one, None)
             .await?;
@@ -412,8 +413,8 @@ mod tests {
             .await?;
 
         let records_for_message = persister.tables.get(&message_name).unwrap();
-        let persisted_record_one = records_for_message.get(&record_one_id).unwrap();
-        let persisted_record_two = records_for_message.get(&record_two_id).unwrap();
+        let persisted_record_one = records_for_message.get(&(record_one_id as usize)).unwrap();
+        let persisted_record_two = records_for_message.get(&(record_two_id as usize)).unwrap();
         assert_eq!(
             record_one.get(first_name_field_name.clone()).unwrap(),
             persisted_record_one.get(&first_name_field_name).unwrap()

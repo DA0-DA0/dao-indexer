@@ -61,14 +61,15 @@ impl DatabasePersister {
 }
 
 #[async_trait]
-impl Persister<u64> for DatabasePersister {
+impl Persister for DatabasePersister {
+    type Id = u64;
     async fn save<'a>(
         &'a mut self,
         table_name: &'a str,
         column_names: &'a [&'a str],
         values: &'a [&'a JsonValue],
-        id: &'a Option<u64>,
-    ) -> Result<u64> {
+        id: Option<Self::Id>,
+    ) -> Result<Self::Id> {
         debug!(
             "saving table_name:{}, column_names:{:#?}, values:{:#?}, id:{:?}, db:{:?}",
             table_name, column_names, values, id, self.db
@@ -104,7 +105,7 @@ impl Persister<u64> for DatabasePersister {
                 .values(cols)
                 .and_where(
                     Expr::col(Alias::new(DEFAULT_ID_COLUMN_NAME).into_iden())
-                        .eq::<u64>(id.unwrap()),
+                        .eq::<u64>(id.unwrap() as u64),
                 )
                 .to_owned();
 
@@ -117,7 +118,7 @@ impl Persister<u64> for DatabasePersister {
                 .values(vals)?
                 .to_owned();
             let result = self.db.execute(builder.build(&stmt)).await?;
-            Ok(result.last_insert_id())
+            Ok(result.last_insert_id() as u64)
         }
     }
 }
@@ -144,14 +145,15 @@ pub mod tests {
             .into_connection();
         let mut persister = DatabasePersister::new(db);
         let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
-        let id = persister
+        let id: u64 = persister
             .save(
                 "Contact",
                 &["first_name", "last_name", "birth_year"],
                 values,
-                &None,
+                None,
             )
-            .await?;
+            .await
+            .unwrap();
         assert_eq!(15, id);
         let log = persister.db.into_transaction_log();
         let expected_log = vec![Transaction::from_sql_and_values(

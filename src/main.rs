@@ -4,6 +4,7 @@ use cw3_dao_2_5::msg::ExecuteMsg as Cw3DaoExecuteMsg_025;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
+use dao_indexer::db::db_persister::DatabasePersister;
 use dao_indexer::historical_parser::block_synchronizer;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::indexers::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
@@ -76,6 +77,9 @@ async fn main() -> anyhow::Result<()> {
 
     // Schema indexer is switched off by default while it's in progress
     if config.schema_indexer {
+        let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister = Box::from(DatabasePersister::new(seaql_db));
+
         // TODO(gavindoughtie): I'm *sure* we can make a macro for this
         // pattern, so we can do:
         // register_indexer!(registry, [Cw3DaoInstantiateMsg, Cw3DaoInstantiateMsg25], "0.3.0");
@@ -94,10 +98,14 @@ async fn main() -> anyhow::Result<()> {
                     version: "0.2.5",
                 },
             ],
+            persister,
         );
         registry.register(Box::from(msg_indexer), None);
 
         let msg_label = "Cw3DaoExecuteMsg";
+        let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister = Box::from(DatabasePersister::new(seaql_db));
+
         let msg_indexer = SchemaIndexer::new(
             msg_label.to_string(),
             vec![
@@ -112,10 +120,14 @@ async fn main() -> anyhow::Result<()> {
                     version: "0.2.5",
                 },
             ],
+            persister,
         );
         registry.register(Box::from(msg_indexer), None);
 
         let msg_label = "Cw20ExecuteMsg";
+        let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister = Box::from(DatabasePersister::new(seaql_db));
+
         let msg_indexer = SchemaIndexer::new(
             msg_label.to_string(),
             vec![SchemaRef {
@@ -123,10 +135,13 @@ async fn main() -> anyhow::Result<()> {
                 schema: schema_for!(Cw20ExecuteMsg),
                 version: "0.13.2",
             }],
+            persister,
         );
         registry.register(Box::from(msg_indexer), None);
 
         let msg_label = "Cw3MultisigExecuteMsg";
+        let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister = Box::from(DatabasePersister::new(seaql_db));
         let msg_indexer = SchemaIndexer::new(
             msg_label.to_string(),
             vec![SchemaRef {
@@ -134,9 +149,12 @@ async fn main() -> anyhow::Result<()> {
                 schema: schema_for!(Cw3MultisigExecuteMsg25),
                 version: "0.2.5",
             }],
+            persister,
         );
         registry.register(Box::from(msg_indexer), None);
 
+        let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister = Box::from(DatabasePersister::new(seaql_db));
         let msg_label = "Cw3MultisigInstantiateMsg";
         let msg_indexer = SchemaIndexer::new(
             msg_label.to_string(),
@@ -145,9 +163,12 @@ async fn main() -> anyhow::Result<()> {
                 schema: schema_for!(Cw3MultisigInstantiateMsg25),
                 version: "0.2.5",
             }],
+            persister,
         );
         registry.register(Box::from(msg_indexer), None);
 
+        let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister = Box::from(DatabasePersister::new(seaql_db));
         let msg_label = "StakeCw20ExecuteMsg";
         let msg_indexer = SchemaIndexer::new(
             msg_label.to_string(),
@@ -156,6 +177,7 @@ async fn main() -> anyhow::Result<()> {
                 schema: schema_for!(StakeCw20ExecuteMsg25),
                 version: "0.2.5",
             }],
+            persister,
         );
         registry.register(Box::from(msg_indexer), None);
     } else {
