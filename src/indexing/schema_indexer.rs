@@ -19,8 +19,8 @@ use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
 use serde_json::Value;
-use std::collections::BTreeSet;
 use std::cell::RefCell;
+use std::collections::BTreeSet;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
@@ -415,8 +415,13 @@ impl Indexer for SchemaIndexer<u64> {
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {
         eprintln!("TODO: index needs to be implemented!");
-        let mut persister = self.persister.borrow_mut();
-        registry.db_builder.value_mapper.persist_message(persister.as_ref(), "TEST", msg_dictionary, None);
+        let persister = self.persister.borrow_mut();
+        registry.db_builder.value_mapper.persist_message(
+            persister.as_ref(),
+            "TEST",
+            msg_dictionary,
+            None,
+        );
         Ok(())
     }
 
@@ -543,7 +548,7 @@ pub mod tests {
         schema: RootSchema,
         db: Option<sea_orm::DatabaseConnection>,
     ) -> IndexerRegistry {
-        use crate::{indexing::indexer_registry::Register, db::persister::StubPersister};
+        use crate::{db::persister::StubPersister, indexing::indexer_registry::Register};
         let indexer = SchemaIndexer::<u64>::new(
             name.to_string(),
             vec![SchemaRef {
@@ -551,7 +556,7 @@ pub mod tests {
                 schema,
                 version: "0.0.0",
             }],
-            Box::from(StubPersister{}),
+            Box::from(StubPersister {}),
         );
 
         let persister = new_mock_persister(db);
@@ -642,12 +647,12 @@ pub mod tests {
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
         println!("msg_dictionary now:\n{:#?}", msg_dictionary);
 
-        let mut persister = new_mock_persister(None);
+        let persister = new_mock_persister(None);
 
         let result = registry
             .db_builder
             .value_mapper
-            .persist_message(&mut persister, "SimpleMessage", &msg_dictionary, None)
+            .persist_message(&persister, "SimpleMessage", &msg_dictionary, None)
             .await;
 
         println!("{:#?}", persister.db.into_transaction_log());
@@ -707,17 +712,12 @@ pub mod tests {
     }"#;
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
 
-        let mut persister = new_mock_persister(Some(db));
+        let persister = new_mock_persister(Some(db));
 
         let result = registry
             .db_builder
             .value_mapper
-            .persist_message(
-                &mut persister,
-                "SimpleRelatedMessage",
-                &msg_dictionary,
-                None,
-            )
+            .persist_message(&persister, "SimpleRelatedMessage", &msg_dictionary, None)
             .await;
         assert!(result.is_ok());
         println!("{:#?}", persister.db.into_transaction_log());
@@ -732,9 +732,9 @@ pub mod tests {
     async fn test_visit() {
         use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
         use schemars::schema_for;
-        let persister = new_mock_persister(None);
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let label = stringify!(Cw3DaoInstantiateMsg);
+        let persister = new_mock_persister(None);
         let mut indexer =
             SchemaIndexer::<u64>::new(label.to_string(), vec![], Box::from(persister));
         let mut builder = DatabaseBuilder::new();
@@ -757,9 +757,10 @@ pub mod tests {
             "automatically_add_cw20s": true
           }"#;
         let msg = serde_json::from_str(msg_string).unwrap();
+        let persister = new_mock_persister(None);
         let result = builder
             .value_mapper
-            .persist_message(indexer.persister.borrow().as_ref(), label, &msg, None)
+            .persist_message(&persister, label, &msg, None)
             .await;
         builder.finalize_columns();
         println!("{}", builder.sql_string().unwrap());

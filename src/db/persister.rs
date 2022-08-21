@@ -39,20 +39,20 @@ impl Persister for StubPersister {
 pub mod tests {
     use super::*;
     use std::collections::{BTreeMap, HashMap};
+    use std::sync::RwLock;
     use tokio::test;
-    use std::cell::RefCell;
-
 
     type Record = BTreeMap<String, Value>;
     #[derive(Debug)]
     pub struct TestPersister {
-        pub tables: RefCell<BTreeMap<String, HashMap<usize, Record>>>,
+        pub tables: RwLock<BTreeMap<String, HashMap<usize, Record>>>,
     }
 
     impl TestPersister {
         #[allow(dead_code)]
         pub fn new() -> Self {
             let tables: BTreeMap<String, HashMap<usize, Record>> = BTreeMap::new();
+            let tables = RwLock::from(tables);
             TestPersister { tables }
         }
     }
@@ -102,9 +102,11 @@ pub mod tests {
             values: &'a [&'a Value],
             id: Option<Self::Id>,
         ) -> Result<Self::Id> {
-            let records = self
+            let mut tables = self
                 .tables
-                .borrow_mut()
+                .write()
+                .expect("Failed to acquire a write lock on tables");
+            let records = tables
                 .entry(table_name.to_string())
                 .or_insert_with(HashMap::new);
             let id = match id {
@@ -125,7 +127,7 @@ pub mod tests {
 
     #[test]
     async fn test_persister_trait() -> anyhow::Result<()> {
-        let mut persister: TestPersister = TestPersister::new();
+        let persister: TestPersister = TestPersister::new();
         let id = persister
             .save(
                 "contacts",

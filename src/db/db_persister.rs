@@ -143,7 +143,7 @@ pub mod tests {
                 },
             ])
             .into_connection();
-        let mut persister = DatabasePersister::new(db);
+        let persister = DatabasePersister::new(db);
         let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
         let id: u64 = persister
             .save(

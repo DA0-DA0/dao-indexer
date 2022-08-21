@@ -332,9 +332,9 @@ mod tests {
                 },
             ])
             .into_connection();
-        let mut persister = DatabasePersister::new(db);
+        let persister = DatabasePersister::new(db);
         let _record_one_id: u64 = mapper
-            .persist_message(&mut persister, &message_name, &relational_message, None)
+            .persist_message(&persister, &message_name, &relational_message, None)
             .await?;
         let log = persister.db.into_transaction_log();
         let expected_log = vec![
@@ -404,15 +404,20 @@ mod tests {
           "birth_year": 1978u64
         });
 
-        let mut persister = TestPersister::new();
+        let persister = TestPersister::new();
         let record_one_id: u64 = mapper
-            .persist_message(&mut persister, &message_name, &record_one, None)
+            .persist_message(&persister, &message_name, &record_one, None)
             .await?;
         let record_two_id: u64 = mapper
-            .persist_message(&mut persister, &message_name, &record_two, None)
+            .persist_message(&persister, &message_name, &record_two, None)
             .await?;
 
-        let records_for_message = persister.tables.get(&message_name).unwrap();
+        let tables = persister
+            .tables
+            .read()
+            .expect("Failed to acquire a read lock on tables");
+
+        let records_for_message = tables.get(&message_name).unwrap();
         let persisted_record_one = records_for_message.get(&(record_one_id as usize)).unwrap();
         let persisted_record_two = records_for_message.get(&(record_two_id as usize)).unwrap();
         assert_eq!(

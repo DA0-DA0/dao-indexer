@@ -45,11 +45,12 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = if config.postgres_backend {
         let diesel_db: PgConnection = establish_connection(&config.database_url);
         let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-        let persister_connection: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister_connection: DatabaseConnection =
+            Database::connect(&config.database_url).await?;
         let persister = DatabasePersister::new(persister_connection);
         IndexerRegistry::new(Some(diesel_db), Some(seaql_db), Box::from(persister))
     } else {
-        IndexerRegistry::new(None, None, Box::from(StubPersister{}))
+        IndexerRegistry::new(None, None, Box::from(StubPersister {}))
     };
 
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
