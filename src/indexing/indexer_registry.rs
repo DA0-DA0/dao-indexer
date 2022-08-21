@@ -1,5 +1,5 @@
 use crate::db::db_builder::DatabaseBuilder;
-
+use crate::db::persister::{Persister, StubPersister};
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
 use diesel::pg::PgConnection;
@@ -46,6 +46,7 @@ pub struct IndexerRegistry {
     pub db: Option<PgConnection>,
     pub seaql_db: Option<DatabaseConnection>,
     pub db_builder: DatabaseBuilder,
+    pub persister: Box<dyn Persister<Id=u64>>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
     indexers: Vec<Box<dyn IndexerDyn>>,
@@ -67,19 +68,24 @@ impl Deref for IndexerRegistry {
 
 impl Default for IndexerRegistry {
     fn default() -> Self {
-        IndexerRegistry::new(None, None)
+        IndexerRegistry::new(None, None, Box::from(StubPersister{}))
     }
 }
 
 impl<'a> IndexerRegistry {
-    pub fn new(db: Option<PgConnection>, seaql_db: Option<DatabaseConnection>) -> Self {
+    pub fn new(db: Option<PgConnection>, seaql_db: Option<DatabaseConnection>, persister: Box<dyn Persister<Id=u64>>) -> Self {
         IndexerRegistry {
             db,
             seaql_db,
             db_builder: DatabaseBuilder::default(),
             handlers: HashMap::default(),
             indexers: vec![],
+            persister
         }
+    }
+
+    pub fn persister_mut(&mut self) -> &mut dyn Persister<Id=u64> {
+        (*self).persister.as_mut()
     }
 
     pub fn initialize(&mut self) -> anyhow::Result<()> {

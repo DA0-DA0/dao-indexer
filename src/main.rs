@@ -5,6 +5,7 @@ use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::db::db_persister::DatabasePersister;
+use dao_indexer::db::persister::StubPersister;
 use dao_indexer::historical_parser::block_synchronizer;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::indexers::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
@@ -62,9 +63,11 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = if config.postgres_backend {
         let diesel_db: PgConnection = establish_connection(&config.database_url);
         let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-        IndexerRegistry::new(Some(diesel_db), Some(seaql_db))
+        let persister_connection: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister = DatabasePersister::new(persister_connection);
+        IndexerRegistry::new(Some(diesel_db), Some(seaql_db), Box::from(persister))
     } else {
-        IndexerRegistry::new(None, None)
+        IndexerRegistry::new(None, None, Box::from(StubPersister{}))
     };
 
     // Register standard indexers:

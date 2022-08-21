@@ -10,7 +10,7 @@ pub type PersistValues<'a> = &'a [&'a Value];
 pub trait Persister: Send + Sync + std::fmt::Debug {
     type Id;
     async fn save<'a>(
-        &'a mut self,
+        &'a self,
         table_name: &'a str,
         column_names: &'a [&'a str],
         values: &'a [&'a Value],
@@ -18,16 +18,35 @@ pub trait Persister: Send + Sync + std::fmt::Debug {
     ) -> Result<Self::Id>;
 }
 
+#[derive(Debug)]
+pub struct StubPersister {}
+
+#[async_trait]
+impl Persister for StubPersister {
+    type Id = u64;
+    async fn save<'a>(
+        &'a self,
+        _table_name: &'a str,
+        _column_names: &'a [&'a str],
+        _values: &'a [&'a Value],
+        _id: Option<Self::Id>,
+    ) -> Result<Self::Id> {
+        Ok(0)
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
     use std::collections::{BTreeMap, HashMap};
     use tokio::test;
+    use std::cell::RefCell;
+
 
     type Record = BTreeMap<String, Value>;
     #[derive(Debug)]
     pub struct TestPersister {
-        pub tables: BTreeMap<String, HashMap<usize, Record>>,
+        pub tables: RefCell<BTreeMap<String, HashMap<usize, Record>>>,
     }
 
     impl TestPersister {
@@ -77,7 +96,7 @@ pub mod tests {
     impl Persister for TestPersister {
         type Id = u64;
         async fn save<'a>(
-            &'a mut self,
+            &'a self,
             table_name: &'a str,
             column_names: &'a [&'a str],
             values: &'a [&'a Value],
@@ -85,6 +104,7 @@ pub mod tests {
         ) -> Result<Self::Id> {
             let records = self
                 .tables
+                .borrow_mut()
                 .entry(table_name.to_string())
                 .or_insert_with(HashMap::new);
             let id = match id {

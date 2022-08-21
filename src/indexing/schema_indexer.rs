@@ -20,6 +20,7 @@ use schemars::schema::{
 };
 use serde_json::Value;
 use std::collections::BTreeSet;
+use std::cell::RefCell;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SchemaIndexerGenericMessage {}
@@ -44,7 +45,7 @@ pub struct SchemaIndexer<T> {
     registry_keys: Vec<RegistryKey>,
     root_keys: Vec<String>,
     id: String,
-    pub persister: Box<dyn Persister<Id = T>>,
+    pub persister: RefCell<Box<dyn Persister<Id = T>>>,
 }
 
 type RootMap = HashMap<String, BTreeSet<String>>;
@@ -95,7 +96,7 @@ impl<T> SchemaIndexer<T> {
             schemas,
             registry_keys: vec![RegistryKey::new(id)],
             root_keys: vec![],
-            persister,
+            persister: RefCell::from(persister),
         }
     }
 
@@ -390,7 +391,7 @@ impl<T> SchemaIndexer<T> {
     }
 }
 
-impl<T> Indexer for SchemaIndexer<T> {
+impl Indexer for SchemaIndexer<u64> {
     type MessageType = SchemaIndexerGenericMessage;
     fn id(&self) -> String {
         self.id.clone()
@@ -408,14 +409,15 @@ impl<T> Indexer for SchemaIndexer<T> {
     // Indexes a message and its transaction events
     fn index<'a>(
         &'a self,
-        _registry: &'a IndexerRegistry,
+        registry: &'a IndexerRegistry,
         _events: &'a EventMap,
-        _msg_dictionary: &'a Value,
+        msg_dictionary: &'a Value,
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {
         eprintln!("TODO: index needs to be implemented!");
+        let mut persister = self.persister.borrow_mut();
+        registry.db_builder.value_mapper.persist_message(persister.as_ref(), "TEST", msg_dictionary, None);
         Ok(())
-        // registry.db_builder.value_mapper.persist_message(registry.db_builder.persister, "TEST", msg_dictionary, record_id)
     }
 
     fn initialize_schemas<'a>(
@@ -437,14 +439,14 @@ impl<T> Indexer for SchemaIndexer<T> {
     }
 }
 
-pub struct SchemaVisitor<'a, T> {
+pub struct SchemaVisitor<'a> {
     pub data: SchemaData,
-    pub indexer: &'a mut SchemaIndexer<T>,
+    pub indexer: &'a mut SchemaIndexer<u64>,
     pub db_builder: &'a mut DatabaseBuilder,
 }
 
-impl<'a, T> SchemaVisitor<'a, T> {
-    pub fn new(indexer: &'a mut SchemaIndexer<T>, db_builder: &'a mut DatabaseBuilder) -> Self {
+impl<'a> SchemaVisitor<'a> {
+    pub fn new(indexer: &'a mut SchemaIndexer<u64>, db_builder: &'a mut DatabaseBuilder) -> Self {
         SchemaVisitor {
             data: SchemaData::default(),
             indexer,
@@ -541,8 +543,7 @@ pub mod tests {
         schema: RootSchema,
         db: Option<sea_orm::DatabaseConnection>,
     ) -> IndexerRegistry {
-        use crate::indexing::indexer_registry::Register;
-        let persister = new_mock_persister(db);
+        use crate::{indexing::indexer_registry::Register, db::persister::StubPersister};
         let indexer = SchemaIndexer::<u64>::new(
             name.to_string(),
             vec![SchemaRef {
@@ -550,10 +551,11 @@ pub mod tests {
                 schema,
                 version: "0.0.0",
             }],
-            Box::from(persister),
+            Box::from(StubPersister{}),
         );
 
-        let mut registry = IndexerRegistry::new(None, None);
+        let persister = new_mock_persister(db);
+        let mut registry = IndexerRegistry::new(None, None, Box::from(persister));
         registry.register(Box::from(indexer), None);
         registry
     }
@@ -757,7 +759,7 @@ pub mod tests {
         let msg = serde_json::from_str(msg_string).unwrap();
         let result = builder
             .value_mapper
-            .persist_message(indexer.persister.as_mut(), label, &msg, None)
+            .persist_message(indexer.persister.borrow().as_ref(), label, &msg, None)
             .await;
         builder.finalize_columns();
         println!("{}", builder.sql_string().unwrap());

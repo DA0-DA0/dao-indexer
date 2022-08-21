@@ -64,7 +64,7 @@ impl DatabasePersister {
 impl Persister for DatabasePersister {
     type Id = u64;
     async fn save<'a>(
-        &'a mut self,
+        &'a self,
         table_name: &'a str,
         column_names: &'a [&'a str],
         values: &'a [&'a JsonValue],

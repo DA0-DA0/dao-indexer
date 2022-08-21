@@ -165,7 +165,7 @@ impl DatabaseMapper {
     #[async_recursion]
     pub async fn persist_message(
         &self,
-        persister: &mut dyn Persister<Id = u64>,
+        persister: &dyn Persister<Id = u64>,
         table_name: &str,
         msg: &Value,
         record_id: Option<u64>,

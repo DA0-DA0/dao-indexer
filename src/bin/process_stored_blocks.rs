@@ -1,4 +1,6 @@
 use clap::Command;
+use dao_indexer::db::db_persister::DatabasePersister;
+use dao_indexer::db::persister::StubPersister;
 use diesel::PgConnection;
 use env_logger::Env;
 use log::{info, warn};
@@ -43,9 +45,11 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = if config.postgres_backend {
         let diesel_db: PgConnection = establish_connection(&config.database_url);
         let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-        IndexerRegistry::new(Some(diesel_db), Some(seaql_db))
+        let persister_connection: DatabaseConnection = Database::connect(&config.database_url).await?;
+        let persister = DatabasePersister::new(persister_connection);
+        IndexerRegistry::new(Some(diesel_db), Some(seaql_db), Box::from(persister))
     } else {
-        IndexerRegistry::new(None, None)
+        IndexerRegistry::new(None, None, Box::from(StubPersister{}))
     };
 
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
