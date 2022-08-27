@@ -1,6 +1,6 @@
 use clap::Command;
 use dao_indexer::db::db_persister::DatabasePersister;
-use dao_indexer::db::persister::StubPersister;
+use dao_indexer::db::persister::{make_persister_ref, StubPersister};
 use diesel::PgConnection;
 use env_logger::Env;
 use log::{info, warn};
@@ -48,9 +48,9 @@ async fn main() -> anyhow::Result<()> {
         let persister_connection: DatabaseConnection =
             Database::connect(&config.database_url).await?;
         let persister = DatabasePersister::new(persister_connection);
-        IndexerRegistry::new(Some(diesel_db), Some(seaql_db), Box::from(persister))
+        IndexerRegistry::new(Some(diesel_db), Some(seaql_db), make_persister_ref(Box::from(persister)))
     } else {
-        IndexerRegistry::new(None, None, Box::from(StubPersister {}))
+        IndexerRegistry::new(None, None, make_persister_ref(Box::from(StubPersister {})))
     };
 
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();

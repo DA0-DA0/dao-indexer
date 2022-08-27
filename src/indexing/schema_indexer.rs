@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::db::db_builder::DatabaseBuilder;
-use crate::db::persister::Persister;
+use crate::db::persister::PersisterRef;
 
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
@@ -19,7 +19,6 @@ use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
 use serde_json::Value;
-use std::cell::RefCell;
 use std::collections::BTreeSet;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -45,7 +44,7 @@ pub struct SchemaIndexer<T> {
     registry_keys: Vec<RegistryKey>,
     root_keys: Vec<String>,
     id: String,
-    pub persister: RefCell<Box<dyn Persister<Id = T>>>,
+    pub persister: PersisterRef<T>,
 }
 
 type RootMap = HashMap<String, BTreeSet<String>>;
@@ -90,13 +89,13 @@ fn insert_table_set_value(
 }
 
 impl<T> SchemaIndexer<T> {
-    pub fn new(id: String, schemas: Vec<SchemaRef>, persister: Box<dyn Persister<Id = T>>) -> Self {
+    pub fn new(id: String, schemas: Vec<SchemaRef>, persister: PersisterRef<T>) -> Self {
         SchemaIndexer {
             id: id.clone(),
             schemas,
             registry_keys: vec![RegistryKey::new(id)],
             root_keys: vec![],
-            persister: RefCell::from(persister),
+            persister,
         }
     }
 
@@ -415,14 +414,18 @@ impl Indexer for SchemaIndexer<u64> {
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {
         eprintln!("TODO: index needs to be implemented!");
-        let persister = self.persister.borrow_mut();
-        registry.db_builder.value_mapper.persist_message(
-            persister.as_ref(),
-            "TEST",
-            msg_dictionary,
-            None,
-        );
-        Ok(())
+        if let Ok(persister) = self.persister.try_write() {
+            let persister = persister.borrow_mut();
+            let persister = persister.as_ref();
+            registry.db_builder.value_mapper.persist_message(
+                persister,
+                &self.id,
+                msg_dictionary,
+                None,
+            );
+            return Ok(());
+        }
+        Err(anyhow::anyhow!("unable to get write lock"))
     }
 
     fn initialize_schemas<'a>(
@@ -535,34 +538,63 @@ struct SimpleRelatedMessage {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::db::db_persister::DatabasePersister;
-    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
-
     use super::*;
+    use crate::db::db_persister::DatabasePersister;
+    use crate::db::persister::{make_persister_ref, Persister};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+    use std::cell::RefCell;
+    use std::sync::{Arc, RwLock};
+
     use tokio::test;
+
+    struct TestRegistryResult {
+        registry: IndexerRegistry,
+        _indexer_id: usize,
+        _persister: PersisterRef<u64>,
+    }
 
     #[allow(dead_code)]
     #[cfg(test)]
     fn get_test_registry(
         name: &str,
         schema: RootSchema,
-        db: Option<sea_orm::DatabaseConnection>,
-    ) -> IndexerRegistry {
+        _db: Option<sea_orm::DatabaseConnection>,
+        persister: Option<PersisterRef<u64>>,
+    ) -> TestRegistryResult {
         use crate::{db::persister::StubPersister, indexing::indexer_registry::Register};
-        let indexer = SchemaIndexer::<u64>::new(
-            name.to_string(),
-            vec![SchemaRef {
-                name: name.to_string(),
-                schema,
-                version: "0.0.0",
-            }],
-            Box::from(StubPersister {}),
-        );
-
-        let persister = new_mock_persister(db);
-        let mut registry = IndexerRegistry::new(None, None, Box::from(persister));
-        registry.register(Box::from(indexer), None);
-        registry
+        let indexer;
+        let persister_ref: PersisterRef<u64>;
+        if let Some(persister) = persister {
+            persister_ref = persister;
+            indexer = SchemaIndexer::<u64>::new(
+                name.to_string(),
+                vec![SchemaRef {
+                    name: name.to_string(),
+                    schema,
+                    version: "0.0.0",
+                }],
+                persister_ref.clone(),
+            );
+        } else {
+            let stub: Box<dyn Persister<Id = u64>> = Box::from(StubPersister {});
+            persister_ref = make_persister_ref(stub);
+            indexer = SchemaIndexer::<u64>::new(
+                name.to_string(),
+                vec![SchemaRef {
+                    name: name.to_string(),
+                    schema,
+                    version: "0.0.0",
+                }],
+                persister_ref.clone(),
+            );
+        }
+        let mut registry = IndexerRegistry::new(None, None, persister_ref.clone());
+        let indexer_id = registry.register(Box::from(indexer), None);
+        TestRegistryResult {
+            registry,
+            _indexer_id: indexer_id,
+            _persister: persister_ref,
+        }
     }
 
     fn new_mock_persister(db: Option<sea_orm::DatabaseConnection>) -> DatabasePersister {
@@ -596,7 +628,8 @@ pub mod tests {
 
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
-        let persister = new_mock_persister(None);
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(new_mock_persister(None));
+        let persister_ref = make_persister_ref(persister);
         let indexer = SchemaIndexer::<u64>::new(
             "Cw3DaoInstantiateMsg".to_string(),
             vec![
@@ -611,7 +644,7 @@ pub mod tests {
                     version: "0.2.5",
                 },
             ],
-            Box::from(persister),
+            persister_ref,
         );
         let pos = indexer
             .schemas
@@ -627,7 +660,8 @@ pub mod tests {
 
         let name = stringify!(SimpleMessage);
         let schema = schema_for!(SimpleMessage);
-        let mut registry = get_test_registry(name, schema, None);
+        let result = get_test_registry(name, schema, None, None);
+        let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
         let built_table = registry.db_builder.table(name);
         let expected_sql = vec![
@@ -686,7 +720,10 @@ pub mod tests {
             ])
             .into_connection();
 
-        let mut registry = get_test_registry(name, schema, None);
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(new_mock_persister(None));
+        let persister_ref = Arc::new(RwLock::from(RefCell::from(persister)));
+        let result = get_test_registry(name, schema, Some(db), Some(persister_ref.clone()));
+        let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
@@ -711,21 +748,19 @@ pub mod tests {
         }
     }"#;
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
-
-        let persister = new_mock_persister(Some(db));
-
-        let result = registry
-            .db_builder
-            .value_mapper
-            .persist_message(&persister, "SimpleRelatedMessage", &msg_dictionary, None)
-            .await;
-        assert!(result.is_ok());
-        println!("{:#?}", persister.db.into_transaction_log());
+        // let result = registry
+        //     .db_builder
+        //     .value_mapper
+        //     .persist_message(&persister, "SimpleRelatedMessage", &msg_dictionary, None)
+        //     .await;
+        // assert!(result.is_ok());
+        let db_persister = persister_ref.read().unwrap();
+        let db_persister = db_persister.borrow();
+        // let db_persister = db_persister.as_ref().unwrap();
+        println!("{:#?}", db_persister);
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
+        // println!("{:#?}", persister.db.into_transaction_log());
         assert!(result.is_ok());
-
-        // Finally, check to see if the message ended up in the database:
-        println!("db: {:#?}", registry.seaql_db);
     }
 
     #[test]
@@ -734,9 +769,11 @@ pub mod tests {
         use schemars::schema_for;
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let label = stringify!(Cw3DaoInstantiateMsg);
-        let persister = new_mock_persister(None);
-        let mut indexer =
-            SchemaIndexer::<u64>::new(label.to_string(), vec![], Box::from(persister));
+
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(new_mock_persister(None));
+        let persister_ref = Arc::new(RwLock::from(RefCell::from(persister)));
+
+        let mut indexer = SchemaIndexer::<u64>::new(label.to_string(), vec![], persister_ref);
         let mut builder = DatabaseBuilder::new();
         let mut visitor = SchemaVisitor::new(&mut indexer, &mut builder);
         let result = visitor.visit_root_schema(&schema3);

@@ -4,7 +4,7 @@ use env_logger::Env;
 
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::persister::StubPersister;
+use dao_indexer::db::persister::{make_persister_ref, StubPersister};
 use dao_indexer::historical_parser::block_synchronizer;
 use dao_indexer::indexing::indexer_registry::IndexerRegistry;
 use dao_indexer::indexing::msg_set::default_msg_set;
@@ -25,7 +25,8 @@ async fn main() -> anyhow::Result<()> {
 
     let db: PgConnection = establish_connection(&config.database_url);
 
-    let indexer_registry = IndexerRegistry::new(Some(db), None, Box::from(StubPersister {}));
+    let persister_ref = make_persister_ref(Box::from(StubPersister {}));
+    let indexer_registry = IndexerRegistry::new(Some(db), None, persister_ref);
     let msg_set = default_msg_set();
 
     block_synchronizer(&indexer_registry, &config, msg_set.clone()).await?;

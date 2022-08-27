@@ -1,6 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::Value;
+use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 
 pub type PersistColumnNames<'a> = &'a [&'a str];
 pub type PersistValues<'a> = &'a [&'a Value];
@@ -16,6 +18,12 @@ pub trait Persister: Send + Sync + std::fmt::Debug {
         values: &'a [&'a Value],
         id: Option<Self::Id>,
     ) -> Result<Self::Id>;
+}
+
+pub type PersisterRef<T> = Arc<RwLock<RefCell<Box<dyn Persister<Id = T>>>>>;
+
+pub fn make_persister_ref<T>(persister: Box<dyn Persister<Id=T>>) -> PersisterRef<T> {
+    Arc::new(RwLock::from(RefCell::from(persister)))
 }
 
 #[derive(Debug)]
