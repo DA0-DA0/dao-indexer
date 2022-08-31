@@ -2,13 +2,16 @@ use super::db_util::{db_column_name, db_table_name, DEFAULT_ID_COLUMN_NAME};
 use super::persister::Persister;
 use anyhow::Result;
 use async_trait::async_trait;
+use tendermint::abci::Data;
 use core::fmt::Debug;
 use log::debug;
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query::{Alias, Expr, IntoIden, Query};
-use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
+use sea_orm::{ConnectionTrait, DatabaseConnection, MockDatabaseConnection, JsonValue, Value};
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
+use tokio::sync::RwLock;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
@@ -49,13 +52,25 @@ impl Datatype {
     }
 }
 
+pub type DbRef = Arc<RwLock<Box<DatabaseConnection>>>;
+
+pub type DbRefMock = Arc<RwLock<Box<MockDatabaseConnection>>>;
+
+pub fn make_db_ref(db: Box<DatabaseConnection>) -> DbRef {
+    Arc::new(RwLock::new(db))
+}
+
+pub fn make_db_ref_mock(db: Box<MockDatabaseConnection>) -> DbRefMock {
+    Arc::new(RwLock::new(db))
+}
+
 #[derive(Debug)]
 pub struct DatabasePersister {
-    pub db: DatabaseConnection,
+    pub db: DbRef,
 }
 
 impl DatabasePersister {
-    pub fn new(db: DatabaseConnection) -> Self {
+    pub fn new(db: DbRef) -> Self {
         DatabasePersister { db }
     }
 }
@@ -70,9 +85,10 @@ impl Persister for DatabasePersister {
         values: &'a [&'a JsonValue],
         id: Option<Self::Id>,
     ) -> Result<Self::Id> {
+        let db = &self.db;
         debug!(
             "saving table_name:{}, column_names:{:#?}, values:{:#?}, id:{:?}, db:{:?}",
-            table_name, column_names, values, id, self.db
+            table_name, column_names, values, id, db
         );
         let mut update = false;
         let mut cols = vec![];
@@ -97,7 +113,8 @@ impl Persister for DatabasePersister {
             }
         }
 
-        let builder = self.db.get_database_backend();
+        let persister_db = db.read().await;
+        let builder = persister_db.get_database_backend();
 
         if update {
             let stmt = Query::update()
@@ -109,7 +126,7 @@ impl Persister for DatabasePersister {
                 )
                 .to_owned();
 
-            let result = self.db.execute(builder.build(&stmt)).await?;
+            let result = persister_db.execute(builder.build(&stmt)).await?;
             Ok(result.last_insert_id())
         } else {
             let stmt = Query::insert()
@@ -117,7 +134,7 @@ impl Persister for DatabasePersister {
                 .columns(insert_columns)
                 .values(vals)?
                 .to_owned();
-            let result = self.db.execute(builder.build(&stmt)).await?;
+            let result = persister_db.execute(builder.build(&stmt)).await?;
             Ok(result.last_insert_id() as u64)
         }
     }
@@ -131,19 +148,18 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_basic_persistence() -> anyhow::Result<()> {
-        let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_exec_results(vec![
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-                MockExecResult {
-                    last_insert_id: 16,
-                    rows_affected: 1,
-                },
-            ])
-            .into_connection();
-        let persister = DatabasePersister::new(db);
+        let db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 16,
+                rows_affected: 1,
+            },
+        ]).into_connection();
+        let db_ref = make_db_ref(Box::new(db));
+        let persister = DatabasePersister::new(db_ref.clone());
         let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
         let id: u64 = persister
             .save(
@@ -155,7 +171,7 @@ pub mod tests {
             .await
             .unwrap();
         assert_eq!(15, id);
-        let log = persister.db.into_transaction_log();
+        let log = db_ref.write().await.into_transaction_log();
         let expected_log = vec![Transaction::from_sql_and_values(
             DatabaseBackend::Postgres,
             r#"INSERT INTO "contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,

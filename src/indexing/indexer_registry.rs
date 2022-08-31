@@ -6,10 +6,10 @@ use diesel::pg::PgConnection;
 use log::{debug, error};
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
-use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -119,6 +119,7 @@ impl<'a> IndexerRegistry {
                         if let Some(indexer) = self.indexers.get(*handler_id) {
                             if let Err(e) = indexer.index_dyn(self, events, msg_dictionary, msg_str)
                             {
+                                eprintln!("ERROR: {}", e);
                                 error!(
                                     "Error indexing message:\n{:#?}\n{:#?}\n{:#?}\n{:#?}",
                                     msg_dictionary, e, msg_str, events

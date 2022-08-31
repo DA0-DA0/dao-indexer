@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
+use sea_orm::DatabaseConnection;
 
 pub type PersistColumnNames<'a> = &'a [&'a str];
 pub type PersistValues<'a> = &'a [&'a Value];
@@ -18,11 +19,15 @@ pub trait Persister: Send + Sync + std::fmt::Debug {
         values: &'a [&'a Value],
         id: Option<Self::Id>,
     ) -> Result<Self::Id>;
+
+    fn get_db(&mut self) -> Option<&DatabaseConnection> {
+        None
+    }
 }
 
 pub type PersisterRef<T> = Arc<RwLock<RefCell<Box<dyn Persister<Id = T>>>>>;
 
-pub fn make_persister_ref<T>(persister: Box<dyn Persister<Id=T>>) -> PersisterRef<T> {
+pub fn make_persister_ref<T>(persister: Box<dyn Persister<Id = T>>) -> PersisterRef<T> {
     Arc::new(RwLock::from(RefCell::from(persister)))
 }
 
@@ -70,35 +75,6 @@ pub mod tests {
             Self::new()
         }
     }
-
-    // #[async_trait]
-    // impl Persister for TestPersister {
-    //     async fn save<'a>(
-    //         &'a mut self,
-    //         table_name: &'a str,
-    //         column_names: &'a [&'a str],
-    //         values: &'a [&'a Value],
-    //         id: Option<usize>,
-    //     ) -> Result<usize> {
-    //         let records: &mut HashMap<usize, Record> = self
-    //             .tables
-    //             .entry(table_name.to_string())
-    //             .or_insert_with(HashMap::new);
-    //         let id = match id {
-    //             Some(id) => id,
-    //             _ => records.len(),
-    //         };
-
-    //         let record = records.entry(id).or_insert_with(BTreeMap::new);
-
-    //         for (value_index, column_name) in column_names.iter().enumerate() {
-    //             if let Some(value) = values.get(value_index) {
-    //                 record.insert(column_name.to_string(), (**value).clone());
-    //             }
-    //         }
-    //         Ok(id)
-    //     }
-    // }
 
     #[async_trait]
     impl Persister for TestPersister {

@@ -26,6 +26,8 @@ pub struct SchemaIndexerGenericMessage {}
 
 #[allow(unused_variables)]
 impl IndexMessage for SchemaIndexerGenericMessage {
+    // This is a stub message; unlike the IndexMessage implemented for sepcific
+    // messages, the SchemaIndexer itself performs indexing on its messages.
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
         Ok(())
     }
@@ -539,11 +541,11 @@ struct SimpleRelatedMessage {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::db::db_persister::DatabasePersister;
+    use crate::db::db_persister::{make_db_ref, make_db_ref_mock, DatabasePersister, DbRef, DbRefMock};
     use crate::db::persister::{make_persister_ref, Persister};
+    use async_std::sync::RwLock;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
-    use std::cell::RefCell;
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use tokio::test;
 
@@ -597,26 +599,24 @@ pub mod tests {
         }
     }
 
-    fn new_mock_persister(db: Option<sea_orm::DatabaseConnection>) -> DatabasePersister {
-        if let Some(db) = db {
-            return DatabasePersister::new(db);
-        }
-        let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_exec_results(vec![
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-            ])
-            .into_connection();
+    fn new_mock_db() -> MockDatabase {
+        MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+        ])
+    }
+
+    fn new_mock_persister(db: DbRefMock) -> DatabasePersister {
         DatabasePersister::new(db)
     }
 
@@ -628,7 +628,9 @@ pub mod tests {
 
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
-        let persister: Box<dyn Persister<Id = u64>> = Box::new(new_mock_persister(None));
+        let db = *(new_mock_db().into_connection().as_mock_connection());
+        let db_ref = make_db_ref_mock(Box::new(db));
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(new_mock_persister(db_ref));
         let persister_ref = make_persister_ref(persister);
         let indexer = SchemaIndexer::<u64>::new(
             "Cw3DaoInstantiateMsg".to_string(),
@@ -660,9 +662,14 @@ pub mod tests {
 
         let name = stringify!(SimpleMessage);
         let schema = schema_for!(SimpleMessage);
-        let result = get_test_registry(name, schema, None, None);
+        let db = new_mock_db().mock_connection();
+        let db_ref = make_db_ref_mock(Box::new(db));
+        let persister = new_mock_persister(db_ref.clone());
+        let persister_ref = make_persister_ref(Box::new(persister));
+        let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
+        
         let built_table = registry.db_builder.table(name);
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
@@ -681,18 +688,17 @@ pub mod tests {
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
         println!("msg_dictionary now:\n{:#?}", msg_dictionary);
 
-        let persister = new_mock_persister(None);
+        // let result = registry
+        //     .db_builder
+        //     .value_mapper
+        //     .persist_message(&persister, "SimpleMessage", &msg_dictionary, None)
+        //     .await;
 
-        let result = registry
-            .db_builder
-            .value_mapper
-            .persist_message(&persister, "SimpleMessage", &msg_dictionary, None)
-            .await;
-
-        println!("{:#?}", persister.db.into_transaction_log());
-        assert!(result.is_ok());
+        // println!("{:#?}", persister.db.into_transaction_log());
+        // assert!(result.is_ok());
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
+        println!("{:#?}", db_ref.write().await.to_owned().into_transaction_log());
     }
 
     #[test]
@@ -703,26 +709,26 @@ pub mod tests {
         let name = stringify!(SimpleRelatedMessage);
         let schema = schema_for!(SimpleRelatedMessage);
 
-        let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_exec_results(vec![
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-            ])
-            .into_connection();
+        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+        ]);
 
-        let persister: Box<dyn Persister<Id = u64>> = Box::new(new_mock_persister(None));
-        let persister_ref = Arc::new(RwLock::from(RefCell::from(persister)));
-        let result = get_test_registry(name, schema, Some(db), Some(persister_ref.clone()));
+        let db = mock_db.into_connection();
+        let db_ref = make_db_ref(Box::new(db));
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db_ref));
+        let persister_ref = make_persister_ref(persister); //Arc::new(RwLock::from(RefCell::from(persister)));
+        let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
         let expected_sql = vec![
@@ -748,19 +754,17 @@ pub mod tests {
         }
     }"#;
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
+        // let persister = new_mock_persister(None);
         // let result = registry
         //     .db_builder
         //     .value_mapper
         //     .persist_message(&persister, "SimpleRelatedMessage", &msg_dictionary, None)
         //     .await;
         // assert!(result.is_ok());
-        let db_persister = persister_ref.read().unwrap();
-        let db_persister = db_persister.borrow();
-        // let db_persister = db_persister.as_ref().unwrap();
-        println!("{:#?}", db_persister);
+        // let transactions = persister.db.into_transaction_log();
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
-        // println!("{:#?}", persister.db.into_transaction_log());
         assert!(result.is_ok());
+        println!("{:#?}", db_ref.write().await.into_transaction_log());
     }
 
     #[test]
@@ -770,8 +774,10 @@ pub mod tests {
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let label = stringify!(Cw3DaoInstantiateMsg);
 
-        let persister: Box<dyn Persister<Id = u64>> = Box::new(new_mock_persister(None));
-        let persister_ref = Arc::new(RwLock::from(RefCell::from(persister)));
+        let db = new_mock_db().into_connection();
+        let db_ref = make_db_ref(Box::new(db));
+        let mock_persister = new_mock_persister(db_ref.clone());
+        let persister_ref = make_persister_ref(Box::new(mock_persister));
 
         let mut indexer = SchemaIndexer::<u64>::new(label.to_string(), vec![], persister_ref);
         let mut builder = DatabaseBuilder::new();
@@ -793,14 +799,15 @@ pub mod tests {
             "only_members_execute": true,
             "automatically_add_cw20s": true
           }"#;
-        let msg = serde_json::from_str(msg_string).unwrap();
-        let persister = new_mock_persister(None);
-        let result = builder
-            .value_mapper
-            .persist_message(&persister, label, &msg, None)
-            .await;
+        // let msg = serde_json::from_str::<serde_json::Value>(msg_string).unwrap();
+        // let persister = new_mock_persister(&db);
+        // let result = builder
+        //     .value_mapper
+        //     .persist_message(&persister, label, &msg, None)
+        //     .await;
         builder.finalize_columns();
         println!("{}", builder.sql_string().unwrap());
         assert!(result.is_ok());
+        println!("{:#?}", db_ref.write().await.into_transaction_log());
     }
 }

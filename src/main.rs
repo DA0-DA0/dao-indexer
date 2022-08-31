@@ -5,7 +5,7 @@ use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::db::db_persister::DatabasePersister;
-use dao_indexer::db::persister::{Persister, PersisterRef, StubPersister, make_persister_ref};
+use dao_indexer::db::persister::{make_persister_ref, Persister, PersisterRef, StubPersister};
 use dao_indexer::historical_parser::block_synchronizer;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::indexers::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
@@ -37,8 +37,8 @@ use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg_030;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg_030;
 use schemars::schema_for;
 use sea_orm::{Database, DatabaseConnection};
-use std::sync::{Arc, RwLock};
 use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.
@@ -67,13 +67,13 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = if config.postgres_backend {
         let diesel_db: PgConnection = establish_connection(&config.database_url);
         let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-        let persister_connection: DatabaseConnection =
-            Database::connect(&config.database_url).await?;
-        let persister: Box<dyn Persister<Id=u64>> = Box::new(DatabasePersister::new(persister_connection));        
-        persister_ref = Arc::new(RwLock::from(RefCell::from(persister)));
-        IndexerRegistry::new(Some(diesel_db), Some(seaql_db), persister_ref.clone())
+        let db_arc = Arc::new(Box::new(seaql_db));
+        let persister: Box<dyn Persister<Id = u64>> =
+            Box::new(DatabasePersister::new(db_arc));
+        persister_ref = make_persister_ref(persister);
+        IndexerRegistry::new(Some(diesel_db), None, persister_ref.clone())
     } else {
-        persister_ref = make_persister_ref(Box::new(StubPersister{}));
+        persister_ref = make_persister_ref(Box::new(StubPersister {}));
         // let persister: Box<dyn Persister<Id=u64>> = Box::new(StubPersister {});
         // let persister_ref: PersisterRef<u64> = Arc::new(RwLock::from(RefCell::from(persister)));
         IndexerRegistry::new(None, None, persister_ref.clone())
