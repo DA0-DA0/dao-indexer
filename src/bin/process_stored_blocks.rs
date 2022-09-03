@@ -20,7 +20,6 @@ use dao_indexer::indexing::indexers::msg_cw3multisig_indexer::{
 use dao_indexer::indexing::indexers::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
 use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::util::transaction_util::get_transactions;
-use async_std::sync::RwLock;
 
 fn init_registry(registry: &mut IndexerRegistry) -> anyhow::Result<()> {
     let cw20_indexer = Cw20ExecuteMsgIndexer::default();
@@ -40,12 +39,12 @@ fn init_registry(registry: &mut IndexerRegistry) -> anyhow::Result<()> {
 }
 
 fn process_transactions(config: &IndexerConfig, registry: &IndexerRegistry) -> anyhow::Result<()> {
-    let txs = get_transactions(&config, &registry)?;
+    let txs = get_transactions(config, registry)?;
 
     info!("Linearly processing {} transactions \n", txs.len());
 
     for tx in txs {
-        index_search_result(&tx, &registry, &config, default_msg_set())?;
+        index_search_result(&tx, registry, config, default_msg_set())?;
     }
 
     Ok(())
@@ -63,7 +62,7 @@ fn persist_historical_transactions(
         persister_ref
     );
     init_registry(&mut registry)?;
-    process_transactions(&config, &registry)
+    process_transactions(config, &registry)
 }
 
 #[tokio::main]

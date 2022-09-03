@@ -4,7 +4,7 @@ use cw3_dao_2_5::msg::ExecuteMsg as Cw3DaoExecuteMsg_025;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
-use dao_indexer::db::db_persister::DatabasePersister;
+use dao_indexer::db::db_persister::{make_db_ref, DatabasePersister};
 use dao_indexer::db::persister::{make_persister_ref, Persister, PersisterRef, StubPersister};
 use dao_indexer::historical_parser::block_synchronizer;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
@@ -67,9 +67,8 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = if config.postgres_backend {
         let diesel_db: PgConnection = establish_connection(&config.database_url);
         let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-        let db_arc = Arc::new(Box::new(seaql_db));
         let persister: Box<dyn Persister<Id = u64>> =
-            Box::new(DatabasePersister::new(db_arc));
+            Box::new(DatabasePersister::new(make_db_ref(Box::new(seaql_db))));
         persister_ref = make_persister_ref(persister);
         IndexerRegistry::new(Some(diesel_db), None, persister_ref.clone())
     } else {

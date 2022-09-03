@@ -245,10 +245,8 @@ mod tests {
     use super::*;
     use crate::db::db_persister::{DatabasePersister, make_db_ref};
     use crate::db::persister::tests::*;
-    use async_std::sync::RwLock;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
     use tokio::test;
-    use std::sync::Arc;
 
     #[test]
     async fn test_relational_persistence() -> anyhow::Result<()> {
@@ -333,7 +331,6 @@ mod tests {
             },
         ]);
         let db = mock_db.into_connection();
-        let db_mock = db.as_mock_connection();
         let db_ref = make_db_ref(Box::new(db));
         let persister = DatabasePersister::new(db_ref);
         let _record_one_id: u64 = mapper

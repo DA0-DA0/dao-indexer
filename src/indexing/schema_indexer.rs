@@ -415,8 +415,7 @@ impl Indexer for SchemaIndexer<u64> {
         msg_dictionary: &'a Value,
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {
-        eprintln!("TODO: index needs to be implemented!");
-        if let Ok(persister) = self.persister.try_write() {
+        if let Some(persister) = self.persister.try_write() {
             let persister = persister.borrow_mut();
             let persister = persister.as_ref();
             registry.db_builder.value_mapper.persist_message(
@@ -425,7 +424,6 @@ impl Indexer for SchemaIndexer<u64> {
                 msg_dictionary,
                 None,
             );
-            return Ok(());
         }
         Err(anyhow::anyhow!("unable to get write lock"))
     }
@@ -541,7 +539,7 @@ struct SimpleRelatedMessage {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::db::db_persister::{make_db_ref, make_db_ref_mock, DatabasePersister, DbRef, DbRefMock};
+    use crate::db::db_persister::{make_db_ref, make_db_ref_mock, DatabasePersister, DbRefMock};
     use crate::db::persister::{make_persister_ref, Persister};
     use async_std::sync::RwLock;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
@@ -617,7 +615,7 @@ pub mod tests {
     }
 
     fn new_mock_persister(db: DbRefMock) -> DatabasePersister {
-        DatabasePersister::new(db)
+        DatabasePersister::with_mock_db(db)
     }
 
     #[test]
@@ -628,10 +626,12 @@ pub mod tests {
 
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
-        let db = *(new_mock_db().into_connection().as_mock_connection());
-        let db_ref = make_db_ref_mock(Box::new(db));
-        let persister: Box<dyn Persister<Id = u64>> = Box::new(new_mock_persister(db_ref));
-        let persister_ref = make_persister_ref(persister);
+        let mock_db = new_mock_db();
+        // let db = *(mock_db.into_connection().as_mock_connection().to_owned());
+        // let db = *(new_mock_db().into_connection().as_mock_connection());
+        let db_ref = make_db_ref(Box::new(mock_db.into_connection()));
+        let persister = DatabasePersister::new(db_ref.clone());
+        let persister_ref = make_persister_ref(Box::new(persister));
         let indexer = SchemaIndexer::<u64>::new(
             "Cw3DaoInstantiateMsg".to_string(),
             vec![
@@ -662,9 +662,9 @@ pub mod tests {
 
         let name = stringify!(SimpleMessage);
         let schema = schema_for!(SimpleMessage);
-        let db = new_mock_db().mock_connection();
-        let db_ref = make_db_ref_mock(Box::new(db));
-        let persister = new_mock_persister(db_ref.clone());
+        let db = new_mock_db().into_connection();
+        let db_ref = make_db_ref(Box::new(db));
+        let persister = DatabasePersister::new(db_ref.clone());
         let persister_ref = make_persister_ref(Box::new(persister));
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
@@ -698,7 +698,7 @@ pub mod tests {
         // assert!(result.is_ok());
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
-        println!("{:#?}", db_ref.write().await.to_owned().into_transaction_log());
+        // println!("{:#?}", db_ref.write().await.to_owned().into_transaction_log());
     }
 
     #[test]
@@ -764,7 +764,7 @@ pub mod tests {
         // let transactions = persister.db.into_transaction_log();
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
-        println!("{:#?}", db_ref.write().await.into_transaction_log());
+        // println!("{:#?}", db_ref.write().await.into_transaction_log());
     }
 
     #[test]
@@ -776,8 +776,8 @@ pub mod tests {
 
         let db = new_mock_db().into_connection();
         let db_ref = make_db_ref(Box::new(db));
-        let mock_persister = new_mock_persister(db_ref.clone());
-        let persister_ref = make_persister_ref(Box::new(mock_persister));
+        let persister = DatabasePersister::new(db_ref.clone());
+        let persister_ref = make_persister_ref(Box::new(persister));
 
         let mut indexer = SchemaIndexer::<u64>::new(label.to_string(), vec![], persister_ref);
         let mut builder = DatabaseBuilder::new();
@@ -808,6 +808,6 @@ pub mod tests {
         builder.finalize_columns();
         println!("{}", builder.sql_string().unwrap());
         assert!(result.is_ok());
-        println!("{:#?}", db_ref.write().await.into_transaction_log());
+        // println!("{:#?}", db_ref.write().await.into_transaction_log());
     }
 }
