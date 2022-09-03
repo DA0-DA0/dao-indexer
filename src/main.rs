@@ -37,8 +37,6 @@ use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg_030;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg_030;
 use schemars::schema_for;
 use sea_orm::{Database, DatabaseConnection};
-use std::cell::RefCell;
-use std::sync::{Arc, RwLock};
 
 /// This indexes the Tendermint blockchain starting from a specified block, then
 /// listens for new blocks and indexes them with content-aware indexers.

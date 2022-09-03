@@ -149,7 +149,7 @@ impl Persister for DatabasePersister {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
     use serde_json::json;
 
     #[tokio::test]

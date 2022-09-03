@@ -539,11 +539,9 @@ struct SimpleRelatedMessage {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::db::db_persister::{make_db_ref, make_db_ref_mock, DatabasePersister, DbRefMock};
+    use crate::db::db_persister::{make_db_ref, DatabasePersister};
     use crate::db::persister::{make_persister_ref, Persister};
-    use async_std::sync::RwLock;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
-    use std::sync::Arc;
 
     use tokio::test;
 
@@ -614,10 +612,6 @@ pub mod tests {
         ])
     }
 
-    fn new_mock_persister(db: DbRefMock) -> DatabasePersister {
-        DatabasePersister::with_mock_db(db)
-    }
-
     #[test]
     async fn test_schema_indexer_init() {
         use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
@@ -630,7 +624,7 @@ pub mod tests {
         // let db = *(mock_db.into_connection().as_mock_connection().to_owned());
         // let db = *(new_mock_db().into_connection().as_mock_connection());
         let db_ref = make_db_ref(Box::new(mock_db.into_connection()));
-        let persister = DatabasePersister::new(db_ref.clone());
+        let persister = DatabasePersister::new(db_ref);
         let persister_ref = make_persister_ref(Box::new(persister));
         let indexer = SchemaIndexer::<u64>::new(
             "Cw3DaoInstantiateMsg".to_string(),
@@ -664,7 +658,7 @@ pub mod tests {
         let schema = schema_for!(SimpleMessage);
         let db = new_mock_db().into_connection();
         let db_ref = make_db_ref(Box::new(db));
-        let persister = DatabasePersister::new(db_ref.clone());
+        let persister = DatabasePersister::new(db_ref);
         let persister_ref = make_persister_ref(Box::new(persister));
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
@@ -776,7 +770,7 @@ pub mod tests {
 
         let db = new_mock_db().into_connection();
         let db_ref = make_db_ref(Box::new(db));
-        let persister = DatabasePersister::new(db_ref.clone());
+        let persister = DatabasePersister::new(db_ref);
         let persister_ref = make_persister_ref(Box::new(persister));
 
         let mut indexer = SchemaIndexer::<u64>::new(label.to_string(), vec![], persister_ref);
