@@ -2,6 +2,7 @@ use super::db_util::{db_column_name, db_table_name, DEFAULT_ID_COLUMN_NAME};
 use super::persister::Persister;
 use anyhow::Result;
 use async_trait::async_trait;
+use tendermint::abci::Data;
 use core::fmt::Debug;
 use log::debug;
 use sea_orm::entity::prelude::*;
@@ -53,36 +54,33 @@ impl Datatype {
 
 pub type DbRef = Arc<RwLock<Box<DatabaseConnection>>>;
 
-pub type DbRefMock = Arc<RwLock<Box<MockDatabaseConnection>>>;
+pub type ConnectionFunction<'a> = fn() -> &'a DatabaseConnection;
+
+#[derive(Debug)]
+pub enum ConnectionRef<'a> {
+    Connection(DatabaseConnection),
+    ConnectionFn(ConnectionFunction<'a>)
+}
 
 pub fn make_db_ref(db: Box<DatabaseConnection>) -> DbRef {
     Arc::new(RwLock::new(db))
 }
 
-pub fn make_db_ref_mock(db: Box<MockDatabaseConnection>) -> DbRefMock {
-    Arc::new(RwLock::new(db))
-}
 
 #[derive(Debug)]
-pub struct DatabasePersister {
-    pub db: DbRef,
-    pub mock_db: Option<DbRefMock>,
+pub struct DatabasePersister<'a> {
+    pub db: ConnectionRef<'a>
 }
 
-impl DatabasePersister {
-    pub fn new(db: DbRef) -> Self {
-        DatabasePersister { db, mock_db: None }
-    }
-
-    pub fn with_mock_db(mock_db: DbRefMock) -> Self {
-        let db: DatabaseConnection = DatabaseConnection::default();
-        let db = make_db_ref(Box::new(db));
-        DatabasePersister { db, mock_db: Some(mock_db) }
+impl<'a> DatabasePersister<'a> {
+    pub fn new(db: ConnectionRef<'a>) -> Self {
+        DatabasePersister { db }
     }
 }
+
 
 #[async_trait]
-impl Persister for DatabasePersister {
+impl Persister for DatabasePersister<'_> {
     type Id = u64;
     async fn save<'a>(
         &'a self,
@@ -91,7 +89,10 @@ impl Persister for DatabasePersister {
         values: &'a [&'a JsonValue],
         id: Option<Self::Id>,
     ) -> Result<Self::Id> {
-        let db = &self.db;
+        let db = match self.db {
+            ConnectionRef::Connection(db) => &db,
+            ConnectionRef::ConnectionFn(db_fn) => db_fn()
+        };
         debug!(
             "saving table_name:{}, column_names:{:#?}, values:{:#?}, id:{:?}, db:{:?}",
             table_name, column_names, values, id, db
