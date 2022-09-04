@@ -1,5 +1,5 @@
 use clap::Command;
-use dao_indexer::db::db_persister::{DatabasePersister, make_db_ref};
+use dao_indexer::db::db_persister::DatabasePersister;
 use dao_indexer::db::persister::{make_persister_ref, PersisterRef, StubPersister};
 use diesel::PgConnection;
 use env_logger::Env;
@@ -87,8 +87,7 @@ async fn main() -> anyhow::Result<()> {
         let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
         let persister_connection: DatabaseConnection =
             Database::connect(&config.database_url).await?;
-        let db_ref = make_db_ref(Box::new(seaql_db));
-        let persister = DatabasePersister::new(db_ref);
+        let persister = DatabasePersister::new(seaql_db);
         let persister_ref = make_persister_ref(Box::from(persister));
         persist_historical_transactions(&config, diesel_db, persister_connection, persister_ref.clone())?;
         drop(persister_ref)

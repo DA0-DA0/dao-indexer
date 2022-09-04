@@ -243,7 +243,7 @@ impl Default for DatabaseMapper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::db_persister::{DatabasePersister, make_db_ref};
+    use crate::db::db_persister::DatabasePersister;
     use crate::db::persister::tests::*;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
     use tokio::test;
@@ -331,8 +331,7 @@ mod tests {
             },
         ]);
         let db = mock_db.into_connection();
-        let db_ref = make_db_ref(Box::new(db));
-        let persister = DatabasePersister::new(db_ref);
+        let persister = DatabasePersister::new(db);
         let _record_one_id: u64 = mapper
             .persist_message(&persister, &message_name, &relational_message, None)
             .await?;
@@ -358,7 +357,7 @@ mod tests {
                 ],
             ),
         ];
-        //assert_eq!(expected_log, (*db_mock).into_transaction_log());
+        assert_eq!(expected_log, persister.into_transaction_log());
 
         // let records_for_message = persister.tables.get(&message_name).unwrap();
         // let persisted_record_one = records_for_message.get(&record_one_id).unwrap();

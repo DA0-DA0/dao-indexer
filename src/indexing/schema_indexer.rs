@@ -539,7 +539,7 @@ struct SimpleRelatedMessage {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::db::db_persister::{make_db_ref, DatabasePersister};
+    use crate::db::db_persister::DatabasePersister;
     use crate::db::persister::{make_persister_ref, Persister};
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
 
@@ -620,11 +620,10 @@ pub mod tests {
 
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
-        let mock_db = new_mock_db();
+        let mock_db = new_mock_db().into_connection();
         // let db = *(mock_db.into_connection().as_mock_connection().to_owned());
         // let db = *(new_mock_db().into_connection().as_mock_connection());
-        let db_ref = make_db_ref(Box::new(mock_db.into_connection()));
-        let persister = DatabasePersister::new(db_ref);
+        let persister = DatabasePersister::new(mock_db);
         let persister_ref = make_persister_ref(Box::new(persister));
         let indexer = SchemaIndexer::<u64>::new(
             "Cw3DaoInstantiateMsg".to_string(),
@@ -657,8 +656,7 @@ pub mod tests {
         let name = stringify!(SimpleMessage);
         let schema = schema_for!(SimpleMessage);
         let db = new_mock_db().into_connection();
-        let db_ref = make_db_ref(Box::new(db));
-        let persister = DatabasePersister::new(db_ref);
+        let persister = DatabasePersister::new(db);
         let persister_ref = make_persister_ref(Box::new(persister));
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
@@ -719,8 +717,7 @@ pub mod tests {
         ]);
 
         let db = mock_db.into_connection();
-        let db_ref = make_db_ref(Box::new(db));
-        let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db_ref));
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));
         let persister_ref = make_persister_ref(persister); //Arc::new(RwLock::from(RefCell::from(persister)));
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
@@ -769,8 +766,7 @@ pub mod tests {
         let label = stringify!(Cw3DaoInstantiateMsg);
 
         let db = new_mock_db().into_connection();
-        let db_ref = make_db_ref(Box::new(db));
-        let persister = DatabasePersister::new(db_ref);
+        let persister = DatabasePersister::new(db);
         let persister_ref = make_persister_ref(Box::new(persister));
 
         let mut indexer = SchemaIndexer::<u64>::new(label.to_string(), vec![], persister_ref);
@@ -793,12 +789,13 @@ pub mod tests {
             "only_members_execute": true,
             "automatically_add_cw20s": true
           }"#;
-        // let msg = serde_json::from_str::<serde_json::Value>(msg_string).unwrap();
-        // let persister = new_mock_persister(&db);
-        // let result = builder
-        //     .value_mapper
-        //     .persist_message(&persister, label, &msg, None)
-        //     .await;
+        let msg = serde_json::from_str::<serde_json::Value>(msg_string).unwrap();
+        let db = new_mock_db().into_connection();
+        let persister = DatabasePersister::new(db);
+        let result = builder
+            .value_mapper
+            .persist_message(&persister, label, &msg, None)
+            .await;
         builder.finalize_columns();
         println!("{}", builder.sql_string().unwrap());
         assert!(result.is_ok());

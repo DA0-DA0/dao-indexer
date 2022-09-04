@@ -6,11 +6,9 @@ use core::fmt::Debug;
 use log::debug;
 use sea_orm::entity::prelude::*;
 use sea_orm::sea_query::{Alias, Expr, IntoIden, Query};
-use sea_orm::{ConnectionTrait, DatabaseConnection, MockDatabaseConnection, JsonValue, Value};
+use sea_orm::{ConnectionTrait, DatabaseConnection, JsonValue, Value};
 use serde::{Deserialize, Serialize};
 use std::iter::Iterator;
-use tokio::sync::RwLock;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Eq, PartialEq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
 #[sea_orm(rs_type = "String", db_type = "String(None)")]
@@ -51,33 +49,27 @@ impl Datatype {
     }
 }
 
-pub type DbRef = Arc<RwLock<Box<DatabaseConnection>>>;
-
-pub type DbRefMock = Arc<RwLock<Box<MockDatabaseConnection>>>;
-
-pub fn make_db_ref(db: Box<DatabaseConnection>) -> DbRef {
-    Arc::new(RwLock::new(db))
-}
-
-pub fn make_db_ref_mock(db: Box<MockDatabaseConnection>) -> DbRefMock {
-    Arc::new(RwLock::new(db))
-}
-
 #[derive(Debug)]
 pub struct DatabasePersister {
-    pub db: DbRef,
-    pub mock_db: Option<DbRefMock>,
+    // pub db: DbRef,
+    // pub mock_db: Option<DbRefMock>,
+    pub db: DatabaseConnection
 }
 
 impl DatabasePersister {
-    pub fn new(db: DbRef) -> Self {
-        DatabasePersister { db, mock_db: None }
+    pub fn new(db: DatabaseConnection) -> Self {
+        // DatabasePersister { db, mock_db: None }
+        DatabasePersister { db }
     }
 
-    pub fn with_mock_db(mock_db: DbRefMock) -> Self {
-        let db: DatabaseConnection = DatabaseConnection::default();
-        let db = make_db_ref(Box::new(db));
-        DatabasePersister { db, mock_db: Some(mock_db) }
+    // pub fn with_mock_db(mock_db: DbRefMock) -> Self {
+    //     let db: DatabaseConnection = DatabaseConnection::default();
+    //     let db = make_db_ref(Box::new(db));
+    //     DatabasePersister { db, mock_db: Some(mock_db) }
+    // }
+
+    pub fn into_transaction_log(self) -> std::vec::Vec<sea_orm::Transaction>{
+        self.db.into_transaction_log()
     }
 }
 
@@ -119,8 +111,7 @@ impl Persister for DatabasePersister {
             }
         }
 
-        let persister_db = db.read().await;
-        let builder = persister_db.get_database_backend();
+        let builder = db.get_database_backend();
 
         if update {
             let stmt = Query::update()
@@ -132,7 +123,7 @@ impl Persister for DatabasePersister {
                 )
                 .to_owned();
 
-            let result = persister_db.execute(builder.build(&stmt)).await?;
+            let result = db.execute(builder.build(&stmt)).await?;
             Ok(result.last_insert_id())
         } else {
             let stmt = Query::insert()
@@ -140,7 +131,7 @@ impl Persister for DatabasePersister {
                 .columns(insert_columns)
                 .values(vals)?
                 .to_owned();
-            let result = persister_db.execute(builder.build(&stmt)).await?;
+            let result = db.execute(builder.build(&stmt)).await?;
             Ok(result.last_insert_id() as u64)
         }
     }
@@ -164,8 +155,7 @@ pub mod tests {
                 rows_affected: 1,
             },
         ]).into_connection();
-        let db_ref = make_db_ref(Box::new(db));
-        let persister = DatabasePersister::new(db_ref.clone());
+        let persister = DatabasePersister::new(db);
         let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
         let id: u64 = persister
             .save(
