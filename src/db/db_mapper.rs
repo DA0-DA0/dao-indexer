@@ -225,7 +225,6 @@ impl DatabaseMapper {
             values.push(child_id_value);
         }
         if !columns.is_empty() {
-            // let p = &mut persister.as_mut();
             db_id = (*persister)
                 .save(table_name, &columns[..], &values[..], record_id)
                 .await?

@@ -51,22 +51,13 @@ impl Datatype {
 
 #[derive(Debug)]
 pub struct DatabasePersister {
-    // pub db: DbRef,
-    // pub mock_db: Option<DbRefMock>,
     pub db: DatabaseConnection
 }
 
 impl DatabasePersister {
     pub fn new(db: DatabaseConnection) -> Self {
-        // DatabasePersister { db, mock_db: None }
         DatabasePersister { db }
     }
-
-    // pub fn with_mock_db(mock_db: DbRefMock) -> Self {
-    //     let db: DatabaseConnection = DatabaseConnection::default();
-    //     let db = make_db_ref(Box::new(db));
-    //     DatabasePersister { db, mock_db: Some(mock_db) }
-    // }
 
     pub fn into_transaction_log(self) -> std::vec::Vec<sea_orm::Transaction>{
         self.db.into_transaction_log()
@@ -140,7 +131,7 @@ impl Persister for DatabasePersister {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
     use serde_json::json;
 
     #[tokio::test]
@@ -167,13 +158,13 @@ pub mod tests {
             .await
             .unwrap();
         assert_eq!(15, id);
-        // let log = db_ref.write().await.into_transaction_log();
-        // let expected_log = vec![Transaction::from_sql_and_values(
-        //     DatabaseBackend::Postgres,
-        //     r#"INSERT INTO "contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
-        //     vec!["Gavin".into(), "Doughtie".into(), 1990_i64.into()],
-        // )];
-        // assert_eq!(expected_log, log);
+        let log = persister.into_transaction_log();
+        let expected_log = vec![Transaction::from_sql_and_values(
+            DatabaseBackend::Postgres,
+            r#"INSERT INTO "contact" ("first_name", "last_name", "birth_year") VALUES ($1, $2, $3)"#,
+            vec!["Gavin".into(), "Doughtie".into(), 1990_i64.into()],
+        )];
+        assert_eq!(expected_log, log);
         Ok(())
     }
 }
