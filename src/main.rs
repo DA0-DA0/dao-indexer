@@ -4,6 +4,8 @@ use cw3_dao_2_5::msg::ExecuteMsg as Cw3DaoExecuteMsg_025;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
+use dao_indexer::db::db_persister::DatabasePersister;
+use dao_indexer::db::persister::{make_persister_ref, Persister, PersisterRef, StubPersister};
 use dao_indexer::historical_parser::block_synchronizer;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::indexers::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
@@ -58,12 +60,17 @@ async fn main() -> anyhow::Result<()> {
         warn!("Running indexer without a postgres backend!");
     }
 
+    let persister_ref: PersisterRef<u64>;
+
     let mut registry = if config.postgres_backend {
         let diesel_db: PgConnection = establish_connection(&config.database_url);
         let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-        IndexerRegistry::new(Some(diesel_db), Some(seaql_db))
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(seaql_db));
+        persister_ref = make_persister_ref(persister);
+        IndexerRegistry::new(Some(diesel_db), None, persister_ref.clone())
     } else {
-        IndexerRegistry::new(None, None)
+        persister_ref = make_persister_ref(Box::new(StubPersister {}));
+        IndexerRegistry::new(None, None, persister_ref.clone())
     };
 
     // Register standard indexers:
@@ -94,10 +101,12 @@ async fn main() -> anyhow::Result<()> {
                     version: "0.2.5",
                 },
             ],
+            persister_ref.clone(),
         );
         registry.register(Box::from(msg_indexer), None);
 
         let msg_label = "Cw3DaoExecuteMsg";
+
         let msg_indexer = SchemaIndexer::new(
             msg_label.to_string(),
             vec![
@@ -112,6 +121,7 @@ async fn main() -> anyhow::Result<()> {
                     version: "0.2.5",
                 },
             ],
+            persister_ref.clone(),
         );
         registry.register(Box::from(msg_indexer), None);
 
@@ -123,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
                 schema: schema_for!(Cw20ExecuteMsg),
                 version: "0.13.2",
             }],
+            persister_ref.clone(),
         );
         registry.register(Box::from(msg_indexer), None);
 
@@ -134,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
                 schema: schema_for!(Cw3MultisigExecuteMsg25),
                 version: "0.2.5",
             }],
+            persister_ref.clone(),
         );
         registry.register(Box::from(msg_indexer), None);
 
@@ -145,6 +157,7 @@ async fn main() -> anyhow::Result<()> {
                 schema: schema_for!(Cw3MultisigInstantiateMsg25),
                 version: "0.2.5",
             }],
+            persister_ref.clone(),
         );
         registry.register(Box::from(msg_indexer), None);
 
@@ -156,6 +169,7 @@ async fn main() -> anyhow::Result<()> {
                 schema: schema_for!(StakeCw20ExecuteMsg25),
                 version: "0.2.5",
             }],
+            persister_ref.clone(),
         );
         registry.register(Box::from(msg_indexer), None);
     } else {

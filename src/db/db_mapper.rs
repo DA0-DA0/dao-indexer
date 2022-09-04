@@ -165,7 +165,7 @@ impl DatabaseMapper {
     #[async_recursion]
     pub async fn persist_message(
         &self,
-        persister: &mut dyn Persister<u64>,
+        persister: &dyn Persister<Id = u64>,
         table_name: &str,
         msg: &Value,
         record_id: Option<u64>,
@@ -225,9 +225,9 @@ impl DatabaseMapper {
             values.push(child_id_value);
         }
         if !columns.is_empty() {
-            db_id = persister
-                .save(table_name, &columns[..], &values[..], &record_id)
-                .await?;
+            db_id = (*persister)
+                .save(table_name, &columns[..], &values[..], record_id)
+                .await?
         }
         Ok(db_id)
     }
@@ -319,23 +319,21 @@ mod tests {
         "#,
         )
         .unwrap();
-        let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_exec_results(vec![
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-                MockExecResult {
-                    last_insert_id: 16,
-                    rows_affected: 1,
-                },
-            ])
-            .into_connection();
-        let mut persister = DatabasePersister::new(db);
+        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 16,
+                rows_affected: 1,
+            },
+        ]);
+        let db = mock_db.into_connection();
+        let persister = DatabasePersister::new(db);
         let _record_one_id: u64 = mapper
-            .persist_message(&mut persister, &message_name, &relational_message, None)
+            .persist_message(&persister, &message_name, &relational_message, None)
             .await?;
-        let log = persister.db.into_transaction_log();
         let expected_log = vec![
             Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
@@ -358,7 +356,7 @@ mod tests {
                 ],
             ),
         ];
-        assert_eq!(expected_log, log);
+        assert_eq!(expected_log, persister.into_transaction_log());
 
         // let records_for_message = persister.tables.get(&message_name).unwrap();
         // let persisted_record_one = records_for_message.get(&record_one_id).unwrap();
@@ -403,17 +401,22 @@ mod tests {
           "birth_year": 1978u64
         });
 
-        let mut persister = TestPersister::<u64>::new();
+        let persister = TestPersister::new();
         let record_one_id: u64 = mapper
-            .persist_message(&mut persister, &message_name, &record_one, None)
+            .persist_message(&persister, &message_name, &record_one, None)
             .await?;
         let record_two_id: u64 = mapper
-            .persist_message(&mut persister, &message_name, &record_two, None)
+            .persist_message(&persister, &message_name, &record_two, None)
             .await?;
 
-        let records_for_message = persister.tables.get(&message_name).unwrap();
-        let persisted_record_one = records_for_message.get(&record_one_id).unwrap();
-        let persisted_record_two = records_for_message.get(&record_two_id).unwrap();
+        let tables = persister
+            .tables
+            .read()
+            .expect("Failed to acquire a read lock on tables");
+
+        let records_for_message = tables.get(&message_name).unwrap();
+        let persisted_record_one = records_for_message.get(&(record_one_id as usize)).unwrap();
+        let persisted_record_two = records_for_message.get(&(record_two_id as usize)).unwrap();
         assert_eq!(
             record_one.get(first_name_field_name.clone()).unwrap(),
             persisted_record_one.get(&first_name_field_name).unwrap()

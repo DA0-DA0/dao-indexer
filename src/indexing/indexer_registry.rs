@@ -1,7 +1,7 @@
-use crate::db::db_builder::DatabaseBuilder;
-
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
+use crate::db::db_builder::DatabaseBuilder;
+use crate::db::persister::{make_persister_ref, Persister, PersisterRef, StubPersister};
 use diesel::pg::PgConnection;
 use log::{debug, error};
 use sea_orm::DatabaseConnection;
@@ -39,13 +39,14 @@ impl std::ops::Deref for RegistryKey {
 }
 
 pub trait Register {
-    fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>);
+    fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>) -> usize;
 }
 
 pub struct IndexerRegistry {
     pub db: Option<PgConnection>,
     pub seaql_db: Option<DatabaseConnection>,
     pub db_builder: DatabaseBuilder,
+    pub persister: PersisterRef<u64>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
     indexers: Vec<Box<dyn IndexerDyn>>,
@@ -67,18 +68,25 @@ impl Deref for IndexerRegistry {
 
 impl Default for IndexerRegistry {
     fn default() -> Self {
-        IndexerRegistry::new(None, None)
+        let stub: Box<dyn Persister<Id = u64>> = Box::from(StubPersister {});
+        let persister_ref: PersisterRef<u64> = make_persister_ref(stub);
+        IndexerRegistry::new(None, None, persister_ref)
     }
 }
 
 impl<'a> IndexerRegistry {
-    pub fn new(db: Option<PgConnection>, seaql_db: Option<DatabaseConnection>) -> Self {
+    pub fn new(
+        db: Option<PgConnection>,
+        seaql_db: Option<DatabaseConnection>,
+        persister: PersisterRef<u64>,
+    ) -> Self {
         IndexerRegistry {
             db,
             seaql_db,
             db_builder: DatabaseBuilder::default(),
             handlers: HashMap::default(),
             indexers: vec![],
+            persister,
         }
     }
 
@@ -109,6 +117,7 @@ impl<'a> IndexerRegistry {
                         if let Some(indexer) = self.indexers.get(*handler_id) {
                             if let Err(e) = indexer.index_dyn(self, events, msg_dictionary, msg_str)
                             {
+                                eprintln!("ERROR: {}", e);
                                 error!(
                                     "Error indexing message:\n{:#?}\n{:#?}\n{:#?}\n{:#?}",
                                     msg_dictionary, e, msg_str, events
@@ -163,7 +172,7 @@ impl<'a> IndexerRegistry {
 }
 
 impl Register for IndexerRegistry {
-    fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>) {
+    fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>) -> usize {
         let id = self.indexers.len();
         if let Some(registry_key) = registry_key {
             self.register_for_key(registry_key, id);
@@ -173,6 +182,7 @@ impl Register for IndexerRegistry {
             self.register_for_key(registry_key, id);
         }
         self.indexers.push(indexer);
+        id
     }
 }
 

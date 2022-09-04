@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::db::db_builder::DatabaseBuilder;
+use crate::db::persister::PersisterRef;
 
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
@@ -25,6 +26,8 @@ pub struct SchemaIndexerGenericMessage {}
 
 #[allow(unused_variables)]
 impl IndexMessage for SchemaIndexerGenericMessage {
+    // This is a stub message; unlike the IndexMessage implemented for sepcific
+    // messages, the SchemaIndexer itself performs indexing on its messages.
     fn index_message(&self, registry: &IndexerRegistry, events: &EventMap) -> anyhow::Result<()> {
         Ok(())
     }
@@ -38,11 +41,12 @@ pub struct SchemaRef {
 }
 
 #[derive(Debug)]
-pub struct SchemaIndexer {
+pub struct SchemaIndexer<T> {
     pub schemas: Vec<SchemaRef>,
     registry_keys: Vec<RegistryKey>,
     root_keys: Vec<String>,
     id: String,
+    pub persister: PersisterRef<T>,
 }
 
 type RootMap = HashMap<String, BTreeSet<String>>;
@@ -86,13 +90,14 @@ fn insert_table_set_value(
     table_values.insert(table_name.to_string(), value_set);
 }
 
-impl SchemaIndexer {
-    pub fn new(id: String, schemas: Vec<SchemaRef>) -> Self {
+impl<T> SchemaIndexer<T> {
+    pub fn new(id: String, schemas: Vec<SchemaRef>, persister: PersisterRef<T>) -> Self {
         SchemaIndexer {
             id: id.clone(),
             schemas,
             registry_keys: vec![RegistryKey::new(id)],
             root_keys: vec![],
+            persister,
         }
     }
 
@@ -264,10 +269,11 @@ impl SchemaIndexer {
                                             db_builder.column(table_name, property_name).float();
                                         }
                                         InstanceType::Array => {
-                                            eprintln!(
-                                                "not handling array instance for {}:{}",
-                                                table_name, property_name
-                                            );
+                                            db_builder.many_many(table_name, property_name);
+                                            // eprintln!(
+                                            //     "not handling array instance for {}:{}",
+                                            //     table_name, property_name
+                                            // );
                                         }
                                         InstanceType::Null => {
                                             eprintln!(
@@ -386,7 +392,7 @@ impl SchemaIndexer {
     }
 }
 
-impl Indexer for SchemaIndexer {
+impl Indexer for SchemaIndexer<u64> {
     type MessageType = SchemaIndexerGenericMessage;
     fn id(&self) -> String {
         self.id.clone()
@@ -404,12 +410,22 @@ impl Indexer for SchemaIndexer {
     // Indexes a message and its transaction events
     fn index<'a>(
         &'a self,
-        _registry: &'a IndexerRegistry,
+        registry: &'a IndexerRegistry,
         _events: &'a EventMap,
-        _msg_dictionary: &'a Value,
+        msg_dictionary: &'a Value,
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {
-        Ok(())
+        if let Some(persister) = self.persister.try_write() {
+            let persister = persister.borrow_mut();
+            let persister = persister.as_ref();
+            registry.db_builder.value_mapper.persist_message(
+                persister,
+                &self.id,
+                msg_dictionary,
+                None,
+            );
+        }
+        Err(anyhow::anyhow!("unable to get write lock"))
     }
 
     fn initialize_schemas<'a>(
@@ -431,44 +447,14 @@ impl Indexer for SchemaIndexer {
     }
 }
 
-#[test]
-fn test_schema_indexer_init() {
-    use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
-    use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
-    use schemars::schema_for;
-
-    let schema3 = schema_for!(Cw3DaoInstantiateMsg);
-    let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
-    let indexer = SchemaIndexer::new(
-        "Cw3DaoInstantiateMsg".to_string(),
-        vec![
-            SchemaRef {
-                name: "Cw3DaoInstantiateMsg".to_string(),
-                schema: schema3,
-                version: "0.2.6",
-            },
-            SchemaRef {
-                name: "Cw3DaoInstantiateMsg25".to_string(),
-                schema: schema25,
-                version: "0.2.5",
-            },
-        ],
-    );
-    let pos = indexer
-        .schemas
-        .iter()
-        .position(|schema| schema.name == "Cw3DaoInstantiateMsg");
-    assert!(pos.is_some());
-}
-
 pub struct SchemaVisitor<'a> {
     pub data: SchemaData,
-    pub indexer: &'a mut SchemaIndexer,
+    pub indexer: &'a mut SchemaIndexer<u64>,
     pub db_builder: &'a mut DatabaseBuilder,
 }
 
 impl<'a> SchemaVisitor<'a> {
-    pub fn new(indexer: &'a mut SchemaIndexer, db_builder: &'a mut DatabaseBuilder) -> Self {
+    pub fn new(indexer: &'a mut SchemaIndexer<u64>, db_builder: &'a mut DatabaseBuilder) -> Self {
         SchemaVisitor {
             data: SchemaData::default(),
             indexer,
@@ -550,49 +536,116 @@ struct SimpleRelatedMessage {
     sub_message: SimpleSubMessage,
 }
 
-#[allow(dead_code)]
-fn get_test_registry(name: &str, schema: RootSchema) -> IndexerRegistry {
-    use crate::indexing::indexer_registry::Register;
-    let indexer = SchemaIndexer::new(
-        name.to_string(),
-        vec![SchemaRef {
-            name: name.to_string(),
-            schema,
-            version: "0.0.0",
-        }],
-    );
-    let mut registry = IndexerRegistry::default();
-    registry.register(Box::from(indexer), None);
-    registry
-}
-
 #[cfg(test)]
 pub mod tests {
-    use crate::db::db_persister::DatabasePersister;
-
     use super::*;
+    use crate::db::db_persister::DatabasePersister;
+    use crate::db::persister::{make_persister_ref, Persister};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+
     use tokio::test;
 
-    fn new_mock_persister() -> DatabasePersister {
-        use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
+    struct TestRegistryResult {
+        registry: IndexerRegistry,
+        _indexer_id: usize,
+        _persister: PersisterRef<u64>,
+    }
 
-        let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_exec_results(vec![
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
+    #[allow(dead_code)]
+    #[cfg(test)]
+    fn get_test_registry(
+        name: &str,
+        schema: RootSchema,
+        _db: Option<sea_orm::DatabaseConnection>,
+        persister: Option<PersisterRef<u64>>,
+    ) -> TestRegistryResult {
+        use crate::{db::persister::StubPersister, indexing::indexer_registry::Register};
+        let indexer;
+        let persister_ref: PersisterRef<u64>;
+        if let Some(persister) = persister {
+            persister_ref = persister;
+            indexer = SchemaIndexer::<u64>::new(
+                name.to_string(),
+                vec![SchemaRef {
+                    name: name.to_string(),
+                    schema,
+                    version: "0.0.0",
+                }],
+                persister_ref.clone(),
+            );
+        } else {
+            let stub: Box<dyn Persister<Id = u64>> = Box::from(StubPersister {});
+            persister_ref = make_persister_ref(stub);
+            indexer = SchemaIndexer::<u64>::new(
+                name.to_string(),
+                vec![SchemaRef {
+                    name: name.to_string(),
+                    schema,
+                    version: "0.0.0",
+                }],
+                persister_ref.clone(),
+            );
+        }
+        let mut registry = IndexerRegistry::new(None, None, persister_ref.clone());
+        let indexer_id = registry.register(Box::from(indexer), None);
+        TestRegistryResult {
+            registry,
+            _indexer_id: indexer_id,
+            _persister: persister_ref,
+        }
+    }
+
+    fn new_mock_db() -> MockDatabase {
+        MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+        ])
+    }
+
+    #[test]
+    async fn test_schema_indexer_init() {
+        use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+        use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
+        use schemars::schema_for;
+
+        let schema3 = schema_for!(Cw3DaoInstantiateMsg);
+        let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
+        let mock_db = new_mock_db().into_connection();
+        // let db = *(mock_db.into_connection().as_mock_connection().to_owned());
+        // let db = *(new_mock_db().into_connection().as_mock_connection());
+        let persister = DatabasePersister::new(mock_db);
+        let persister_ref = make_persister_ref(Box::new(persister));
+        let indexer = SchemaIndexer::<u64>::new(
+            "Cw3DaoInstantiateMsg".to_string(),
+            vec![
+                SchemaRef {
+                    name: "Cw3DaoInstantiateMsg".to_string(),
+                    schema: schema3,
+                    version: "0.2.6",
                 },
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
+                SchemaRef {
+                    name: "Cw3DaoInstantiateMsg25".to_string(),
+                    schema: schema25,
+                    version: "0.2.5",
                 },
-                MockExecResult {
-                    last_insert_id: 15,
-                    rows_affected: 1,
-                },
-            ])
-            .into_connection();
-        DatabasePersister::new(db)
+            ],
+            persister_ref,
+        );
+        let pos = indexer
+            .schemas
+            .iter()
+            .position(|schema| schema.name == "Cw3DaoInstantiateMsg");
+        assert!(pos.is_some());
     }
 
     #[test]
@@ -602,8 +655,13 @@ pub mod tests {
 
         let name = stringify!(SimpleMessage);
         let schema = schema_for!(SimpleMessage);
-        let mut registry = get_test_registry(name, schema);
+        let db = new_mock_db().into_connection();
+        let persister = DatabasePersister::new(db);
+        let persister_ref = make_persister_ref(Box::new(persister));
+        let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
+        let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
+
         let built_table = registry.db_builder.table(name);
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
@@ -622,18 +680,17 @@ pub mod tests {
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
         println!("msg_dictionary now:\n{:#?}", msg_dictionary);
 
-        let mut persister = new_mock_persister();
+        // let result = registry
+        //     .db_builder
+        //     .value_mapper
+        //     .persist_message(&persister, "SimpleMessage", &msg_dictionary, None)
+        //     .await;
 
-        let result = registry
-            .db_builder
-            .value_mapper
-            .persist_message(&mut persister, "SimpleMessage", &msg_dictionary, None)
-            .await;
-
-        println!("{:#?}", persister.db.into_transaction_log());
-        assert!(result.is_ok());
+        // println!("{:#?}", persister.db.into_transaction_log());
+        // assert!(result.is_ok());
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
+        // println!("{:#?}", db_ref.write().await.to_owned().into_transaction_log());
     }
 
     #[test]
@@ -643,7 +700,27 @@ pub mod tests {
 
         let name = stringify!(SimpleRelatedMessage);
         let schema = schema_for!(SimpleRelatedMessage);
-        let mut registry = get_test_registry(name, schema);
+
+        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: 15,
+                rows_affected: 1,
+            },
+        ]);
+
+        let db = mock_db.into_connection();
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));
+        let persister_ref = make_persister_ref(persister); //Arc::new(RwLock::from(RefCell::from(persister)));
+        let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
+        let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
@@ -668,32 +745,31 @@ pub mod tests {
         }
     }"#;
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
-
-        let mut persister = new_mock_persister();
-
-        let result = registry
-            .db_builder
-            .value_mapper
-            .persist_message(
-                &mut persister,
-                "SimpleRelatedMessage",
-                &msg_dictionary,
-                None,
-            )
-            .await;
-        assert!(result.is_ok());
+        // let persister = new_mock_persister(None);
+        // let result = registry
+        //     .db_builder
+        //     .value_mapper
+        //     .persist_message(&persister, "SimpleRelatedMessage", &msg_dictionary, None)
+        //     .await;
+        // assert!(result.is_ok());
+        // let transactions = persister.db.into_transaction_log();
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
+        // println!("{:#?}", db_ref.write().await.into_transaction_log());
     }
 
     #[test]
     async fn test_visit() {
         use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
         use schemars::schema_for;
-        let mut persister = new_mock_persister();
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let label = stringify!(Cw3DaoInstantiateMsg);
-        let mut indexer = SchemaIndexer::new(label.to_string(), vec![]);
+
+        let db = new_mock_db().into_connection();
+        let persister = DatabasePersister::new(db);
+        let persister_ref = make_persister_ref(Box::new(persister));
+
+        let mut indexer = SchemaIndexer::<u64>::new(label.to_string(), vec![], persister_ref);
         let mut builder = DatabaseBuilder::new();
         let mut visitor = SchemaVisitor::new(&mut indexer, &mut builder);
         let result = visitor.visit_root_schema(&schema3);
@@ -713,11 +789,16 @@ pub mod tests {
             "only_members_execute": true,
             "automatically_add_cw20s": true
           }"#;
-        let msg = serde_json::from_str(msg_string).unwrap();
+        let msg = serde_json::from_str::<serde_json::Value>(msg_string).unwrap();
+        let db = new_mock_db().into_connection();
+        let persister = DatabasePersister::new(db);
         let result = builder
             .value_mapper
-            .persist_message(&mut persister, label, &msg, None)
+            .persist_message(&persister, label, &msg, None)
             .await;
+        builder.finalize_columns();
+        println!("{}", builder.sql_string().unwrap());
         assert!(result.is_ok());
+        // println!("{:#?}", db_ref.write().await.into_transaction_log());
     }
 }

@@ -58,6 +58,14 @@ impl DatabaseBuilder {
             .or_insert_with(|| ColumnDef::new(Alias::new(&db_column_name(column_name))))
     }
 
+    pub fn many_many(&mut self, table_name: &str, column_name: &str) {
+        let join_table = format!("{}_{}", table_name, column_name);
+        let l_key = foreign_key(table_name);
+        let r_key = foreign_key(column_name);
+        self.column(&join_table, &l_key);
+        self.column(&join_table, &r_key);
+    }
+
     pub fn add_table_column(&mut self, table_name: &str, column_name: &str) -> &mut Self {
         let mut def = self.column(table_name, column_name).to_owned();
         self.table(table_name).col(&mut def).if_not_exists();
