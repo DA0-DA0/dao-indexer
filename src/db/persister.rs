@@ -1,10 +1,10 @@
 use anyhow::Result;
+use async_std::sync::RwLock;
 use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 use serde_json::Value;
 use std::cell::RefCell;
 use std::sync::Arc;
-use async_std::sync::RwLock;
-use sea_orm::DatabaseConnection;
 
 pub type PersistColumnNames<'a> = &'a [&'a str];
 pub type PersistValues<'a> = &'a [&'a Value];

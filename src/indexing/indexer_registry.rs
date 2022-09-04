@@ -1,7 +1,7 @@
 use super::event_map::EventMap;
 use super::indexer::{Indexer, IndexerDyn};
 use crate::db::db_builder::DatabaseBuilder;
-use crate::db::persister::{Persister, PersisterRef, StubPersister, make_persister_ref};
+use crate::db::persister::{make_persister_ref, Persister, PersisterRef, StubPersister};
 use diesel::pg::PgConnection;
 use log::{debug, error};
 use sea_orm::DatabaseConnection;
@@ -9,7 +9,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
-
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct RegistryKey(String);

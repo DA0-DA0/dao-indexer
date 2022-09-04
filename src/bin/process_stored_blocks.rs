@@ -54,13 +54,10 @@ fn persist_historical_transactions(
     config: &IndexerConfig,
     diesel_db: PgConnection,
     persister_connection: DatabaseConnection,
-    persister_ref: PersisterRef<u64>
+    persister_ref: PersisterRef<u64>,
 ) -> anyhow::Result<()> {
-    let mut registry = IndexerRegistry::new(
-        Some(diesel_db),
-        Some(persister_connection),
-        persister_ref
-    );
+    let mut registry =
+        IndexerRegistry::new(Some(diesel_db), Some(persister_connection), persister_ref);
     init_registry(&mut registry)?;
     process_transactions(config, &registry)
 }
@@ -89,7 +86,12 @@ async fn main() -> anyhow::Result<()> {
             Database::connect(&config.database_url).await?;
         let persister = DatabasePersister::new(seaql_db);
         let persister_ref = make_persister_ref(Box::from(persister));
-        persist_historical_transactions(&config, diesel_db, persister_connection, persister_ref.clone())?;
+        persist_historical_transactions(
+            &config,
+            diesel_db,
+            persister_connection,
+            persister_ref.clone(),
+        )?;
         drop(persister_ref)
     } else {
         let mut registry =

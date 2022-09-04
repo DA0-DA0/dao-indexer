@@ -7,7 +7,7 @@ use dao_indexer::db::connection::establish_connection;
 use dao_indexer::db::db_persister::DatabasePersister;
 use dao_indexer::db::persister::{make_persister_ref, Persister, PersisterRef, StubPersister};
 use dao_indexer::historical_parser::block_synchronizer;
-use dao_indexer::indexing::indexer_registry::{Register, IndexerRegistry};
+use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
 use dao_indexer::indexing::indexers::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
 use dao_indexer::indexing::indexers::msg_cw3dao_indexer::{
     Cw3DaoExecuteMsgIndexer, Cw3DaoInstantiateMsgIndexer,
@@ -65,14 +65,11 @@ async fn main() -> anyhow::Result<()> {
     let mut registry = if config.postgres_backend {
         let diesel_db: PgConnection = establish_connection(&config.database_url);
         let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-        let persister: Box<dyn Persister<Id = u64>> =
-            Box::new(DatabasePersister::new(seaql_db));
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(seaql_db));
         persister_ref = make_persister_ref(persister);
         IndexerRegistry::new(Some(diesel_db), None, persister_ref.clone())
     } else {
         persister_ref = make_persister_ref(Box::new(StubPersister {}));
-        // let persister: Box<dyn Persister<Id=u64>> = Box::new(StubPersister {});
-        // let persister_ref: PersisterRef<u64> = Arc::new(RwLock::from(RefCell::from(persister)));
         IndexerRegistry::new(None, None, persister_ref.clone())
     };
 
@@ -86,8 +83,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Schema indexer is switched off by default while it's in progress
     if config.schema_indexer {
-        // let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-
         // TODO(gavindoughtie): I'm *sure* we can make a macro for this
         // pattern, so we can do:
         // register_indexer!(registry, [Cw3DaoInstantiateMsg, Cw3DaoInstantiateMsg25], "0.3.0");
@@ -131,8 +126,6 @@ async fn main() -> anyhow::Result<()> {
         registry.register(Box::from(msg_indexer), None);
 
         let msg_label = "Cw20ExecuteMsg";
-        // let seaql_db: DatabaseConnection = Database::connect(&config.database_url).await?;
-
         let msg_indexer = SchemaIndexer::new(
             msg_label.to_string(),
             vec![SchemaRef {

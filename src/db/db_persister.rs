@@ -51,7 +51,7 @@ impl Datatype {
 
 #[derive(Debug)]
 pub struct DatabasePersister {
-    pub db: DatabaseConnection
+    pub db: DatabaseConnection,
 }
 
 impl DatabasePersister {
@@ -59,7 +59,7 @@ impl DatabasePersister {
         DatabasePersister { db }
     }
 
-    pub fn into_transaction_log(self) -> std::vec::Vec<sea_orm::Transaction>{
+    pub fn into_transaction_log(self) -> std::vec::Vec<sea_orm::Transaction> {
         self.db.into_transaction_log()
     }
 }
@@ -136,16 +136,18 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_basic_persistence() -> anyhow::Result<()> {
-        let db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
-            MockExecResult {
-                last_insert_id: 15,
-                rows_affected: 1,
-            },
-            MockExecResult {
-                last_insert_id: 16,
-                rows_affected: 1,
-            },
-        ]).into_connection();
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results(vec![
+                MockExecResult {
+                    last_insert_id: 15,
+                    rows_affected: 1,
+                },
+                MockExecResult {
+                    last_insert_id: 16,
+                    rows_affected: 1,
+                },
+            ])
+            .into_connection();
         let persister = DatabasePersister::new(db);
         let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
         let id: u64 = persister
