@@ -11,13 +11,13 @@ pub type PersistValues<'a> = &'a [&'a Value];
 
 /// Trait for persisting a message.
 #[async_trait]
-pub trait Persister: Send + Sync + std::fmt::Debug {
+pub trait Persister<'a>: Send + Sync + std::fmt::Debug {
     type Id;
-    async fn save<'a>(
-        &'a self,
-        table_name: &'a str,
-        column_names: &'a [&'a str],
-        values: &'a [&'a Value],
+    async fn save(
+        &self,
+        table_name: &str,
+        column_names: & [&str],
+        values: & [&Value],
         id: Option<Self::Id>,
     ) -> Result<Self::Id>;
 
@@ -26,9 +26,9 @@ pub trait Persister: Send + Sync + std::fmt::Debug {
     }
 }
 
-pub type PersisterRef<T> = Arc<RwLock<RefCell<Box<dyn Persister<Id = T>>>>>;
+pub type PersisterRef<'a, T> = Arc<RwLock<RefCell<Box<dyn Persister<'a, Id = T>>>>>;
 
-pub fn make_persister_ref<T>(persister: Box<dyn Persister<Id = T>>) -> PersisterRef<T> {
+pub fn make_persister_ref<'a, T>(persister: Box<dyn Persister<'a, Id = T>>) -> PersisterRef<'a, T> {
     Arc::new(RwLock::from(RefCell::from(persister)))
 }
 
@@ -36,13 +36,13 @@ pub fn make_persister_ref<T>(persister: Box<dyn Persister<Id = T>>) -> Persister
 pub struct StubPersister {}
 
 #[async_trait]
-impl Persister for StubPersister {
+impl<'a> Persister<'a> for StubPersister {
     type Id = u64;
-    async fn save<'a>(
-        &'a self,
-        _table_name: &'a str,
-        _column_names: &'a [&'a str],
-        _values: &'a [&'a Value],
+    async fn save(
+        &self,
+        _table_name: &str,
+        _column_names: &[&str],
+        _values: &[& Value],
         _id: Option<Self::Id>,
     ) -> Result<Self::Id> {
         Ok(0)
@@ -78,13 +78,13 @@ pub mod tests {
     }
 
     #[async_trait]
-    impl Persister for TestPersister {
+    impl<'a> Persister<'a> for TestPersister {
         type Id = u64;
-        async fn save<'a>(
-            &'a self,
-            table_name: &'a str,
-            column_names: &'a [&'a str],
-            values: &'a [&'a Value],
+        async fn save(
+            &self,
+            table_name: &str,
+            column_names: &[&str],
+            values: &[&Value],
             id: Option<Self::Id>,
         ) -> Result<Self::Id> {
             let mut tables = self

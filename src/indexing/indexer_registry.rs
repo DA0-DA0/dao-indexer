@@ -43,23 +43,23 @@ pub trait Register {
     fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>) -> usize;
 }
 
-pub struct IndexerRegistry {
+pub struct IndexerRegistry<'a> {
     pub db: Option<PgConnection>,
     pub seaql_db: Option<DatabaseConnection>,
     pub db_builder: DatabaseBuilder,
-    pub persister: PersisterRef<u64>,
+    pub persister: PersisterRef<'a, u64>,
     /// Maps string key values to ids of indexers
     handlers: HashMap<RegistryKey, Vec<usize>>,
     indexers: Vec<Box<dyn IndexerDyn>>,
 }
 
-impl<'a> From<&'a IndexerRegistry> for &'a PgConnection {
+impl<'a> From<&'a IndexerRegistry<'a>> for &'a PgConnection {
     fn from(registry: &'a IndexerRegistry) -> Self {
         registry.db.as_ref().unwrap()
     }
 }
 
-impl Deref for IndexerRegistry {
+impl<'a> Deref for IndexerRegistry<'a> {
     type Target = PgConnection;
 
     fn deref(&self) -> &Self::Target {
@@ -67,7 +67,7 @@ impl Deref for IndexerRegistry {
     }
 }
 
-impl Default for IndexerRegistry {
+impl<'a> Default for IndexerRegistry<'a> {
     fn default() -> Self {
         let stub: Box<dyn Persister<Id = u64>> = Box::from(StubPersister {});
         let persister_ref: PersisterRef<u64> = make_persister_ref(stub);
@@ -75,11 +75,11 @@ impl Default for IndexerRegistry {
     }
 }
 
-impl<'a> IndexerRegistry {
+impl<'a> IndexerRegistry<'a> {
     pub fn new(
         db: Option<PgConnection>,
         seaql_db: Option<DatabaseConnection>,
-        persister: PersisterRef<u64>,
+        persister: PersisterRef<'a, u64>,
     ) -> Self {
         IndexerRegistry {
             db,
@@ -172,7 +172,7 @@ impl<'a> IndexerRegistry {
     }
 }
 
-impl Register for IndexerRegistry {
+impl<'a> Register for IndexerRegistry<'a> {
     fn register(&mut self, indexer: Box<dyn IndexerDyn>, registry_key: Option<&str>) -> usize {
         let id = self.indexers.len();
         if let Some(registry_key) = registry_key {

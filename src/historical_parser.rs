@@ -49,7 +49,7 @@ fn map_from_events(events: &[Event], event_map: &mut EventMap) -> anyhow::Result
 // extended to code that is, hence it being marked that way.
 pub async fn index_search_results(
     search_results: TxSearchResponse,
-    registry: &IndexerRegistry,
+    registry: &IndexerRegistry<'_>,
     config: &IndexerConfig,
     msg_set: MsgSet,
 ) -> anyhow::Result<()> {
@@ -130,7 +130,7 @@ async fn handle_transaction_response(
     tx_request: Box<TxSearchRequest>,
     current_height: u64,
     last_block: u64,
-    registry: &IndexerRegistry,
+    registry: &IndexerRegistry<'_>,
     config: &IndexerConfig,
     msg_set: MsgSet,
     queries_mutex: &Mutex<QueryStream>,
@@ -202,7 +202,7 @@ async fn handle_transaction_response(
 pub async fn load_block_transactions(
     tendermint_client: &TendermintClient,
     config: &IndexerConfig,
-    registry: &IndexerRegistry,
+    registry: &IndexerRegistry<'_>,
     msg_set: MsgSet,
     current_height: u64,
 ) -> anyhow::Result<()> {
@@ -286,7 +286,7 @@ pub async fn load_block_transactions(
 }
 
 pub async fn block_synchronizer(
-    registry: &IndexerRegistry,
+    registry: &IndexerRegistry<'_>,
     config: &IndexerConfig,
     msg_set: MsgSet,
 ) -> anyhow::Result<()> {

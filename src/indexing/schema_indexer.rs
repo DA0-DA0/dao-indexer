@@ -41,12 +41,12 @@ pub struct SchemaRef {
 }
 
 #[derive(Debug)]
-pub struct SchemaIndexer<T> {
+pub struct SchemaIndexer<'a, T> {
     pub schemas: Vec<SchemaRef>,
     registry_keys: Vec<RegistryKey>,
     root_keys: Vec<String>,
     id: String,
-    pub persister: PersisterRef<T>,
+    pub persister: PersisterRef<'a, T>,
 }
 
 type RootMap = HashMap<String, BTreeSet<String>>;
@@ -90,7 +90,7 @@ fn insert_table_set_value(
     table_values.insert(table_name.to_string(), value_set);
 }
 
-impl<T> SchemaIndexer<T> {
+impl<'a, T> SchemaIndexer<'a, T> {
     pub fn new(id: String, schemas: Vec<SchemaRef>, persister: PersisterRef<T>) -> Self {
         SchemaIndexer {
             id: id.clone(),
@@ -392,7 +392,7 @@ impl<T> SchemaIndexer<T> {
     }
 }
 
-impl Indexer for SchemaIndexer<u64> {
+impl<'a> Indexer for SchemaIndexer<'a, u64> {
     type MessageType = SchemaIndexerGenericMessage;
     fn id(&self) -> String {
         self.id.clone()
@@ -408,12 +408,12 @@ impl Indexer for SchemaIndexer<u64> {
     }
 
     // Indexes a message and its transaction events
-    fn index<'a>(
-        &'a self,
-        registry: &'a IndexerRegistry,
-        _events: &'a EventMap,
-        msg_dictionary: &'a Value,
-        _msg_str: &'a str,
+    fn index(
+        &self,
+        registry: &IndexerRegistry,
+        _events: &EventMap,
+        msg_dictionary: &Value,
+        _msg_str: &str,
     ) -> anyhow::Result<()> {
         if let Some(persister) = self.persister.try_write() {
             let persister = persister.borrow_mut();
@@ -428,9 +428,9 @@ impl Indexer for SchemaIndexer<u64> {
         Err(anyhow::anyhow!("unable to get write lock"))
     }
 
-    fn initialize_schemas<'a>(
-        &'a mut self,
-        builder: &'a mut DatabaseBuilder,
+    fn initialize_schemas(
+        &mut self,
+        builder: &mut DatabaseBuilder,
     ) -> anyhow::Result<()> {
         let schemas = self.schemas.clone();
         let mut visitor = SchemaVisitor::new(self, builder);
@@ -449,12 +449,12 @@ impl Indexer for SchemaIndexer<u64> {
 
 pub struct SchemaVisitor<'a> {
     pub data: SchemaData,
-    pub indexer: &'a mut SchemaIndexer<u64>,
+    pub indexer: &'a mut SchemaIndexer<'a, u64>,
     pub db_builder: &'a mut DatabaseBuilder,
 }
 
 impl<'a> SchemaVisitor<'a> {
-    pub fn new(indexer: &'a mut SchemaIndexer<u64>, db_builder: &'a mut DatabaseBuilder) -> Self {
+    pub fn new(indexer: &'a mut SchemaIndexer<'a, u64>, db_builder: &'a mut DatabaseBuilder) -> Self {
         SchemaVisitor {
             data: SchemaData::default(),
             indexer,

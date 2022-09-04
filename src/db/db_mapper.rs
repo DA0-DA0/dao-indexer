@@ -71,7 +71,7 @@ impl FieldMapping {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct DatabaseMapper {
     // Maps from message name to a map of field names to DB relationships
     pub relationships: HashMap<String, HashMap<String, DatabaseRelationship>>,
@@ -240,6 +240,21 @@ impl Default for DatabaseMapper {
     }
 }
 
+impl std::fmt::Debug for DatabaseMapper {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        f.debug_struct("DatabaseMapper")
+            .field("relationships", &self.relationships)
+            .field("mappings", &self.mappings)
+            .finish()
+
+        // let owns_connection = match &self.db {
+        //     ConnectionRef::Connection(_db) => true,
+        //     _ => false
+        // };
+        // write!(f, "DatabaseMapper owns_connection: {}", owns_connection)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,7 +346,7 @@ mod tests {
             },
         ]);
         let db = mock_db.into_connection();
-        let db_ref = make_db_ref(Box::new(db));
+        let db_ref = crate::db::db_persister::ConnectionRef::ConnectionFn(|| &db);
         let persister = DatabasePersister::new(db_ref);
         let _record_one_id: u64 = mapper
             .persist_message(&persister, &message_name, &relational_message, None)

@@ -54,12 +54,22 @@ impl Datatype {
 
 pub type DbRef = Arc<RwLock<Box<DatabaseConnection>>>;
 
-pub type ConnectionFunction<'a> = fn() -> &'a DatabaseConnection;
+// pub type ConnectionFunction<'a> = fn() -> &'a DatabaseConnection;
+
 
 #[derive(Debug)]
-pub enum ConnectionRef<'a> {
+pub enum ConnectionRef<'a, F> where F: Fn() -> &'a DatabaseConnection {
     Connection(DatabaseConnection),
-    ConnectionFn(ConnectionFunction<'a>)
+    ConnectionFn(F)
+}
+
+impl<'a, F> ConnectionRef<'a, F> where F: Fn() -> &'a DatabaseConnection {
+    pub fn to_ref(&'a self) -> &'a DatabaseConnection {
+        match self {
+            ConnectionRef::Connection(dbc) => dbc,
+            ConnectionRef::ConnectionFn(dfn) => dfn()
+        }
+    }
 }
 
 pub fn make_db_ref(db: Box<DatabaseConnection>) -> DbRef {
@@ -67,32 +77,37 @@ pub fn make_db_ref(db: Box<DatabaseConnection>) -> DbRef {
 }
 
 
-#[derive(Debug)]
-pub struct DatabasePersister<'a> {
-    pub db: ConnectionRef<'a>
+pub struct DatabasePersister<'a, F> where F: Fn() -> &'a DatabaseConnection {
+    pub db: ConnectionRef<'a, F>
 }
 
-impl<'a> DatabasePersister<'a> {
-    pub fn new(db: ConnectionRef<'a>) -> Self {
+impl<'a, F> DatabasePersister<'a, F> where F: Fn() -> &'a DatabaseConnection {
+    pub fn new(db: ConnectionRef<'a, F>) -> Self {
         DatabasePersister { db }
     }
 }
 
+impl<'a, F> Debug for DatabasePersister<'a, F> where F: Send + Sync + Debug + Fn() -> &'a DatabaseConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let owns_connection = match &self.db {
+            ConnectionRef::Connection(_db) => true,
+            _ => false
+        };
+        write!(f, "DatabasePersister owns_connection: {}", owns_connection)
+    }
+}
 
 #[async_trait]
-impl Persister for DatabasePersister<'_> {
+impl<'a, F> Persister<'a> for DatabasePersister<'a, F> where F: Send + Sync + Debug + Fn() -> &'a DatabaseConnection {
     type Id = u64;
-    async fn save<'a>(
-        &'a self,
-        table_name: &'a str,
-        column_names: &'a [&'a str],
-        values: &'a [&'a JsonValue],
+    async fn save(
+        &self,
+        table_name: &str,
+        column_names: &[&str],
+        values: &[&JsonValue],
         id: Option<Self::Id>,
     ) -> Result<Self::Id> {
-        let db = match self.db {
-            ConnectionRef::Connection(db) => &db,
-            ConnectionRef::ConnectionFn(db_fn) => db_fn()
-        };
+        let db = self.db.to_ref();
         debug!(
             "saving table_name:{}, column_names:{:#?}, values:{:#?}, id:{:?}, db:{:?}",
             table_name, column_names, values, id, db
@@ -120,8 +135,7 @@ impl Persister for DatabasePersister<'_> {
             }
         }
 
-        let persister_db = db.read().await;
-        let builder = persister_db.get_database_backend();
+        let builder = db.get_database_backend();
 
         if update {
             let stmt = Query::update()
@@ -133,7 +147,7 @@ impl Persister for DatabasePersister<'_> {
                 )
                 .to_owned();
 
-            let result = persister_db.execute(builder.build(&stmt)).await?;
+            let result = db.execute(builder.build(&stmt)).await?;
             Ok(result.last_insert_id())
         } else {
             let stmt = Query::insert()
@@ -141,7 +155,7 @@ impl Persister for DatabasePersister<'_> {
                 .columns(insert_columns)
                 .values(vals)?
                 .to_owned();
-            let result = persister_db.execute(builder.build(&stmt)).await?;
+            let result = db.execute(builder.build(&stmt)).await?;
             Ok(result.last_insert_id() as u64)
         }
     }
@@ -165,8 +179,8 @@ pub mod tests {
                 rows_affected: 1,
             },
         ]).into_connection();
-        let db_ref = make_db_ref(Box::new(db));
-        let persister = DatabasePersister::new(db_ref.clone());
+        let get_ref = | | -> &DatabaseConnection {&db};
+        let persister = DatabasePersister::new(ConnectionRef::ConnectionFn(get_ref));
         let values: &[&serde_json::Value] = &[&json!("Gavin"), &json!("Doughtie"), &json!(1990)];
         let id: u64 = persister
             .save(
