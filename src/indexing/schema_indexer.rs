@@ -416,16 +416,18 @@ impl Indexer for SchemaIndexer<u64> {
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {
         if let Some(persister) = self.persister.try_write() {
-            let persister = persister.borrow_mut();
-            let persister = persister.as_ref();
+            let persister = persister.borrow();
+            // let persister = persister.as_ref();
             registry.db_builder.value_mapper.persist_message(
-                persister,
+                persister.as_ref(),
                 &self.id,
                 msg_dictionary,
                 None,
             );
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("unable to get write lock"))
         }
-        Err(anyhow::anyhow!("unable to get write lock"))
     }
 
     fn initialize_schemas<'a>(
@@ -621,8 +623,6 @@ pub mod tests {
         let schema3 = schema_for!(Cw3DaoInstantiateMsg);
         let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
         let mock_db = new_mock_db().into_connection();
-        // let db = *(mock_db.into_connection().as_mock_connection().to_owned());
-        // let db = *(new_mock_db().into_connection().as_mock_connection());
         let persister = DatabasePersister::new(mock_db);
         let persister_ref = make_persister_ref(Box::new(persister));
         let indexer = SchemaIndexer::<u64>::new(
@@ -678,19 +678,8 @@ pub mod tests {
             "simple_field_two": 33
         }"#;
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
-        println!("msg_dictionary now:\n{:#?}", msg_dictionary);
-
-        // let result = registry
-        //     .db_builder
-        //     .value_mapper
-        //     .persist_message(&persister, "SimpleMessage", &msg_dictionary, None)
-        //     .await;
-
-        // println!("{:#?}", persister.db.into_transaction_log());
-        // assert!(result.is_ok());
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
-        // println!("{:#?}", db_ref.write().await.to_owned().into_transaction_log());
     }
 
     #[test]
@@ -717,6 +706,7 @@ pub mod tests {
         ]);
 
         let db = mock_db.into_connection();
+
         let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));
         let persister_ref = make_persister_ref(persister); //Arc::new(RwLock::from(RefCell::from(persister)));
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
@@ -755,7 +745,10 @@ pub mod tests {
         // let transactions = persister.db.into_transaction_log();
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
-        // println!("{:#?}", db_ref.write().await.into_transaction_log());
+
+        let db_persister = DatabasePersister::new(new_mock_db().into_connection());
+        registry.db_builder.value_mapper.persist_message(&db_persister, "SimpleRelatedMessage", &msg_dictionary, None).await.unwrap();
+        println!("{:#?}", db_persister.into_transaction_log());
     }
 
     #[test]
@@ -797,8 +790,11 @@ pub mod tests {
             .persist_message(&persister, label, &msg, None)
             .await;
         builder.finalize_columns();
-        println!("{}", builder.sql_string().unwrap());
+        // If you want to look at the generated SQL, you can uncomment the next
+        // this line:
+        // println!("{}", builder.sql_string().unwrap());
         assert!(result.is_ok());
+        println!("{:#?}", persister.into_transaction_log());
         // println!("{:#?}", db_ref.write().await.into_transaction_log());
     }
 }
