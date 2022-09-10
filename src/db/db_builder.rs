@@ -131,12 +131,14 @@ impl DatabaseBuilder {
     /// build the final table definitions and clear the processed column definitions.
     pub fn finalize_columns(&mut self) -> &mut Self {
         for (table_name, column_defs) in self.columns.iter_mut() {
+            let sql_table_name = db_table_name(table_name);
+            println!("finalize_columns for {}, db_name: {}", table_name, &sql_table_name);
             let mut statement = self
                 .tables
                 .entry(table_name.to_string())
                 .or_insert_with(|| {
                     Table::create()
-                        .table(Alias::new(&db_table_name(table_name)))
+                        .table(Alias::new(&sql_table_name))
                         .if_not_exists()
                         .to_owned()
                 });
@@ -158,7 +160,8 @@ impl DatabaseBuilder {
         let builder = seaql_db.get_database_backend();
         for (table_name, table_def) in self.tables.iter() {
             let statement = builder.build(table_def);
-            debug!("Executing {}\n{:#?}", table_name, statement);
+            let statement_txt = format!("Executing {}\n{:#?}", table_name, statement);
+            println!("{}", statement_txt);
             seaql_db.execute(statement).await?;
         }
         // Now that all the tables are created, we can add the rest of the fields and constraints

@@ -543,8 +543,7 @@ pub mod tests {
     use super::*;
     use crate::db::db_persister::DatabasePersister;
     use crate::db::persister::{make_persister_ref, Persister};
-    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult};
-
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
     use tokio::test;
 
     struct TestRegistryResult {
@@ -612,6 +611,35 @@ pub mod tests {
                 rows_affected: 1,
             },
         ])
+    }
+
+    async fn assert_expected_transactions(
+        registry: &IndexerRegistry,
+        msg_dictionary: &Value,
+        expected_transaction_log: Vec<Transaction>,
+        mock_results: Vec<MockExecResult>,
+    ) {
+        let mock_db =
+            MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results);
+
+        let db = mock_db.into_connection();
+
+        let result = registry
+            .db_builder
+            .create_tables(&db).await;
+
+        println!("{:#?}", result);
+            
+        let db_persister = DatabasePersister::new(db);
+
+        registry
+            .db_builder
+            .value_mapper
+            .persist_message(&db_persister, "SimpleRelatedMessage", msg_dictionary, None) // "SimpleRelatedMessage is definitely wrong"
+            .await
+            .unwrap();
+        let transactions = db_persister.into_transaction_log();
+        assert_eq!(transactions, expected_transaction_log);
     }
 
     #[test]
@@ -690,25 +718,29 @@ pub mod tests {
         let name = stringify!(SimpleRelatedMessage);
         let schema = schema_for!(SimpleRelatedMessage);
 
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
-            MockExecResult {
-                last_insert_id: 15,
-                rows_affected: 1,
-            },
-            MockExecResult {
-                last_insert_id: 15,
-                rows_affected: 1,
-            },
-            MockExecResult {
-                last_insert_id: 15,
-                rows_affected: 1,
-            },
-        ]);
+        let simple_related_message_id = 15;
+        let sub_message_id = 16;
 
+        let mock_results = vec![
+            MockExecResult {
+                last_insert_id: simple_related_message_id,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: sub_message_id,
+                rows_affected: 1,
+            },
+            MockExecResult {
+                last_insert_id: sub_message_id + 1,
+                rows_affected: 1,
+            },
+        ];
+        let mock_db =
+            MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results.clone());
         let db = mock_db.into_connection();
 
         let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));
-        let persister_ref = make_persister_ref(persister); //Arc::new(RwLock::from(RefCell::from(persister)));
+        let persister_ref = make_persister_ref(persister);
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
@@ -722,6 +754,22 @@ pub mod tests {
         let built_table = registry.db_builder.table(name);
         compare_table_create_statements(built_table, &expected_sql);
 
+        let expected_sql = vec![
+            r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
+            r#""id" serial unique,"#,
+            r#""simple_field_one" text,"#,
+            r#""simple_field_two" integer"#,
+            r#")"#,
+        ]
+        .join(" ");
+        let built_table = registry.db_builder.table("SimpleMessage");
+        println!("{:#?}", built_table);
+        compare_table_create_statements(built_table, &expected_sql);
+
+        // Now the sub-tables
+        let built_sub_message_table = registry.db_builder.table("simple_sub_message");
+        println!("{:#?}", built_sub_message_table);
+        let title = "SimpleRelatedMessage Title";
         let msg_str = r#"
     {
         "title": "SimpleRelatedMessage Title",
@@ -735,20 +783,34 @@ pub mod tests {
         }
     }"#;
         let msg_dictionary = serde_json::from_str(msg_str).unwrap();
-        // let persister = new_mock_persister(None);
-        // let result = registry
-        //     .db_builder
-        //     .value_mapper
-        //     .persist_message(&persister, "SimpleRelatedMessage", &msg_dictionary, None)
-        //     .await;
-        // assert!(result.is_ok());
-        // let transactions = persister.db.into_transaction_log();
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
         assert!(result.is_ok());
 
-        let db_persister = DatabasePersister::new(new_mock_db().into_connection());
-        registry.db_builder.value_mapper.persist_message(&db_persister, "SimpleRelatedMessage", &msg_dictionary, None).await.unwrap();
-        println!("{:#?}", db_persister.into_transaction_log());
+        // TODO: this is missing creation of related records, and should fail comparison.
+        let expected_transaction_log = vec![
+            sea_orm::Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "simple_message" ("simple_field_one", "simple_field_two") VALUES ($1, $2)"#,
+                vec!["simple_field_one value".into(), 33.into()],
+            ),
+            sea_orm::Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "simple_related_message" ("title", "message_id", "sub_message_id") VALUES ($1, $2, $3)"#,
+                vec![
+                    simple_related_message_id.into(),
+                    sub_message_id.into(),
+                    title.into(),
+                ],
+            ),
+        ];
+
+        assert_expected_transactions(
+            &registry,
+            &msg_dictionary,
+            expected_transaction_log,
+            mock_results,
+        )
+        .await
     }
 
     #[test]

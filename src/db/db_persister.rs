@@ -59,8 +59,13 @@ impl DatabasePersister {
         DatabasePersister { db }
     }
 
+    // Testing methods
     pub fn into_transaction_log(self) -> std::vec::Vec<sea_orm::Transaction> {
         self.db.into_transaction_log()
+    }
+
+    pub fn into_sql(&self) -> String {
+        "".to_string()
     }
 }
 
