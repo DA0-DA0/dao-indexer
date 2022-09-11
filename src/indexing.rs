@@ -8,4 +8,5 @@ pub mod indexers;
 pub mod msg_set;
 pub mod parse;
 pub mod schema_indexer;
+mod test_schema_indexer;
 pub mod tx;
