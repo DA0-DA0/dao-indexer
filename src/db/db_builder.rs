@@ -33,8 +33,10 @@ impl DatabaseBuilder {
         self.tables
             .entry(table_name.to_string())
             .or_insert_with(|| {
+                let sql_table_name = db_table_name(table_name);
+                println!("building db table {} for {}", sql_table_name, table_name);
                 Table::create()
-                    .table(Alias::new(&db_table_name(table_name)))
+                    .table(Alias::new(&sql_table_name))
                     .if_not_exists()
                     .to_owned()
             })
@@ -52,7 +54,7 @@ impl DatabaseBuilder {
                 table_name.to_string(),
                 column_name.to_string(),
             )
-            .unwrap();
+            .unwrap(); // TODO(gavin.doughtie): should not unwrap
         columns
             .entry(column_name.to_string())
             .or_insert_with(|| ColumnDef::new(Alias::new(&db_column_name(column_name))))
@@ -132,7 +134,10 @@ impl DatabaseBuilder {
     pub fn finalize_columns(&mut self) -> &mut Self {
         for (table_name, column_defs) in self.columns.iter_mut() {
             let sql_table_name = db_table_name(table_name);
-            println!("finalize_columns for {}, db_name: {}", table_name, &sql_table_name);
+            println!(
+                "finalize_columns for {}, db_name: {}",
+                table_name, &sql_table_name
+            );
             let mut statement = self
                 .tables
                 .entry(table_name.to_string())

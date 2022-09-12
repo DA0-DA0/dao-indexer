@@ -200,6 +200,8 @@ impl<T> SchemaIndexer<T> {
             }
         } else if let Some(subschema) = &schema.subschemas {
             self.process_subschema(subschema, name, parent_name, data, db_builder)?;
+        } else if let Some(object_validation) = &schema.object {
+            println!("What to do with {}?\n{:#?}", name, object_validation);
         }
         let table_name = name;
         if let Some(subschema) = &schema.subschemas {
@@ -217,8 +219,12 @@ impl<T> SchemaIndexer<T> {
             }
             SingleOrVec::Single(itype) => match itype.as_ref() {
                 InstanceType::Object => {
-                    let properties = &schema.object.as_ref().unwrap().properties;
-                    let required = &schema.object.as_ref().unwrap().required;
+                    let schema_obj_ref = schema
+                        .object
+                        .as_ref()
+                        .ok_or_else(|| anyhow!("no schema object"))?;
+                    let properties = &schema_obj_ref.properties;
+                    let required = &schema_obj_ref.required;
                     for (property_name, schema) in properties {
                         if let Schema::Object(property_object_schema) = schema {
                             if let Some(subschemas) = &property_object_schema.subschemas {
@@ -416,10 +422,8 @@ impl Indexer for SchemaIndexer<u64> {
         _msg_str: &'a str,
     ) -> anyhow::Result<()> {
         if let Some(persister) = self.persister.try_write() {
-            let persister = persister.borrow();
-            // let persister = persister.as_ref();
             registry.db_builder.value_mapper.persist_message(
-                persister.as_ref(),
+                persister.borrow().as_ref(),
                 &self.id,
                 msg_dictionary,
                 None,

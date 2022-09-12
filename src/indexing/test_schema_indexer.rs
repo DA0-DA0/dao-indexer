@@ -25,6 +25,7 @@ pub mod tests {
     }
 
     #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+    #[serde(rename_all = "snake_case")]
     enum SimpleSubMessage {
         TypeA {
             type_a_contract_address: String,
@@ -211,10 +212,10 @@ pub mod tests {
     }
 
     fn build_mock(last_insert_id: u64) -> MockExecResult {
-      MockExecResult {
-        last_insert_id,
-        rows_affected: 1,
-      }
+        MockExecResult {
+            last_insert_id,
+            rows_affected: 1,
+        }
     }
 
     #[test]
@@ -224,75 +225,25 @@ pub mod tests {
 
         let name = stringify!(SimpleRelatedMessage);
         let schema = schema_for!(SimpleRelatedMessage);
+        println!("schema:\n{:#?}", schema);
 
-        let mut next_record_id = 15u64;
-        let simple_related_message_id = next_record_id;
-        next_record_id = 16u64;
+        let message_id = 15u64;
         let sub_message_id = 16u64;
-        next_record_id += 1;
-        let related_message_id = next_record_id;
+        let simple_related_message_id = 17u64;
 
         let mapped_mock_results: Vec<MockExecResult> = (16..27).map(build_mock).collect();
 
+        // Mocks for results of saving a single SimpleRelatedMessage
         let mock_results = vec![
             // Mocks result from creating the simple_related_message record
-            MockExecResult {
-                last_insert_id: simple_related_message_id,
-                rows_affected: 1,
-            },
+            build_mock(message_id),
             // Mocks result from creating the simple_message record
-            MockExecResult {
-                last_insert_id: sub_message_id,
-                rows_affected: 1,
-            },
+            build_mock(sub_message_id),
             // Mocks result from creating the first sub-message
-            MockExecResult {
-                last_insert_id: related_message_id,
-                rows_affected: 1,
-            },
-            // Mocks ???
-            MockExecResult {
-                last_insert_id: related_message_id + 1,
-                rows_affected: 1,
-            },
-            // Mocks ???
-            MockExecResult {
-                last_insert_id: related_message_id + 2,
-                rows_affected: 1,
-            },
-            // Mocks ???
-            MockExecResult {
-                last_insert_id: related_message_id + 3,
-                rows_affected: 1,
-            },
-            // Mocks ???
-            MockExecResult {
-                last_insert_id: related_message_id + 4,
-                rows_affected: 1,
-            },
-            // Mocks ???
-            MockExecResult {
-                last_insert_id: related_message_id + 5,
-                rows_affected: 1,
-            },
-            // Mocks ???
-            MockExecResult {
-                last_insert_id: related_message_id + 6,
-                rows_affected: 1,
-            },
-            // Mocks ???
-            MockExecResult {
-                last_insert_id: related_message_id + 5,
-                rows_affected: 1,
-            },
-            // Mocks ???
-            MockExecResult {
-                last_insert_id: related_message_id + 5,
-                rows_affected: 1,
-            },
+            build_mock(simple_related_message_id),
         ];
         let mock_db =
-            MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results.clone());
+            MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results);
         let db = mock_db.into_connection();
 
         let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));
@@ -300,6 +251,7 @@ pub mod tests {
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
+
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
             r#""sub_message_id" integer,"#,
@@ -319,12 +271,30 @@ pub mod tests {
         ]
         .join(" ");
         let built_table = registry.db_builder.table("SimpleMessage");
-        println!("{:#?}", built_table);
         compare_table_create_statements(built_table, &expected_sql);
 
         // Now the sub-tables
-        let built_sub_message_table = registry.db_builder.table("simple_sub_message");
-        println!("{:#?}", built_sub_message_table);
+        // let built_sub_message_table = registry.db_builder.table("SimpleSubMessage");
+        // println!("{:#?}", built_sub_message_table);
+
+        // let built_simple_related_message = registry.db_builder.table("SimpleRelatedMessage");
+        // println!("{:#?}", built_simple_related_message);
+
+        // let built_type_a = registry.db_builder.table("TypeA");
+        // println!("{:#?}", built_type_a);
+
+        let expected_sql = vec![
+            r#"CREATE TABLE IF NOT EXISTS "type_b" ("#,
+            r#""id" serial unique,"#,
+            r#""type_b_contract_address" text,"#,
+            r#""type_b_count" integer,"#,
+            r#""type_b_additional_fields" text,"#,
+            r#")"#,
+        ]
+        .join(" ");
+        let built_type_b = registry.db_builder.table("TypeB");
+        compare_table_create_statements(built_type_b, &expected_sql);
+
         let title = "SimpleRelatedMessage Title";
         let msg_str = r#"
     {
@@ -351,12 +321,16 @@ pub mod tests {
             ),
             sea_orm::Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
+                r#"INSERT INTO type_a" ("type_a_contract_address", "type_a_count") VALUES ($1, $2)"#,
+                vec!["type a contract address value".into(), 99_i64.into()],
+            ),
+            sea_orm::Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
                 r#"INSERT INTO "simple_related_message" ("title", "message_id", "sub_message_id") VALUES ($1, $2, $3)"#,
                 vec![
                     title.into(),
-                    (simple_related_message_id as i64).into(),
-                    // THIS IS A BUG, probably in the test. Should be the sub_message_id
-                    0_i64.into() //(sub_message_id as i64).into(),
+                    (message_id as i64).into(),
+                    (sub_message_id as i64).into(),
                 ],
             ),
         ];
