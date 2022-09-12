@@ -132,9 +132,7 @@ impl<T> SchemaIndexer<T> {
             for schema in one_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        db_builder
-                            .column(parent_name, &format!("{}_id", name))
-                            .integer();
+                        db_builder.column(parent_name, &foreign_key(name)).integer();
                         self.process_schema_object(
                             schema_object,
                             parent_name,
@@ -192,6 +190,7 @@ impl<T> SchemaIndexer<T> {
         data: &mut SchemaData,
         db_builder: &mut DatabaseBuilder,
     ) -> anyhow::Result<()> {
+        let table_name = name;
         if let Some(reference) = &schema.reference {
             if !name.is_empty() {
                 self.update_root_map(&mut data.required_roots, parent_name, name);
@@ -200,19 +199,20 @@ impl<T> SchemaIndexer<T> {
             }
         } else if let Some(subschema) = &schema.subschemas {
             self.process_subschema(subschema, name, parent_name, data, db_builder)?;
-        } else if let Some(object_validation) = &schema.object {
-            println!("What to do with {}?\n{:#?}", name, object_validation);
+            // } else if let Some(object_validation) = &schema.object {
+            //     println!("What to do with {}?\n{:#?}", name, object_validation);
         }
-        let table_name = name;
-        if let Some(subschema) = &schema.subschemas {
-            return self.process_subschema(subschema, name, parent_name, data, db_builder);
-        } else if schema.instance_type.is_none() {
-            if schema.reference.is_none() {
-                return Err(anyhow!("No instance or ref type for {}", name));
-            }
+        if schema.instance_type.is_none() {
+            // This means we've popped to the top of the stack
+            // of recursive calls to process the schema
             return Ok(());
         }
-        let instance_type = schema.instance_type.as_ref().unwrap();
+
+        let instance_type = schema
+            .instance_type
+            .as_ref()
+            .ok_or_else(|| anyhow!("Unexpected empty instance_type"))?;
+
         match instance_type {
             SingleOrVec::Vec(vtype) => {
                 println!("Vec instance for table {}, {:#?}", table_name, vtype);
@@ -236,6 +236,7 @@ impl<T> SchemaIndexer<T> {
                                     db_builder,
                                 )?;
                             }
+                            // TODO: what about sub-messages?
                             if let Some(ref_property) = &property_object_schema.reference {
                                 // Clip off "#/definitions/"
                                 let backpointer_table_name =
@@ -254,6 +255,11 @@ impl<T> SchemaIndexer<T> {
                                 match type_instance {
                                     SingleOrVec::Single(single_val) => match **single_val {
                                         InstanceType::Object => {
+                                            db_builder.add_relation(
+                                                table_name,
+                                                property_name,
+                                                name,
+                                            )?;
                                             self.process_schema_object(
                                                 property_object_schema,
                                                 name,

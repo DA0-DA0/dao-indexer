@@ -219,6 +219,32 @@ pub mod tests {
     }
 
     #[test]
+    async fn test_simple_sub_message() {
+        // use crate::db::db_test::compare_table_create_statements;
+        use schemars::schema_for;
+
+        let name = stringify!(SimpleSubMessage);
+        let schema = schema_for!(SimpleSubMessage);
+        // println!("schema:\n{:#?}", schema);
+        // let sub_message_id = 16u64;
+        // let type_a_id = 17u64;
+        // let type_b_id = 18u64;
+        // let mock_table_build_results: Vec<MockExecResult> =
+        //     (sub_message_id..type_b_id).map(build_mock).collect();
+
+        let mock_db =
+            MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![]);
+        let db = mock_db.into_connection();
+
+        let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));
+        let persister_ref = make_persister_ref(persister);
+        let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
+        let mut registry = result.registry;
+        assert!(registry.initialize().is_ok(), "failed to init indexer");
+        println!("{}", registry.db_builder.sql_string().unwrap());
+    }
+
+    #[test]
     async fn test_simple_related_message() {
         use crate::db::db_test::compare_table_create_statements;
         use schemars::schema_for;

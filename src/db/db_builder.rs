@@ -163,10 +163,10 @@ impl DatabaseBuilder {
             ));
         }
         let builder = seaql_db.get_database_backend();
-        for (table_name, table_def) in self.tables.iter() {
+        for (_table_name, table_def) in self.tables.iter() {
             let statement = builder.build(table_def);
-            let statement_txt = format!("Executing {}\n{:#?}", table_name, statement);
-            println!("{}", statement_txt);
+            // let statement_txt = format!("Executing {}\n{:#?}", table_name, statement);
+            
             seaql_db.execute(statement).await?;
         }
         // Now that all the tables are created, we can add the rest of the fields and constraints
