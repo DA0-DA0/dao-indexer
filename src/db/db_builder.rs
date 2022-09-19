@@ -83,16 +83,6 @@ impl DatabaseBuilder {
         source_property_name: &str,
         destination_table_name: &str,
     ) -> anyhow::Result<()> {
-        self.value_mapper.add_relational_mapping(
-            source_table_name,
-            source_property_name,
-            destination_table_name,
-            DEFAULT_ID_COLUMN_NAME,
-        )?;
-        let fk = foreign_key(source_property_name);
-
-        self.column(source_table_name, &fk).integer();
-
         if !self.unique_key_map.contains(destination_table_name) {
             self.unique_key_map
                 .insert(destination_table_name.to_string());
@@ -101,6 +91,21 @@ impl DatabaseBuilder {
                 .auto_increment()
                 .integer();
         }
+        if source_table_name == destination_table_name {
+            println!(
+                "Not adding relation from {} to {}",
+                source_table_name, destination_table_name
+            );
+            return Ok(());
+        }
+        self.value_mapper.add_relational_mapping(
+            source_table_name,
+            source_property_name,
+            destination_table_name,
+            DEFAULT_ID_COLUMN_NAME,
+        )?;
+        let fk = foreign_key(source_property_name);
+        self.column(source_table_name, &fk).integer();
 
         let db_source_table_name = db_table_name(source_table_name);
         let db_destination_table_name = db_table_name(destination_table_name);
@@ -166,7 +171,7 @@ impl DatabaseBuilder {
         for (_table_name, table_def) in self.tables.iter() {
             let statement = builder.build(table_def);
             // let statement_txt = format!("Executing {}\n{:#?}", table_name, statement);
-            
+
             seaql_db.execute(statement).await?;
         }
         // Now that all the tables are created, we can add the rest of the fields and constraints

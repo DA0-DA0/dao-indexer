@@ -34,7 +34,7 @@ pub mod tests {
         TypeB {
             type_b_contract_address: String,
             type_b_count: u32,
-            type_b_addtional_field: String,
+            type_b_additional_field: String,
         },
     }
 
@@ -140,6 +140,9 @@ pub mod tests {
         }
 
         let transactions = db_persister.into_transaction_log();
+        if transactions != expected_transaction_log {
+            
+        }
         assert_eq!(transactions, expected_transaction_log);
     }
 
@@ -251,7 +254,7 @@ pub mod tests {
 
         let name = stringify!(SimpleRelatedMessage);
         let schema = schema_for!(SimpleRelatedMessage);
-        println!("schema:\n{:#?}", schema);
+        // println!("schema:\n{:#?}", schema);
 
         let message_id = 15u64;
         let sub_message_id = 16u64;
@@ -311,14 +314,14 @@ pub mod tests {
 
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "type_b" ("#,
-            r#""id" serial unique,"#,
             r#""type_b_contract_address" text,"#,
+            r#""type_b_additional_field" text,"#,
+            r#""id" serial UNIQUE,"#,
             r#""type_b_count" integer,"#,
-            r#""type_b_additional_fields" text,"#,
             r#")"#,
         ]
         .join(" ");
-        let built_type_b = registry.db_builder.table("TypeB");
+        let built_type_b = registry.db_builder.table("type_b");
         compare_table_create_statements(built_type_b, &expected_sql);
 
         let title = "SimpleRelatedMessage Title";
