@@ -238,7 +238,14 @@ impl<T> SchemaIndexer<T> {
                     match type_instance {
                         SingleOrVec::Single(single_val) => match **single_val {
                             InstanceType::Object => {
-                                db_builder.add_relation(table_name, property_name, name)?;
+                                if table_name == property_name {
+                                    // handle sub-messages by
+                                    // setting the appropriate foreign key
+                                    //source_table, source_property, destination_table
+                                    db_builder.add_sub_message_relation(parent_name, property_name, table_name)?;                                
+                                } else {
+                                    db_builder.add_relation(table_name, property_name, name)?;
+                                }
                                 self.process_schema_object(
                                     property_object_schema,
                                     name,
@@ -383,156 +390,6 @@ impl<T> SchemaIndexer<T> {
                         data,
                         db_builder,
                     )?;
-                    // let properties = &schema_obj_ref.properties;
-                    // let required = &schema_obj_ref.required;
-                    // for (property_name, schema) in properties {
-                    //     if let Schema::Object(property_object_schema) = schema {
-                    //         if let Some(subschemas) = &property_object_schema.subschemas {
-                    //             self.process_subschema(
-                    //                 subschemas,
-                    //                 property_name,
-                    //                 name,
-                    //                 data,
-                    //                 db_builder,
-                    //             )?;
-                    //         }
-                    //         // TODO: what about sub-messages?
-                    //         if let Some(ref_property) = &property_object_schema.reference {
-                    //             // Clip off "#/definitions/"
-                    //             let backpointer_table_name =
-                    //                 &ref_property["#/definitions/".len()..];
-                    //             debug!(
-                    //                 r#"Adding relation from {}.{} back to {}"#,
-                    //                 table_name, property_name, backpointer_table_name
-                    //             );
-                    //             db_builder.add_relation(
-                    //                 table_name,
-                    //                 property_name,
-                    //                 backpointer_table_name,
-                    //             )?;
-                    //         }
-                    //         if let Some(type_instance) = &property_object_schema.instance_type {
-                    //             match type_instance {
-                    //                 SingleOrVec::Single(single_val) => match **single_val {
-                    //                     InstanceType::Object => {
-                    //                         db_builder.add_relation(
-                    //                             table_name,
-                    //                             property_name,
-                    //                             name,
-                    //                         )?;
-                    //                         self.process_schema_object(
-                    //                             property_object_schema,
-                    //                             name,
-                    //                             property_name,
-                    //                             data,
-                    //                             db_builder,
-                    //                         )?;
-                    //                     }
-                    //                     InstanceType::Boolean => {
-                    //                         db_builder.column(table_name, property_name).boolean();
-                    //                     }
-                    //                     InstanceType::String => {
-                    //                         db_builder.column(table_name, property_name).text();
-                    //                     }
-                    //                     InstanceType::Integer => {
-                    //                         db_builder.column(table_name, property_name).integer();
-                    //                     }
-                    //                     InstanceType::Number => {
-                    //                         db_builder.column(table_name, property_name).float();
-                    //                     }
-                    //                     InstanceType::Array => {
-                    //                         db_builder.many_many(table_name, property_name);
-                    //                         // eprintln!(
-                    //                         //     "not handling array instance for {}:{}",
-                    //                         //     table_name, property_name
-                    //                         // );
-                    //                     }
-                    //                     InstanceType::Null => {
-                    //                         eprintln!(
-                    //                             "not handling Null instance for {}:{}",
-                    //                             table_name, property_name
-                    //                         );
-                    //                     }
-                    //                 },
-                    //                 SingleOrVec::Vec(vec_val) => {
-                    //                     // Here we handle the case where we have a nullable field,
-                    //                     // where vec_val[0] is the instance type and vec_val[1] is Null
-                    //                     if vec_val.len() > 1
-                    //                         && vec_val[vec_val.len() - 1] == InstanceType::Null
-                    //                     {
-                    //                         let optional_val = vec_val[0];
-                    //                         match optional_val {
-                    //                             InstanceType::Boolean => {
-                    //                                 db_builder
-                    //                                     .column(table_name, property_name)
-                    //                                     .boolean();
-                    //                             }
-                    //                             InstanceType::String => {
-                    //                                 db_builder
-                    //                                     .column(table_name, property_name)
-                    //                                     .text();
-                    //                             }
-                    //                             InstanceType::Integer => {
-                    //                                 db_builder
-                    //                                     .column(table_name, property_name)
-                    //                                     .big_integer();
-                    //                             }
-                    //                             InstanceType::Number => {
-                    //                                 db_builder
-                    //                                     .column(table_name, property_name)
-                    //                                     .big_integer();
-                    //                             }
-                    //                             InstanceType::Null => {
-                    //                                 eprintln!(
-                    //                                     "Not handling Null type for {}",
-                    //                                     property_name
-                    //                                 );
-                    //                             }
-                    //                             InstanceType::Object => {
-                    //                                 eprintln!(
-                    //                                     "Not handling Object type for {}",
-                    //                                     property_name
-                    //                                 );
-                    //                             }
-                    //                             InstanceType::Array => {
-                    //                                 eprintln!(
-                    //                                     "Not handling Array type for {}",
-                    //                                     property_name
-                    //                                 );
-                    //                             }
-                    //                         }
-                    //                     } else {
-                    //                         warn!("unexpected");
-                    //                     }
-                    //                 }
-                    //             }
-                    //         }
-                    //     }
-                    //     data.current_property = property_name.clone();
-                    //     self.update_root_map(
-                    //         &mut data.all_property_names,
-                    //         parent_name,
-                    //         property_name,
-                    //     );
-                    //     insert_table_set_value(
-                    //         &mut data.all_property_names,
-                    //         table_name,
-                    //         property_name,
-                    //     );
-                    //     if required.contains(property_name) {
-                    //         insert_table_set_value(
-                    //             &mut data.required_roots,
-                    //             table_name,
-                    //             property_name,
-                    //         );
-                    //     } else {
-                    //         insert_table_set_value(
-                    //             &mut data.optional_roots,
-                    //             table_name,
-                    //             property_name,
-                    //         );
-                    //     }
-                    // }
                 }
                 InstanceType::String => {
                     db_builder.column(table_name, name).string();

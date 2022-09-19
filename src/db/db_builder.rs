@@ -134,6 +134,29 @@ impl DatabaseBuilder {
         Ok(())
     }
 
+    pub fn add_sub_message_relation(
+        &mut self,
+        source_table_name: &str,
+        source_property_name: &str,
+        destination_table_name: &str,
+    ) -> anyhow::Result<()> {
+        // make sure source_table_name has an ID
+        if !self.unique_key_map.contains(source_table_name) {
+            self.unique_key_map
+                .insert(source_table_name.to_string());
+            self.column(source_table_name, DEFAULT_ID_COLUMN_NAME)
+                .unique_key()
+                .auto_increment()
+                .integer();
+        }        
+        // add a sub message mapping
+        self.add_relation(
+            source_table_name,
+            source_property_name,
+            destination_table_name,
+        )
+    }
+
     /// After all the schemas have added themselves to the various definitions,
     /// build the final table definitions and clear the processed column definitions.
     pub fn finalize_columns(&mut self) -> &mut Self {
