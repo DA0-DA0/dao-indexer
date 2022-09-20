@@ -319,12 +319,27 @@ pub mod tests {
         // let built_type_a = registry.db_builder.table("TypeA");
         // println!("{:#?}", built_type_a);
 
+        // type_a
+        let expected_sql = vec![
+            r#"CREATE TABLE IF NOT EXISTS "type_a" ("#,
+            r#""type_a_contract_address" text,"#,
+            r#""type_a_count" integer,"#,
+            r#""id" serial UNIQUE,"#,
+            r#""simple_sub_message_id" integer,"#,
+            r#")"#,
+        ]
+        .join(" ");
+        let built_type_a = registry.db_builder.table("type_a");
+        compare_table_create_statements(built_type_a, &expected_sql);
+
+        // type_b
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "type_b" ("#,
             r#""type_b_contract_address" text,"#,
             r#""type_b_additional_field" text,"#,
             r#""id" serial UNIQUE,"#,
             r#""type_b_count" integer,"#,
+            r#""simple_sub_message_id" integer,"#,
             r#")"#,
         ]
         .join(" ");

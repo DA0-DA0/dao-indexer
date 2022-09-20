@@ -1,6 +1,7 @@
 use convert_case::{Case, Casing};
 
 pub static DEFAULT_ID_COLUMN_NAME: &str = "id";
+pub static DEFAULT_TABLE_NAME_COLUMN_NAME: &str = "table_name";
 
 fn db_normalize(input: &str) -> String {
     input.to_case(Case::Snake)

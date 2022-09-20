@@ -6,7 +6,10 @@ use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::db_mapper::DatabaseMapper;
-use super::db_util::{db_column_name, db_table_name, foreign_key, DEFAULT_ID_COLUMN_NAME};
+use super::db_util::{
+    db_column_name, db_table_name, foreign_key, DEFAULT_ID_COLUMN_NAME,
+    DEFAULT_TABLE_NAME_COLUMN_NAME,
+};
 
 #[derive(Debug)]
 pub struct DatabaseBuilder {
@@ -142,19 +145,31 @@ impl DatabaseBuilder {
     ) -> anyhow::Result<()> {
         // make sure source_table_name has an ID
         if !self.unique_key_map.contains(source_table_name) {
-            self.unique_key_map
-                .insert(source_table_name.to_string());
+            self.unique_key_map.insert(source_table_name.to_string());
             self.column(source_table_name, DEFAULT_ID_COLUMN_NAME)
                 .unique_key()
                 .auto_increment()
                 .integer();
-        }        
-        // add a sub message mapping
-        self.add_relation(
+        }
+
+        self.column(source_table_name, DEFAULT_TABLE_NAME_COLUMN_NAME)
+            .text();
+
+        self.value_mapper.add_relational_mapping(
             source_table_name,
             source_property_name,
             destination_table_name,
-        )
+            DEFAULT_ID_COLUMN_NAME,
+        )?;
+
+        // add a sub message mapping BACK
+        self.add_relation(destination_table_name, source_table_name, source_table_name)
+
+        // self.add_relation(
+        //     source_table_name,
+        //     source_property_name,
+        //     destination_table_name,
+        // )
     }
 
     /// After all the schemas have added themselves to the various definitions,
