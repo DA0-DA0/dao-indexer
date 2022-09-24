@@ -124,15 +124,12 @@ pub mod tests {
 
         let db = mock_db.into_connection();
 
-        // let result = registry.db_builder.create_tables(&db).await;
-        // println!("{:#?}", result);
-
         let db_persister = DatabasePersister::new(db);
 
         let persist_result = registry
             .db_builder
             .value_mapper
-            .persist_message(&db_persister, "SimpleRelatedMessage", msg_dictionary, None) // "SimpleRelatedMessage is definitely wrong"
+            .persist_message(&db_persister, "SimpleRelatedMessage", msg_dictionary, None)
             .await;
 
         if persist_result.is_err() {
@@ -150,7 +147,6 @@ pub mod tests {
                 println!("{:#?}", t);
             }
         }
-        // assert_eq!(transactions, expected_transaction_log);
     }
 
     #[test]
@@ -235,12 +231,6 @@ pub mod tests {
 
         let name = stringify!(SimpleSubMessage);
         let schema = schema_for!(SimpleSubMessage);
-        // println!("schema:\n{:#?}", schema);
-        // let sub_message_id = 16u64;
-        // let type_a_id = 17u64;
-        // let type_b_id = 18u64;
-        // let mock_table_build_results: Vec<MockExecResult> =
-        //     (sub_message_id..type_b_id).map(build_mock).collect();
 
         let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![]);
         let db = mock_db.into_connection();
@@ -260,7 +250,6 @@ pub mod tests {
 
         let name = stringify!(SimpleRelatedMessage);
         let schema = schema_for!(SimpleRelatedMessage);
-        // println!("schema:\n{:#?}", schema);
 
         let message_id = 15u64;
         let sub_message_id = 16u64;
@@ -307,16 +296,6 @@ pub mod tests {
         .join(" ");
         let built_table = registry.db_builder.table("SimpleMessage");
         compare_table_create_statements(built_table, &expected_sql);
-
-        // Now the sub-tables
-        // let built_sub_message_table = registry.db_builder.table("SimpleSubMessage");
-        // println!("{:#?}", built_sub_message_table);
-
-        // let built_simple_related_message = registry.db_builder.table("SimpleRelatedMessage");
-        // println!("{:#?}", built_simple_related_message);
-
-        // let built_type_a = registry.db_builder.table("TypeA");
-        // println!("{:#?}", built_type_a);
 
         // type_a
         let expected_sql = vec![
@@ -412,6 +391,11 @@ pub mod tests {
         if result.is_err() {
             eprintln!("failed {:#?}", result);
         }
+        builder.finalize_columns();
+        // If you want to look at the generated SQL, you can uncomment
+        // this line:
+        // println!("{}", builder.sql_string().unwrap());
+
         let msg_string = r#"{
             "name": "Unit Test Dao",
             "description": "Unit Test Dao Description",
@@ -432,12 +416,9 @@ pub mod tests {
             .value_mapper
             .persist_message(&persister, label, &msg, None)
             .await;
-        builder.finalize_columns();
-        // If you want to look at the generated SQL, you can uncomment the next
-        // this line:
-        // println!("{}", builder.sql_string().unwrap());
+
+        // To see the DB population calls, uncomment this:
+        // println!("{:#?}", persister.into_transaction_log());
         assert!(result.is_ok());
-        println!("{:#?}", persister.into_transaction_log());
-        // println!("{:#?}", db_ref.write().await.into_transaction_log());
     }
 }

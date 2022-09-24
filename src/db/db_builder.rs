@@ -37,7 +37,6 @@ impl DatabaseBuilder {
             .entry(table_name.to_string())
             .or_insert_with(|| {
                 let sql_table_name = db_table_name(table_name);
-                println!("building db table {} for {}", sql_table_name, table_name);
                 Table::create()
                     .table(Alias::new(&sql_table_name))
                     .if_not_exists()
@@ -95,7 +94,7 @@ impl DatabaseBuilder {
                 .integer();
         }
         if source_table_name == destination_table_name {
-            println!(
+            debug!(
                 "Not adding relation from {} to {}",
                 source_table_name, destination_table_name
             );
@@ -154,21 +153,8 @@ impl DatabaseBuilder {
         self.column(source_table_name, DEFAULT_TABLE_NAME_COLUMN_NAME)
             .text();
 
-        // self.value_mapper.add_relational_mapping(
-        //     source_table_name,
-        //     source_property_name,
-        //     destination_table_name,
-        //     DEFAULT_ID_COLUMN_NAME,
-        // )?;
-
         // add a sub message mapping BACK
         self.add_relation(destination_table_name, source_table_name, source_table_name)
-
-        // self.add_relation(
-        //     source_table_name,
-        //     source_property_name,
-        //     destination_table_name,
-        // )
     }
 
     /// After all the schemas have added themselves to the various definitions,
@@ -176,7 +162,7 @@ impl DatabaseBuilder {
     pub fn finalize_columns(&mut self) -> &mut Self {
         for (table_name, column_defs) in self.columns.iter_mut() {
             let sql_table_name = db_table_name(table_name);
-            println!(
+            debug!(
                 "finalize_columns for {}, db_name: {}",
                 table_name, &sql_table_name
             );

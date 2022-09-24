@@ -134,12 +134,8 @@ impl<T> SchemaIndexer<T> {
             for schema in one_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        // println!("process_subschema, subschema.one_of {}->{}\n{:#?}", parent_name, name, schema_object);
                         if let Some(obj) = &schema_object.object {
                             if let Some(name) = obj.required.iter().next() {
-                                println!("Processing submessage {} on {}", name, parent_name);
-                                // let fk = foreign_key(name);
-                                // db_builder.column(parent_name, &fk).integer();
                                 db_builder.column(parent_name, "target_id").integer();
                                 self.process_submessage(
                                     obj,
@@ -149,16 +145,8 @@ impl<T> SchemaIndexer<T> {
                                     data,
                                     db_builder,
                                 )?;
-                                // self.process_schema_object(
-                                //     schema_object,
-                                //     parent_name,
-                                //     name,
-                                //     data,
-                                //     db_builder,
-                                // )?;
                             }
                         }
-                        // TODO(gavindoughtie): self.mapper.add_one_required(parent_name, name)
                     }
                     Schema::Bool(bool_val) => {
                         debug!("ignoring bool_val {} for {}", bool_val, name);
@@ -169,10 +157,6 @@ impl<T> SchemaIndexer<T> {
             for schema in any_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        // println!(
-                        //     "process_subschema, subschema.any_of {}->{}",
-                        //     parent_name, name
-                        // );
                         db_builder
                             .column(parent_name, &format!("{}_id", name))
                             .integer();
@@ -190,7 +174,7 @@ impl<T> SchemaIndexer<T> {
                 }
             }
         } else {
-            println!("not handling subschema for {}", name);
+            eprintln!("not handling subschema for {}", name);
         }
         Ok(())
     }
@@ -242,11 +226,7 @@ impl<T> SchemaIndexer<T> {
                                 if table_name == property_name {
                                     // handle sub-messages by
                                     // setting the appropriate foreign key
-                                    //source_table, source_property, destination_table
-                                    db_builder.add_sub_message_relation(
-                                        parent_name,
-                                        table_name,
-                                    )?;
+                                    db_builder.add_sub_message_relation(parent_name, table_name)?;
                                 } else {
                                     db_builder.add_relation(table_name, property_name, name)?;
                                 }
@@ -272,10 +252,6 @@ impl<T> SchemaIndexer<T> {
                             }
                             InstanceType::Array => {
                                 db_builder.many_many(table_name, property_name);
-                                // eprintln!(
-                                //     "not handling array instance for {}:{}",
-                                //     table_name, property_name
-                                // );
                             }
                             InstanceType::Null => {
                                 eprintln!(
@@ -343,7 +319,6 @@ impl<T> SchemaIndexer<T> {
     ) -> anyhow::Result<()> {
         println!("process_submessage {} on {}", name, parent_name);
         self.process_object_validation(obj, parent_name, name, data, db_builder)
-        //  self.process_schema_object(schema, parent_name, name, data, db_builder)
     }
 
     pub fn process_schema_object(
@@ -363,8 +338,6 @@ impl<T> SchemaIndexer<T> {
             }
         } else if let Some(subschema) = &schema.subschemas {
             self.process_subschema(subschema, name, parent_name, data, db_builder)?;
-            // } else if let Some(object_validation) = &schema.object {
-            //     println!("What to do with {}?\n{:#?}", name, object_validation);
         }
         if schema.instance_type.is_none() {
             // This means we've popped to the top of the stack
@@ -379,7 +352,10 @@ impl<T> SchemaIndexer<T> {
 
         match instance_type {
             SingleOrVec::Vec(vtype) => {
-                println!("Vec instance for table {}, {:#?}", table_name, vtype);
+                warn!(
+                    "Not handling Vec instance for table {}, {:#?}",
+                    table_name, vtype
+                );
             }
             SingleOrVec::Single(itype) => match itype.as_ref() {
                 InstanceType::Object => {
