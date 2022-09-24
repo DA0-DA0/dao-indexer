@@ -140,7 +140,6 @@ impl DatabaseBuilder {
     pub fn add_sub_message_relation(
         &mut self,
         source_table_name: &str,
-        source_property_name: &str,
         destination_table_name: &str,
     ) -> anyhow::Result<()> {
         // make sure source_table_name has an ID
@@ -155,12 +154,12 @@ impl DatabaseBuilder {
         self.column(source_table_name, DEFAULT_TABLE_NAME_COLUMN_NAME)
             .text();
 
-        self.value_mapper.add_relational_mapping(
-            source_table_name,
-            source_property_name,
-            destination_table_name,
-            DEFAULT_ID_COLUMN_NAME,
-        )?;
+        // self.value_mapper.add_relational_mapping(
+        //     source_table_name,
+        //     source_property_name,
+        //     destination_table_name,
+        //     DEFAULT_ID_COLUMN_NAME,
+        // )?;
 
         // add a sub message mapping BACK
         self.add_relation(destination_table_name, source_table_name, source_table_name)

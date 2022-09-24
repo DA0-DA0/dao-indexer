@@ -242,8 +242,7 @@ pub mod tests {
         // let mock_table_build_results: Vec<MockExecResult> =
         //     (sub_message_id..type_b_id).map(build_mock).collect();
 
-        let mock_db =
-            MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![]);
+        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![]);
         let db = mock_db.into_connection();
 
         let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));

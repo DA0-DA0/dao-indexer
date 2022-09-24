@@ -41,7 +41,10 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
     let built_sql = db_postgres.build(built_statement).to_string();
     let sql_equivalent = is_sql_equivalent(expected_sql, &built_sql);
     if !sql_equivalent {
-        eprintln!("SQL mismatch. Expected:\n{}\nReceived:\n{}", expected_sql, &built_sql);
+        eprintln!(
+            "SQL mismatch. Expected:\n{}\nReceived:\n{}",
+            expected_sql, &built_sql
+        );
     }
     assert!(sql_equivalent);
 }

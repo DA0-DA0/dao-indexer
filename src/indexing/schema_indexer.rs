@@ -138,8 +138,9 @@ impl<T> SchemaIndexer<T> {
                         if let Some(obj) = &schema_object.object {
                             if let Some(name) = obj.required.iter().next() {
                                 println!("Processing submessage {} on {}", name, parent_name);
-                                let fk = foreign_key(name);
-                                db_builder.column(parent_name, &fk).integer();
+                                // let fk = foreign_key(name);
+                                // db_builder.column(parent_name, &fk).integer();
+                                db_builder.column(parent_name, "target_id").integer();
                                 self.process_submessage(
                                     obj,
                                     schema_object,
@@ -242,7 +243,10 @@ impl<T> SchemaIndexer<T> {
                                     // handle sub-messages by
                                     // setting the appropriate foreign key
                                     //source_table, source_property, destination_table
-                                    db_builder.add_sub_message_relation(parent_name, property_name, table_name)?;                                
+                                    db_builder.add_sub_message_relation(
+                                        parent_name,
+                                        table_name,
+                                    )?;
                                 } else {
                                     db_builder.add_relation(table_name, property_name, name)?;
                                 }
