@@ -118,6 +118,7 @@ pub mod tests {
         msg_dictionary: &Value,
         expected_transaction_log: Vec<Transaction>,
         mock_results: Vec<MockExecResult>,
+        table_name: &str
     ) {
         let mock_db =
             MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results);
@@ -129,7 +130,7 @@ pub mod tests {
         let persist_result = registry
             .db_builder
             .value_mapper
-            .persist_message(&db_persister, "SimpleRelatedMessage", msg_dictionary, None)
+            .persist_message(&db_persister, table_name, msg_dictionary, None)
             .await;
 
         if persist_result.is_err() {
@@ -226,13 +227,27 @@ pub mod tests {
 
     #[test]
     async fn test_simple_sub_message() {
-        // use crate::db::db_test::compare_table_create_statements;
+        use crate::db::db_test::compare_table_create_statements;
         use schemars::schema_for;
 
         let name = stringify!(SimpleSubMessage);
         let schema = schema_for!(SimpleSubMessage);
 
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![]);
+
+        let sub_message_id = 16u64;
+        let type_a_id = 17u64;
+
+        let mapped_mock_results: Vec<MockExecResult> = (16..17).map(build_mock).collect();
+
+        // Mocks for results of saving a single SimpleSubMessage
+        let mock_results = vec![
+            // Mocks result from creating the type_a record
+            build_mock(type_a_id),
+            // Mocks result from creating the simple_message record
+            build_mock(sub_message_id),
+        ];
+
+        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results);
         let db = mock_db.into_connection();
 
         let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));
@@ -240,7 +255,50 @@ pub mod tests {
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
-        println!("{}", registry.db_builder.sql_string().unwrap());
+        let expected_sql = vec![
+            r#"CREATE TABLE IF NOT EXISTS "simple_sub_message" ("#,
+            r#""id" serial UNIQUE, "target_id" integer, "table_name" text )"#
+        ]
+        .join(" ");
+        let built_table = registry.db_builder.table(name);
+        compare_table_create_statements(built_table, &expected_sql);
+
+        // Now save a message:
+        let msg_str = r#"{
+            "SimpleSubMessage": {
+                "type_a_contract_address": "type a contract address value",
+                "type_a_count": 99
+            }
+        }"#;
+        let msg_dictionary = serde_json::from_str(msg_str).unwrap();
+        let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
+        assert!(result.is_ok());
+
+        let expected_transaction_log = vec![
+            sea_orm::Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO type_a" ("type_a_contract_address", "type_a_count") VALUES ($1, $2)"#,
+                vec!["type a contract address value".into(), 99u64.into()],
+            ),
+            sea_orm::Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "simple_sub_message" ("id", "target_id", "table_name") VALUES ($1, $2, $3)"#,
+                vec![
+                    sub_message_id.into(),
+                    type_a_id.into(),
+                    "type_a".into(),
+                ],
+            ),
+        ];
+
+        assert_expected_transactions(
+            &registry,
+            &msg_dictionary,
+            expected_transaction_log,
+            mapped_mock_results,
+            "SimpleSubMessage"
+        )
+        .await
     }
 
     #[test]
@@ -369,6 +427,7 @@ pub mod tests {
             &msg_dictionary,
             expected_transaction_log,
             mapped_mock_results,
+            "SimpleRelatedMessage"
         )
         .await
     }
