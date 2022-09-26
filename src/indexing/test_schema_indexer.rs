@@ -262,7 +262,7 @@ pub mod tests {
         .join(" ");
         let built_table = registry.db_builder.table(name);
         compare_table_create_statements(built_table, &expected_sql);
-
+        println!("{}", registry.db_builder.sql_string().unwrap());
         // Now save a message:
         let msg_str = r#"{
             "SimpleSubMessage": {

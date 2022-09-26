@@ -227,16 +227,23 @@ impl<T> SchemaIndexer<T> {
                                     // handle sub-messages by
                                     // setting the appropriate foreign key
                                     db_builder.add_sub_message_relation(parent_name, table_name)?;
-                                } else {
+                                    self.process_schema_object(
+                                        property_object_schema,
+                                        parent_name,
+                                        table_name,
+                                        data,
+                                        db_builder,
+                                    )?;
+                                    } else {
                                     db_builder.add_relation(table_name, property_name, name)?;
-                                }
-                                self.process_schema_object(
-                                    property_object_schema,
-                                    name,
-                                    property_name,
-                                    data,
-                                    db_builder,
-                                )?;
+                                    self.process_schema_object(
+                                        property_object_schema,
+                                        name,
+                                        property_name,
+                                        data,
+                                        db_builder,
+                                    )?;
+                                    }
                             }
                             InstanceType::Boolean => {
                                 db_builder.column(table_name, property_name).boolean();

@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use super::db_mapper::DatabaseMapper;
 use super::db_util::{
     db_column_name, db_table_name, foreign_key, DEFAULT_ID_COLUMN_NAME,
-    DEFAULT_TABLE_NAME_COLUMN_NAME,
+    DEFAULT_TABLE_NAME_COLUMN_NAME, TARGET_ID_COLUMN_NAME
 };
 
 #[derive(Debug)]
@@ -150,11 +150,21 @@ impl DatabaseBuilder {
                 .integer();
         }
 
+        // Adds a column in the sub-message table to point to
+        // the sub-type record table by its name:
         self.column(source_table_name, DEFAULT_TABLE_NAME_COLUMN_NAME)
             .text();
 
-        // add a sub message mapping BACK
-        self.add_relation(destination_table_name, source_table_name, source_table_name)
+        // add a sub message mapping BACK from sub-type record to sub-message
+        self.add_relation(destination_table_name, source_table_name, source_table_name)?;
+
+        // forward mapping from sub-message to specific sub-type table
+        self.value_mapper.add_relational_mapping(
+            source_table_name,
+            TARGET_ID_COLUMN_NAME,
+            destination_table_name,
+            DEFAULT_ID_COLUMN_NAME,
+        )
     }
 
     /// After all the schemas have added themselves to the various definitions,
