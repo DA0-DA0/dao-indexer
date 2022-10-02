@@ -34,7 +34,7 @@ impl IndexMessage for SchemaIndexerGenericMessage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SchemaRef {
     pub name: String,
     pub schema: RootSchema,
@@ -42,12 +42,13 @@ pub struct SchemaRef {
 }
 
 #[derive(Debug)]
-pub struct SchemaIndexer<T> {
+pub struct SchemaIndexer<'a, T> {
     pub schemas: Vec<SchemaRef>,
     registry_keys: Vec<RegistryKey>,
     root_keys: Vec<String>,
     id: String,
     pub persister: PersisterRef<T>,
+    pub schema_map: HashMap<String, &'a Schema>
 }
 
 type RootMap = HashMap<String, BTreeSet<String>>;
@@ -91,7 +92,7 @@ fn insert_table_set_value(
     table_values.insert(table_name.to_string(), value_set);
 }
 
-impl<T> SchemaIndexer<T> {
+impl<'a, T> SchemaIndexer<'a, T> {
     pub fn new(id: String, schemas: Vec<SchemaRef>, persister: PersisterRef<T>) -> Self {
         SchemaIndexer {
             id: id.clone(),
@@ -99,6 +100,7 @@ impl<T> SchemaIndexer<T> {
             registry_keys: vec![RegistryKey::new(id)],
             root_keys: vec![],
             persister,
+            schema_map: HashMap::new()
         }
     }
 
@@ -408,7 +410,7 @@ impl<T> SchemaIndexer<T> {
     }
 }
 
-impl Indexer for SchemaIndexer<u64> {
+impl<'b> Indexer for SchemaIndexer<'b, u64> {
     type MessageType = SchemaIndexerGenericMessage;
     fn id(&self) -> String {
         self.id.clone()
@@ -463,14 +465,14 @@ impl Indexer for SchemaIndexer<u64> {
     }
 }
 
-pub struct SchemaVisitor<'a> {
+pub struct SchemaVisitor<'a, 'b> {
     pub data: SchemaData,
-    pub indexer: &'a mut SchemaIndexer<u64>,
+    pub indexer: &'a mut SchemaIndexer<'b, u64>,
     pub db_builder: &'a mut DatabaseBuilder,
 }
 
-impl<'a> SchemaVisitor<'a> {
-    pub fn new(indexer: &'a mut SchemaIndexer<u64>, db_builder: &'a mut DatabaseBuilder) -> Self {
+impl<'a, 'b> SchemaVisitor<'a, 'b> {
+    pub fn new(indexer: &'a mut SchemaIndexer<'b, u64>, db_builder: &'a mut DatabaseBuilder) -> Self {
         SchemaVisitor {
             data: SchemaData::default(),
             indexer,

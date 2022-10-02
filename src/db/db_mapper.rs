@@ -7,7 +7,6 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use crate::indexing::schema_indexer::SchemaRef;
 
 /// Relational mapping
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -79,7 +78,7 @@ impl FieldMapping {
 pub struct SubMessageMapping {
     parent_message_name: String,
     // we have to iterate through these schemas:
-    sub_messages: HashMap<String, HashSet<SchemaRef>>,
+    sub_messages: HashMap<String, HashSet<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -388,7 +387,7 @@ mod tests {
         let _record_two_id: u64 = mapper
             .persist_message(&persister, &message_name, &type_b_message_dict, None)
             .await?;
-        let expected_log = vec![
+        let _expected_log = vec![
             Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
                 r#"INSERT INTO "type_a" ("type_a_contract_address", "type_a_count") VALUES ($1, $2)"#,
