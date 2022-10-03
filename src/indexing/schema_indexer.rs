@@ -42,13 +42,12 @@ pub struct SchemaRef {
 }
 
 #[derive(Debug)]
-pub struct SchemaIndexer<'a, T> {
+pub struct SchemaIndexer<T> {
     pub schemas: Vec<SchemaRef>,
     registry_keys: Vec<RegistryKey>,
     root_keys: Vec<String>,
     id: String,
     pub persister: PersisterRef<T>,
-    pub schema_map: HashMap<String, &'a Schema>
 }
 
 type RootMap = HashMap<String, BTreeSet<String>>;
@@ -62,6 +61,7 @@ pub struct SchemaData {
     pub sql_tables: HashMap<String, Vec<String>>,
     pub ref_roots: HashMap<String, String>,
     pub current_property: String,
+    pub schema_map: HashMap<String, SchemaObject>,
 }
 
 impl SchemaData {
@@ -74,6 +74,7 @@ impl SchemaData {
             sql_tables: HashMap::new(),
             ref_roots: HashMap::new(),
             current_property: "".to_string(),
+            schema_map: HashMap::new(),
         }
     }
 }
@@ -92,7 +93,7 @@ fn insert_table_set_value(
     table_values.insert(table_name.to_string(), value_set);
 }
 
-impl<'a, T> SchemaIndexer<'a, T> {
+impl<'a, T> SchemaIndexer<T> {
     pub fn new(id: String, schemas: Vec<SchemaRef>, persister: PersisterRef<T>) -> Self {
         SchemaIndexer {
             id: id.clone(),
@@ -100,7 +101,6 @@ impl<'a, T> SchemaIndexer<'a, T> {
             registry_keys: vec![RegistryKey::new(id)],
             root_keys: vec![],
             persister,
-            schema_map: HashMap::new()
         }
     }
 
@@ -138,15 +138,24 @@ impl<'a, T> SchemaIndexer<'a, T> {
                     Schema::Object(schema_object) => {
                         if let Some(obj) = &schema_object.object {
                             if let Some(name) = obj.required.iter().next() {
-                                db_builder.column(parent_name, "target_id").integer();
-                                self.process_submessage(
-                                    obj,
+                                db_builder
+                                    .column(parent_name, &format!("{}_id", name))
+                                    .integer();
+                                self.process_schema_object(
                                     schema_object,
                                     parent_name,
                                     name,
                                     data,
                                     db_builder,
-                                )?;
+                                )?; // db_builder.column(parent_name, "target_id").integer();
+                                    // self.process_submessage(
+                                    //     obj,
+                                    //     schema_object,
+                                    //     parent_name,
+                                    //     name,
+                                    //     data,
+                                    //     db_builder,
+                                    // )?;
                             }
                         }
                     }
@@ -197,6 +206,7 @@ impl<'a, T> SchemaIndexer<'a, T> {
         name: &str,
         data: &mut SchemaData,
         db_builder: &mut DatabaseBuilder,
+        submessage: bool,
     ) -> anyhow::Result<()> {
         let table_name = name; // TODO(gavin.doughtie): is this a spurious alias?
         let required = &schema_obj_ref.required;
@@ -226,9 +236,15 @@ impl<'a, T> SchemaIndexer<'a, T> {
                         SingleOrVec::Single(single_val) => match **single_val {
                             InstanceType::Object => {
                                 if table_name == property_name {
+                                    // assert!(
+                                    //     submessage,
+                                    //     "Expected submessage for {}->{}",
+                                    //     table_name, property_name
+                                    // );
                                     // handle sub-messages by
                                     // setting the appropriate foreign key
-                                    db_builder.add_sub_message_relation(parent_name, table_name)?;
+                                    // db_builder.add_sub_message_relation(parent_name, table_name)?;
+                                    db_builder.add_relation(parent_name, property_name, name)?;
                                     self.process_schema_object(
                                         property_object_schema,
                                         parent_name,
@@ -236,7 +252,7 @@ impl<'a, T> SchemaIndexer<'a, T> {
                                         data,
                                         db_builder,
                                     )?;
-                                    } else {
+                                } else {
                                     db_builder.add_relation(table_name, property_name, name)?;
                                     self.process_schema_object(
                                         property_object_schema,
@@ -245,7 +261,7 @@ impl<'a, T> SchemaIndexer<'a, T> {
                                         data,
                                         db_builder,
                                     )?;
-                                    }
+                                }
                             }
                             InstanceType::Boolean => {
                                 db_builder.column(table_name, property_name).boolean();
@@ -327,17 +343,19 @@ impl<'a, T> SchemaIndexer<'a, T> {
         db_builder: &mut DatabaseBuilder,
     ) -> anyhow::Result<()> {
         println!("process_submessage {} on {}", name, parent_name);
-        self.process_object_validation(obj, parent_name, name, data, db_builder)
+        self.process_object_validation(obj, parent_name, name, data, db_builder, true)
     }
 
     pub fn process_schema_object(
         &self,
-        schema: &SchemaObject,
+        schema: &'a SchemaObject,
         parent_name: &str,
         name: &str,
-        data: &mut SchemaData,
+        data: &'a mut SchemaData,
         db_builder: &mut DatabaseBuilder,
     ) -> anyhow::Result<()> {
+        let schema_clone = schema.clone();
+        data.schema_map.insert(name.to_string(), schema_clone);
         let table_name = name;
         if let Some(reference) = &schema.reference {
             if !name.is_empty() {
@@ -378,6 +396,7 @@ impl<'a, T> SchemaIndexer<'a, T> {
                         name,
                         data,
                         db_builder,
+                        false,
                     )?;
                 }
                 InstanceType::String => {
@@ -410,7 +429,7 @@ impl<'a, T> SchemaIndexer<'a, T> {
     }
 }
 
-impl<'b> Indexer for SchemaIndexer<'b, u64> {
+impl Indexer for SchemaIndexer<u64> {
     type MessageType = SchemaIndexerGenericMessage;
     fn id(&self) -> String {
         self.id.clone()
@@ -465,14 +484,14 @@ impl<'b> Indexer for SchemaIndexer<'b, u64> {
     }
 }
 
-pub struct SchemaVisitor<'a, 'b> {
+pub struct SchemaVisitor<'a> {
     pub data: SchemaData,
-    pub indexer: &'a mut SchemaIndexer<'b, u64>,
+    pub indexer: &'a mut SchemaIndexer<u64>,
     pub db_builder: &'a mut DatabaseBuilder,
 }
 
-impl<'a, 'b> SchemaVisitor<'a, 'b> {
-    pub fn new(indexer: &'a mut SchemaIndexer<'b, u64>, db_builder: &'a mut DatabaseBuilder) -> Self {
+impl<'a> SchemaVisitor<'a> {
+    pub fn new(indexer: &'a mut SchemaIndexer<u64>, db_builder: &'a mut DatabaseBuilder) -> Self {
         SchemaVisitor {
             data: SchemaData::default(),
             indexer,

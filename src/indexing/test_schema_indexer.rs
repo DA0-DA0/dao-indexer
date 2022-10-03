@@ -118,7 +118,7 @@ pub mod tests {
         msg_dictionary: &Value,
         expected_transaction_log: Vec<Transaction>,
         mock_results: Vec<MockExecResult>,
-        table_name: &str
+        table_name: &str,
     ) {
         let mock_db =
             MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results);
@@ -233,7 +233,6 @@ pub mod tests {
         let name = stringify!(SimpleSubMessage);
         let schema = schema_for!(SimpleSubMessage);
 
-
         let sub_message_id = 16u64;
         let type_a_id = 17u64;
 
@@ -247,7 +246,8 @@ pub mod tests {
             build_mock(sub_message_id),
         ];
 
-        let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results);
+        let mock_db =
+            MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(mock_results);
         let db = mock_db.into_connection();
 
         let persister: Box<dyn Persister<Id = u64>> = Box::new(DatabasePersister::new(db));
@@ -257,7 +257,7 @@ pub mod tests {
         assert!(registry.initialize().is_ok(), "failed to init indexer");
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_sub_message" ("#,
-            r#""id" serial UNIQUE, "target_id" integer, "table_name" text )"#
+            r#""id" serial UNIQUE, "target_id" integer, "table_name" text )"#,
         ]
         .join(" ");
         let built_table = registry.db_builder.table(name);
@@ -283,11 +283,7 @@ pub mod tests {
             sea_orm::Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
                 r#"INSERT INTO "simple_sub_message" ("id", "target_id", "table_name") VALUES ($1, $2, $3)"#,
-                vec![
-                    sub_message_id.into(),
-                    type_a_id.into(),
-                    "type_a".into(),
-                ],
+                vec![sub_message_id.into(), type_a_id.into(), "type_a".into()],
             ),
         ];
 
@@ -296,7 +292,7 @@ pub mod tests {
             &msg_dictionary,
             expected_transaction_log,
             mapped_mock_results,
-            "SimpleSubMessage"
+            "SimpleSubMessage",
         )
         .await
     }
@@ -383,20 +379,21 @@ pub mod tests {
         compare_table_create_statements(built_type_b, &expected_sql);
 
         let title = "SimpleRelatedMessage Title";
-        let msg_str = r#"
-    {
-        "title": "SimpleRelatedMessage Title",
-        "message": {
-            "simple_field_one": "simple_field_one value",
-            "simple_field_two": 33
-        },
-        "sub_message": {
-            "type_a_contract_address": "type a contract address value",
-            "type_a_count": 99
-        }
-    }"#;
-        let msg_dictionary = serde_json::from_str(msg_str).unwrap();
-        let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
+        let native_simple_related_message = SimpleRelatedMessage {
+            title: "SimpleRelatedMessage Title".to_string(),
+            message: SimpleMessage {
+                simple_field_one: "simple_field_one value".to_string(),
+                simple_field_two: 33,
+            },
+            sub_message: SimpleSubMessage::TypeA {
+                type_a_contract_address: "type a contract address value".to_string(),
+                type_a_count: 99,
+            },
+        };
+        let msg_str = serde_json::to_string(&native_simple_related_message).unwrap();
+        let msg_dictionary = serde_json::from_str(&msg_str).unwrap();
+        println!("indexing\n{:#?}", msg_dictionary);
+        let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, &msg_str);
         assert!(result.is_ok());
 
         // TODO: this is missing creation of related records, and should fail comparison.
@@ -427,9 +424,23 @@ pub mod tests {
             &msg_dictionary,
             expected_transaction_log,
             mapped_mock_results,
-            "SimpleRelatedMessage"
+            "SimpleRelatedMessage",
         )
         .await
+    }
+
+    #[test]
+    async fn test_deserialize() {
+        // use schemars::schema_for;
+        // let schema = schema_for!(SimpleSubMessage);
+        let native_message = SimpleSubMessage::TypeA {
+            type_a_contract_address: "type a contract address value".to_string(),
+            type_a_count: 99,
+        };
+        let msg_str = serde_json::to_string(&native_message).unwrap();
+        println!("msg_str:\n{}", msg_str);
+        let deserialized: SimpleSubMessage = serde_json::from_str(&msg_str).unwrap();
+        println!("deserialized:\n{:#?}", deserialized);
     }
 
     #[test]

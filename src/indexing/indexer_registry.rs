@@ -110,7 +110,7 @@ impl<'a> IndexerRegistry {
         msg_str: &str,
     ) -> anyhow::Result<()> {
         if let Some(message_keys) = &self.extract_message_keys(msg_dictionary, msg_str) {
-            println!("Indexing: {:?}", msg_dictionary);
+            println!("Indexing: {:#?}", msg_dictionary);
             for message_key in message_keys {
                 if let Some(handlers) = self.indexers_for_key(message_key) {
                     for handler_id in handlers {
