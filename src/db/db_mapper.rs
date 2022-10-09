@@ -142,7 +142,7 @@ impl DatabaseMapper {
             .relationships
             .entry(message_name.to_string())
             .or_insert_with(HashMap::new);
-        message_relationships.insert(TARGET_ID_COLUMN_NAME.to_string(), relation);
+        message_relationships.insert(submessage_name.to_string(), relation);
         let message_mappings = self
             .mappings
             .entry(message_name.to_string())
@@ -157,7 +157,7 @@ impl DatabaseMapper {
             submessage_name.to_string(),
             DEFAULT_ID_COLUMN_NAME.to_string(),
             submessage_name.to_string(),
-            FieldMappingPolicy::OneToOne,
+            FieldMappingPolicy::ManyToOne,
         );
         message_mappings.insert(message_name.to_string(), mapping);
 
@@ -171,6 +171,7 @@ impl DatabaseMapper {
         field_name: &str,
         related_message_name: &str,
         related_column_name: &str,
+        mapping_policy: FieldMappingPolicy,
     ) -> anyhow::Result<()> {
         debug!(
             r#"add_mapping(add_relational_mapping:
@@ -204,7 +205,7 @@ impl DatabaseMapper {
             related_message_name.to_string(),
             related_column_name.to_string(),
             related_message_name.to_string(),
-            FieldMappingPolicy::ManyToOne,
+            mapping_policy,
         );
         message_mappings.insert(field_name.to_string(), mapping);
         Ok(())
@@ -243,10 +244,18 @@ impl DatabaseMapper {
         let mut child_id_columns: Vec<String> = vec![];
         let mut child_id_values: Vec<Value> = vec![];
         let relationships = self.relationships.get(table_name);
+        println!(
+            "relationships: {:#?}, mapping: {:#?}",
+            relationships, mapping
+        );
 
         for (key, value) in msg {
             if let Some(relationships) = relationships {
                 if let Some(field_relationship) = relationships.get(key) {
+                    println!(
+                        "relationships: {:#?}, field_relationship for {}:{:#?}",
+                        relationships, key, field_relationship
+                    );
                     if let Some(field_mapping) = mapping.get(key) {
                         let child_id = self
                             .persist_message(persister, &field_mapping.related_table, value, None)
@@ -345,17 +354,26 @@ mod tests {
         mapper.add_submessage_mapping(&message_name, &type_a_name)?;
         mapper.add_submessage_mapping(&message_name, &type_b_name)?;
 
-        let type_a_message_str = r#"{
+        // All the mappings should be set up, so now we can persist the message:
+
+        // First, create the JSON messages:
+        let type_a_message_dict = serde_json::json!({
+            "type_a": {
                 "type_a_contract_address": "type a contract address value",
-                "type_a_count": 99
-        }"#;
-        let type_a_message_dict = serde_json::from_str(type_a_message_str).unwrap();
-        let type_b_message_str = r#"{
+                "type_a_count": 99,
+            }
+        });
+
+        // let type_a_message_str = &serde_json::to_string(&type_a_message_dict)?;
+
+        let type_b_message_dict = serde_json::json!({
+            "type_b": {
                 "type_b_contract_address": "type b contract address value",
                 "type_b_count": 101,
                 "type_b_additional_field": "type b additional field value"
-        }"#;
-        let type_b_message_dict = serde_json::from_str(type_b_message_str).unwrap();
+            }
+        });
+        // let type_b_message_str = &serde_json::to_string(&type_b_message_dict)?;
 
         let type_a_record_id = 15u64;
         let type_a_sub_message_id = 16u64;
@@ -459,9 +477,14 @@ mod tests {
             address_message_name.clone(),
             zip.clone(),
         )?;
-        mapper.add_relational_mapping("Contact", "address", "address", "id")?;
-        let relational_message = serde_json::from_str(
-            r#"
+        mapper.add_relational_mapping(
+            "Contact",
+            "address",
+            "address",
+            "id",
+            FieldMappingPolicy::ManyToOne,
+        )?;
+        let relational_message_dict = serde_json::json!(
         {
             "first_name": "Gavin",
             "last_name": "Doughtie",
@@ -473,9 +496,7 @@ mod tests {
                 "zip": "94000"
             }
         }
-        "#,
-        )
-        .unwrap();
+        );
         let mock_db = MockDatabase::new(DatabaseBackend::Postgres).append_exec_results(vec![
             MockExecResult {
                 last_insert_id: 15,
@@ -489,7 +510,7 @@ mod tests {
         let db = mock_db.into_connection();
         let persister = DatabasePersister::new(db);
         let _record_one_id: u64 = mapper
-            .persist_message(&persister, &message_name, &relational_message, None)
+            .persist_message(&persister, &message_name, &relational_message_dict, None)
             .await?;
         let expected_log = vec![
             Transaction::from_sql_and_values(

@@ -5,10 +5,10 @@ use sea_orm::sea_query::{
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use super::db_mapper::DatabaseMapper;
+use super::db_mapper::{DatabaseMapper, FieldMappingPolicy};
 use super::db_util::{
     db_column_name, db_table_name, foreign_key, DEFAULT_ID_COLUMN_NAME,
-    DEFAULT_TABLE_NAME_COLUMN_NAME, TARGET_ID_COLUMN_NAME
+    DEFAULT_TABLE_NAME_COLUMN_NAME
 };
 
 #[derive(Debug)]
@@ -76,6 +76,16 @@ impl DatabaseBuilder {
         self
     }
 
+    fn ensure_primary_id(&mut self, table_name: &str) {
+        if !self.unique_key_map.contains(table_name) {
+            self.unique_key_map.insert(table_name.to_string());
+            self.column(table_name, DEFAULT_ID_COLUMN_NAME)
+                .unique_key()
+                .auto_increment()
+                .integer();
+        }
+    }
+
     /// Adds a database relationship between a field on one table and a different
     /// table. Defaults to using "fieldname_id" on one table and DEFAULT_ID_COLUMN_NAME
     /// ("id") on the other.
@@ -84,15 +94,9 @@ impl DatabaseBuilder {
         source_table_name: &str,
         source_property_name: &str,
         destination_table_name: &str,
+        mapping_policy: FieldMappingPolicy,
     ) -> anyhow::Result<()> {
-        if !self.unique_key_map.contains(destination_table_name) {
-            self.unique_key_map
-                .insert(destination_table_name.to_string());
-            self.column(destination_table_name, DEFAULT_ID_COLUMN_NAME)
-                .unique_key()
-                .auto_increment()
-                .integer();
-        }
+        self.ensure_primary_id(destination_table_name);
         if source_table_name == destination_table_name {
             debug!(
                 "Not adding relation from {} to {}",
@@ -105,6 +109,7 @@ impl DatabaseBuilder {
             source_property_name,
             destination_table_name,
             DEFAULT_ID_COLUMN_NAME,
+            mapping_policy
         )?;
         let fk = foreign_key(source_property_name);
         self.column(source_table_name, &fk).integer();
@@ -142,13 +147,8 @@ impl DatabaseBuilder {
         destination_table_name: &str,
     ) -> anyhow::Result<()> {
         // make sure source_table_name has an ID
-        if !self.unique_key_map.contains(source_table_name) {
-            self.unique_key_map.insert(source_table_name.to_string());
-            self.column(source_table_name, DEFAULT_ID_COLUMN_NAME)
-                .unique_key()
-                .auto_increment()
-                .integer();
-        }
+        self.ensure_primary_id(source_table_name);
+        self.ensure_primary_id(destination_table_name);
 
         // Adds a column in the sub-message table to point to
         // the sub-type record table by its name:
@@ -156,14 +156,14 @@ impl DatabaseBuilder {
             .text();
 
         // add a sub message mapping BACK from sub-type record to sub-message
-        self.add_relation(destination_table_name, source_table_name, source_table_name)?;
+        self.add_relation(destination_table_name, source_table_name, source_table_name, FieldMappingPolicy::ManyToMany)?;
 
         // forward mapping from sub-message to specific sub-type table
-        self.value_mapper.add_relational_mapping(
+        self.value_mapper.add_submessage_mapping(
             source_table_name,
-            TARGET_ID_COLUMN_NAME,
+            // TARGET_ID_COLUMN_NAME,
             destination_table_name,
-            DEFAULT_ID_COLUMN_NAME,
+            // DEFAULT_ID_COLUMN_NAME,
         )
     }
 

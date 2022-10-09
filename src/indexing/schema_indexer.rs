@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::db::db_builder::DatabaseBuilder;
 use crate::db::persister::PersisterRef;
+use crate::db::db_mapper::FieldMappingPolicy;
 
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
@@ -206,7 +207,7 @@ impl<'a, T> SchemaIndexer<T> {
         name: &str,
         data: &mut SchemaData,
         db_builder: &mut DatabaseBuilder,
-        submessage: bool,
+        _submessage: bool,
     ) -> anyhow::Result<()> {
         let table_name = name; // TODO(gavin.doughtie): is this a spurious alias?
         let required = &schema_obj_ref.required;
@@ -229,7 +230,12 @@ impl<'a, T> SchemaIndexer<T> {
                         r#"Adding relation from {}.{} back to {}"#,
                         table_name, property_name, backpointer_table_name
                     );
-                    db_builder.add_relation(table_name, property_name, backpointer_table_name)?;
+                    db_builder.add_relation(
+                        table_name,
+                        property_name,
+                        backpointer_table_name,
+                        FieldMappingPolicy::ManyToOne,
+                    )?;
                 }
                 if let Some(type_instance) = &property_object_schema.instance_type {
                     match type_instance {
@@ -243,8 +249,8 @@ impl<'a, T> SchemaIndexer<T> {
                                     // );
                                     // handle sub-messages by
                                     // setting the appropriate foreign key
-                                    // db_builder.add_sub_message_relation(parent_name, table_name)?;
-                                    db_builder.add_relation(parent_name, property_name, name)?;
+                                    db_builder.add_sub_message_relation(parent_name, table_name)?;
+                                    // db_builder.add_relation(parent_name, property_name, name, FieldMappingPolicy::ManyToMany)?;
                                     self.process_schema_object(
                                         property_object_schema,
                                         parent_name,
@@ -253,7 +259,12 @@ impl<'a, T> SchemaIndexer<T> {
                                         db_builder,
                                     )?;
                                 } else {
-                                    db_builder.add_relation(table_name, property_name, name)?;
+                                    db_builder.add_relation(
+                                        table_name,
+                                        property_name,
+                                        name,
+                                        FieldMappingPolicy::ManyToMany,
+                                    )?;
                                     self.process_schema_object(
                                         property_object_schema,
                                         name,
