@@ -160,12 +160,12 @@ impl DatabaseBuilder {
         // add a sub message mapping BACK from sub-type record to sub-message
         // TODO(gavin.doughtie): probably don't want to do this, as multiple submessages
         // could potentially point back to different parent tables??
-        self.add_relation(
-            destination_table_name,
-            source_table_name,
-            source_table_name,
-            FieldMappingPolicy::ManyToMany,
-        )?;
+        // self.add_relation(
+        //     destination_table_name,
+        //     source_table_name,
+        //     source_table_name,
+        //     FieldMappingPolicy::ManyToMany,
+        // )?;
 
         // forward mapping from sub-message to specific sub-type table
 

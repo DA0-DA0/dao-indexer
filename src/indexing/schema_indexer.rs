@@ -139,7 +139,7 @@ impl<'a, T> SchemaIndexer<T> {
                     Schema::Object(schema_object) => {
                         if let Some(obj) = &schema_object.object {
                             if let Some(name) = obj.required.iter().next() {
-                                db_builder.column(parent_name, &foreign_key(name)).integer();
+                                // db_builder.column(parent_name, &foreign_key(name)).integer();
                                 self.process_schema_object(
                                     schema_object,
                                     parent_name,

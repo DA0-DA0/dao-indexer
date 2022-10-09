@@ -201,6 +201,7 @@ pub mod tests {
         let built_table = registry.db_builder.table(name);
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_message" ("#,
+            r#""id" serial UNIQUE,"#,
             r#""simple_field_one" text,"#,
             r#""simple_field_two" integer"#,
             r#")"#,
