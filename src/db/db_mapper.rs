@@ -244,7 +244,7 @@ impl DatabaseMapper {
         let mut child_id_columns: Vec<String> = vec![];
         let mut child_id_values: Vec<Value> = vec![];
         let relationships = self.relationships.get(table_name);
-        println!(
+        debug!(
             "relationships: {:#?}, mapping: {:#?}",
             relationships, mapping
         );
@@ -252,7 +252,7 @@ impl DatabaseMapper {
         for (key, value) in msg {
             if let Some(relationships) = relationships {
                 if let Some(field_relationship) = relationships.get(key) {
-                    println!(
+                    debug!(
                         "relationships: {:#?}, field_relationship for {}:{:#?}",
                         relationships, key, field_relationship
                     );

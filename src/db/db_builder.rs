@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use super::db_mapper::{DatabaseMapper, FieldMappingPolicy};
 use super::db_util::{
     db_column_name, db_table_name, foreign_key, DEFAULT_ID_COLUMN_NAME,
-    DEFAULT_TABLE_NAME_COLUMN_NAME
+    DEFAULT_TABLE_NAME_COLUMN_NAME, TARGET_ID_COLUMN_NAME,
 };
 
 #[derive(Debug)]
@@ -76,7 +76,7 @@ impl DatabaseBuilder {
         self
     }
 
-    fn ensure_primary_id(&mut self, table_name: &str) {
+    pub fn ensure_primary_id(&mut self, table_name: &str) {
         if !self.unique_key_map.contains(table_name) {
             self.unique_key_map.insert(table_name.to_string());
             self.column(table_name, DEFAULT_ID_COLUMN_NAME)
@@ -109,7 +109,7 @@ impl DatabaseBuilder {
             source_property_name,
             destination_table_name,
             DEFAULT_ID_COLUMN_NAME,
-            mapping_policy
+            mapping_policy,
         )?;
         let fk = foreign_key(source_property_name);
         self.column(source_table_name, &fk).integer();
@@ -154,11 +154,21 @@ impl DatabaseBuilder {
         // the sub-type record table by its name:
         self.column(source_table_name, DEFAULT_TABLE_NAME_COLUMN_NAME)
             .text();
+        self.column(source_table_name, TARGET_ID_COLUMN_NAME)
+            .integer();
 
         // add a sub message mapping BACK from sub-type record to sub-message
-        self.add_relation(destination_table_name, source_table_name, source_table_name, FieldMappingPolicy::ManyToMany)?;
+        // TODO(gavin.doughtie): probably don't want to do this, as multiple submessages
+        // could potentially point back to different parent tables??
+        self.add_relation(
+            destination_table_name,
+            source_table_name,
+            source_table_name,
+            FieldMappingPolicy::ManyToMany,
+        )?;
 
         // forward mapping from sub-message to specific sub-type table
+
         self.value_mapper.add_submessage_mapping(
             source_table_name,
             // TARGET_ID_COLUMN_NAME,

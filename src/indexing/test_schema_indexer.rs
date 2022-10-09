@@ -333,11 +333,13 @@ pub mod tests {
 
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,
+            r#""id" serial unique,"#,
             r#""sub_message_id" integer,"#,
             r#""title" text,"#,
             r#""message_id" integer )"#,
         ]
         .join(" ");
+        println!("{}", registry.db_builder.sql_string().unwrap());
         let built_table = registry.db_builder.table(name);
         compare_table_create_statements(built_table, &expected_sql);
 
@@ -393,7 +395,6 @@ pub mod tests {
         };
         let msg_str = serde_json::to_string(&native_simple_related_message).unwrap();
         let msg_dictionary = serde_json::from_str(&msg_str).unwrap();
-        println!("indexing\n{:#?}", msg_dictionary);
         let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, &msg_str);
         assert!(result.is_ok());
 

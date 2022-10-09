@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::db::db_builder::DatabaseBuilder;
-use crate::db::persister::PersisterRef;
 use crate::db::db_mapper::FieldMappingPolicy;
+use crate::db::persister::PersisterRef;
 
 use super::event_map::EventMap;
 use super::index_message::IndexMessage;
@@ -139,9 +139,7 @@ impl<'a, T> SchemaIndexer<T> {
                     Schema::Object(schema_object) => {
                         if let Some(obj) = &schema_object.object {
                             if let Some(name) = obj.required.iter().next() {
-                                db_builder
-                                    .column(parent_name, &format!("{}_id", name))
-                                    .integer();
+                                db_builder.column(parent_name, &foreign_key(name)).integer();
                                 self.process_schema_object(
                                     schema_object,
                                     parent_name,
@@ -169,9 +167,7 @@ impl<'a, T> SchemaIndexer<T> {
             for schema in any_of {
                 match schema {
                     Schema::Object(schema_object) => {
-                        db_builder
-                            .column(parent_name, &format!("{}_id", name))
-                            .integer();
+                        db_builder.column(parent_name, &foreign_key(name)).integer();
                         self.process_schema_object(
                             schema_object,
                             parent_name,
@@ -210,6 +206,7 @@ impl<'a, T> SchemaIndexer<T> {
         _submessage: bool,
     ) -> anyhow::Result<()> {
         let table_name = name; // TODO(gavin.doughtie): is this a spurious alias?
+        db_builder.ensure_primary_id(table_name);
         let required = &schema_obj_ref.required;
         let properties = &schema_obj_ref.properties;
         for (property_name, schema) in properties {
@@ -251,6 +248,7 @@ impl<'a, T> SchemaIndexer<T> {
                                     // setting the appropriate foreign key
                                     db_builder.add_sub_message_relation(parent_name, table_name)?;
                                     // db_builder.add_relation(parent_name, property_name, name, FieldMappingPolicy::ManyToMany)?;
+
                                     self.process_schema_object(
                                         property_object_schema,
                                         parent_name,
@@ -415,9 +413,7 @@ impl<'a, T> SchemaIndexer<T> {
                 }
                 InstanceType::Null => {
                     warn!("Null instance type for {}/{}", table_name, name);
-                    db_builder
-                        .column(table_name, &format!("{}_id", name))
-                        .integer();
+                    db_builder.column(table_name, &foreign_key(name)).integer();
                 }
                 InstanceType::Boolean => {
                     db_builder.column(table_name, name).boolean();
