@@ -9,6 +9,7 @@ pub mod tests {
     use tokio::test;
 
     use crate::db::db_builder::DatabaseBuilder;
+    use crate::db::db_test::compare_table_create_statements;
     use crate::db::persister::PersisterRef;
 
     use crate::indexing::event_map::EventMap;
@@ -185,7 +186,7 @@ pub mod tests {
     }
 
     #[test]
-    async fn test_simple_message() {
+    async fn test_simple_message() -> anyhow::Result<()> {
         use crate::db::db_test::compare_table_create_statements;
         use schemars::schema_for;
 
@@ -209,14 +210,12 @@ pub mod tests {
         .join(" ");
         compare_table_create_statements(built_table, &expected_sql);
 
-        let msg_str = r#"
-        {
+        let msg_dictionary = serde_json::json!({
             "simple_field_one": "simple_field_one value",
-            "simple_field_two": 33
-        }"#;
-        let msg_dictionary = serde_json::from_str(msg_str).unwrap();
-        let result = registry.index_message_and_events(&EventMap::new(), &msg_dictionary, msg_str);
-        assert!(result.is_ok());
+            "simple_field_two": 33,
+        });
+        let msg_str = serde_json::to_string(&msg_dictionary)?;
+        registry.index_message_and_events(&EventMap::new(), &msg_dictionary, &msg_str)
     }
 
     fn build_mock(last_insert_id: u64) -> MockExecResult {
@@ -228,7 +227,6 @@ pub mod tests {
 
     #[test]
     async fn test_simple_sub_message() -> anyhow::Result<()> {
-        // use crate::db::db_test::compare_table_create_statements;
         use schemars::schema_for;
 
         let name = stringify!(SimpleSubMessage);
@@ -256,13 +254,13 @@ pub mod tests {
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
         assert!(registry.initialize().is_ok(), "failed to init indexer");
-        let _expected_sql = vec![
+        let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_sub_message" ("#,
-            r#""id" serial UNIQUE, "target_id" integer, "table_name" text )"#,
+            r#""id" serial UNIQUE, "target_id" integer, "target_table_name" text )"#,
         ]
         .join(" ");
-        // let built_table = registry.db_builder.table(name);
-        //compare_table_create_statements(built_table, &expected_sql);
+        let built_table = registry.db_builder.table(name);
+        compare_table_create_statements(built_table, &expected_sql);
         println!("{}", registry.db_builder.sql_string().unwrap());
         // Now save a message:
         let msg_dictionary = serde_json::json!({
