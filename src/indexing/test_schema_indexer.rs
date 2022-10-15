@@ -16,6 +16,7 @@ pub mod tests {
 
     use schemars::schema::RootSchema;
     use serde_json::Value;
+    use log::debug;
 
     use schemars::JsonSchema;
     #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -300,7 +301,8 @@ pub mod tests {
         .join(" ");
         let built_table = registry.db_builder.table(name);
         compare_table_create_statements(built_table, &expected_sql);
-        println!("{}", registry.db_builder.sql_string().unwrap());
+        debug!("{}", registry.db_builder.sql_string().unwrap());
+
         // Now save a message:
         let msg_dictionary = serde_json::json!({
             "SimpleSubMessage": {
@@ -315,7 +317,7 @@ pub mod tests {
         let expected_transaction_log = vec![
             sea_orm::Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"INSERT INTO type_a" ("type_a_contract_address", "type_a_count") VALUES ($1, $2)"#,
+                r#"INSERT INTO "type_a" ("type_a_contract_address", "type_a_count") VALUES ($1, $2)"#,
                 vec!["type a contract address value".into(), 99u64.into()],
             ),
             sea_orm::Transaction::from_sql_and_values(

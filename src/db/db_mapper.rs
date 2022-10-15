@@ -8,13 +8,20 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 
-/// Relational mapping
+/// Specifies how database relationshiops are constructed.
+/// These relationships drive the construction of
+/// relational indices
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DatabaseRelationship {
+    /// The name of the table that contains the foreign key
     pub source_table: String,
+    /// The name of the column that contains the foreign key
     pub source_column: String,
+    /// The name of the table that contains the primary key
     pub destination_table: String,
+    /// The name of the column that contains the primary key
     pub destination_column: String,
+    /// The name of the table used for many-many joins
     pub join_table: Option<String>,
 }
 
@@ -36,22 +43,35 @@ impl DatabaseRelationship {
     }
 }
 
+/// How to build a relational mapping
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum FieldMappingPolicy {
     Value,
     ManyToOne,
     ManyToMany,
     OneToOne,
+    TableNameValue,
 }
 
+/// Maps from a message name and field name to a
+/// table and column name, through an optional
+/// related table, with a mapping policy.
+/// (This struct specifies how values are actually
+/// inserted into the database.)
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FieldMapping {
+    /// The name of the schema message
     pub message_name: String,
+    /// The name of the field in the schema message
     pub field_name: String,
+    /// The name of the table for schema messages
     pub table_name: String,
+    /// The name of the column that receives this field
     pub column_name: String,
-    pub policy: FieldMappingPolicy,
+    /// Related table in the case of relational mapping
     pub related_table: String,
+    /// How to perform relational mapping
+    pub policy: FieldMappingPolicy,
 }
 
 impl FieldMapping {
@@ -126,40 +146,61 @@ impl DatabaseMapper {
         Ok(())
     }
 
+    // pub fn add_submessage_mapping(
+    //     &mut self,
+    //     message_name: &str,
+    //     submessage_name: &str,
+    // ) -> anyhow::Result<()> {
+    //     self.add_relational_mapping(
+    //         message_name,
+    //         submessage_name,
+    //         submessage_name,
+    //         DEFAULT_ID_COLUMN_NAME,
+    //         FieldMappingPolicy::ManyToMany,
+    //     )?;
+    //     self.add_mapping(
+    //         message_name.to_string(),
+    //         submessage_name.to_string(),
+    //         message_name.to_string(),
+    //         DEFAULT_TABLE_NAME_COLUMN_NAME.to_string(),
+    //     )
+    // }
+
     pub fn add_submessage_mapping(
         &mut self,
         message_name: &str,
         submessage_name: &str,
     ) -> anyhow::Result<()> {
-        let relation = DatabaseRelationship::new(
+        let message_relationships = self
+            .relationships
+            .entry(message_name.to_string())
+            .or_insert_with(HashMap::new);
+
+        let message_to_sub_relation = DatabaseRelationship::new(
             message_name.to_string(),
             TARGET_ID_COLUMN_NAME.to_string(),
             submessage_name.to_string(),
             DEFAULT_ID_COLUMN_NAME.to_string(),
             None,
         );
-        let message_relationships = self
-            .relationships
-            .entry(message_name.to_string())
-            .or_insert_with(HashMap::new);
-        message_relationships.insert(submessage_name.to_string(), relation);
+
+        message_relationships.insert(message_name.to_string(), message_to_sub_relation);
+
         let message_mappings = self
             .mappings
             .entry(message_name.to_string())
             .or_insert_with(HashMap::new);
 
-        // TODO(gavin.doughtie): This would
-        // be the correct place to construct
-        // the subfield mapping
-        let mapping = FieldMapping::new(
+        let message_to_sub_mapping = FieldMapping::new(
+            message_name.to_string(),
+            submessage_name.to_string(),
             message_name.to_string(),
             DEFAULT_TABLE_NAME_COLUMN_NAME.to_string(),
-            submessage_name.to_string(),
-            DEFAULT_ID_COLUMN_NAME.to_string(),
-            submessage_name.to_string(),
-            FieldMappingPolicy::ManyToOne,
+            message_name.to_string(),
+            FieldMappingPolicy::TableNameValue,
         );
-        message_mappings.insert(message_name.to_string(), mapping);
+
+        message_mappings.insert(message_name.to_string(), message_to_sub_mapping);
 
         Ok(())
     }
@@ -181,6 +222,11 @@ impl DatabaseMapper {
             column_name: {})"#,
             message_name, field_name, related_message_name, related_column_name
         );
+        let message_relationships = self
+            .relationships
+            .entry(message_name.to_string())
+            .or_insert_with(HashMap::new);
+
         let relation = DatabaseRelationship::new(
             message_name.to_string(),
             field_name.to_string(),
@@ -188,10 +234,7 @@ impl DatabaseMapper {
             related_column_name.to_string(),
             None,
         );
-        let message_relationships = self
-            .relationships
-            .entry(message_name.to_string())
-            .or_insert_with(HashMap::new);
+
         message_relationships.insert(field_name.to_string(), relation);
 
         let message_mappings = self
@@ -264,6 +307,15 @@ impl DatabaseMapper {
                         child_id_columns.push(foreign_key(&field_relationship.source_column));
                         child_id_values.push(child_id_value);
                     }
+                } else if let Some(submessage_mapping) = self.mappings.get(key) {
+                    debug!("submessage_mapping: {:#?}", submessage_mapping);
+                    let child_id = self.persist_message(persister, key, value, None).await?;
+                    let child_id_value = serde_json::json!(child_id);
+                    child_id_columns.push(TARGET_ID_COLUMN_NAME.to_string());
+                    child_id_values.push(child_id_value);
+                    child_id_columns.push(DEFAULT_TABLE_NAME_COLUMN_NAME.to_string());
+                    let child_tablename_value = serde_json::json!(key);
+                    child_id_values.push(child_tablename_value);
                 } else {
                     columns.push(key);
                     values.push(value);
@@ -306,6 +358,7 @@ mod tests {
 
     #[test]
     async fn test_submessage_persistence() -> anyhow::Result<()> {
+        env_logger::init();
         let mut mapper = DatabaseMapper::new();
         let message_name = "SimpleSubMessage".to_string();
 
@@ -364,8 +417,6 @@ mod tests {
             }
         });
 
-        // let type_a_message_str = &serde_json::to_string(&type_a_message_dict)?;
-
         let type_b_message_dict = serde_json::json!({
             "type_b": {
                 "type_b_contract_address": "type b contract address value",
@@ -373,7 +424,6 @@ mod tests {
                 "type_b_additional_field": "type b additional field value"
             }
         });
-        // let type_b_message_str = &serde_json::to_string(&type_b_message_dict)?;
 
         let type_a_record_id = 15u64;
         let type_a_sub_message_id = 16u64;
@@ -397,14 +447,6 @@ mod tests {
                 rows_affected: 1,
             },
         ]);
-        let db = mock_db.into_connection();
-        let persister = DatabasePersister::new(db);
-        let _record_one_id: u64 = mapper
-            .persist_message(&persister, &message_name, &type_a_message_dict, None)
-            .await?;
-        let _record_two_id: u64 = mapper
-            .persist_message(&persister, &message_name, &type_b_message_dict, None)
-            .await?;
         let _expected_log = vec![
             Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
@@ -413,12 +455,38 @@ mod tests {
             ),
             Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"INSERT INTO "simple_sub_message" ("target_id", "table_name") VALUES ($1, $2)"#,
-                vec![type_a_record_id.into(), type_a_name.into()],
+                r#"INSERT INTO "simple_sub_message" ("target_table_name", "target_id") VALUES ($1, $2)"#,
+                vec!["type_a".into(), type_a_record_id.into()],
+            ),
+            Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "type_b" ("type_b_contract_address", "type_b_count", "type_b_additional_field") VALUES ($1, $2, $3)"#,
+                vec![
+                    "type b contract address value".into(),
+                    "101".into(),
+                    "type b additional field value".into(),
+                ],
+            ),
+            Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"INSERT INTO "simple_sub_message" ("target_id", "target_table_name") VALUES ($1, $2)"#,
+                vec![type_b_record_id.into(), type_b_name.into()],
             ),
         ];
+
+        // actually run the persister
+        let db = mock_db.into_connection();
+        let persister = DatabasePersister::new(db);
+        let _record_one_id: u64 = mapper
+            .persist_message(&persister, &message_name, &type_a_message_dict, None)
+            .await?;
+        let _record_two_id: u64 = mapper
+            .persist_message(&persister, &message_name, &type_b_message_dict, None)
+            .await?;
+
         // assert_eq!(expected_log, persister.into_transaction_log());
-        println!("{:#?}", persister.into_transaction_log());
+        let log = persister.into_transaction_log();
+        debug!("\n========\ntransaction_log: {:#?}", log);
         Ok(())
     }
 
@@ -611,7 +679,7 @@ mod tests {
             record_two.get(first_name_field_name.clone()).unwrap(),
             persisted_record_two.get(&first_name_field_name).unwrap()
         );
-        println!("persisted:\n{:#?}", persister);
+        debug!("persisted:\n{:#?}", persister);
 
         Ok(())
     }

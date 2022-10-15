@@ -1,0 +1,154 @@
+
+running 1 test
+initialize called on SimpleRelatedMessage
+process_subschema SimpleSubMessage->SimpleSubMessage
+Processing submessage type_a on SimpleSubMessage
+process_submessage type_a on SimpleSubMessage
+Not adding relation from type_a to type_a
+Processing submessage type_b on SimpleSubMessage
+process_submessage type_b on SimpleSubMessage
+Not adding relation from type_b to type_b
+finalize_columns for SimpleMessage, db_name: simple_message
+finalize_columns for SimpleRelatedMessage, db_name: simple_related_message
+finalize_columns for SimpleSubMessage, db_name: simple_sub_message
+finalize_columns for type_a, db_name: type_a
+finalize_columns for type_b, db_name: type_b
+transaction mismatch. Expected:
+
+Transaction {
+    stmts: [
+        Statement {
+            sql: "INSERT INTO \"simple_message\" (\"simple_field_one\", \"simple_field_two\") VALUES ($1, $2)",
+            values: Some(
+                Values(
+                    [
+                        String(
+                            Some(
+                                "simple_field_one value",
+                            ),
+                        ),
+                        BigInt(
+                            Some(
+                                33,
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+            db_backend: Postgres,
+        },
+    ],
+}
+Transaction {
+    stmts: [
+        Statement {
+            sql: "INSERT INTO type_a\" (\"type_a_contract_address\", \"type_a_count\") VALUES ($1, $2)",
+            values: Some(
+                Values(
+                    [
+                        String(
+                            Some(
+                                "type a contract address value",
+                            ),
+                        ),
+                        BigInt(
+                            Some(
+                                99,
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+            db_backend: Postgres,
+        },
+    ],
+}
+Transaction {
+    stmts: [
+        Statement {
+            sql: "INSERT INTO \"simple_related_message\" (\"title\", \"message_id\", \"sub_message_id\") VALUES ($1, $2, $3)",
+            values: Some(
+                Values(
+                    [
+                        String(
+                            Some(
+                                "SimpleRelatedMessage Title",
+                            ),
+                        ),
+                        BigInt(
+                            Some(
+                                15,
+                            ),
+                        ),
+                        BigInt(
+                            Some(
+                                16,
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+            db_backend: Postgres,
+        },
+    ],
+}
+Actual:
+
+Transaction {
+    stmts: [
+        Statement {
+            sql: "INSERT INTO \"simple_message\" (\"simple_field_one\", \"simple_field_two\") VALUES ($1, $2)",
+            values: Some(
+                Values(
+                    [
+                        String(
+                            Some(
+                                "simple_field_one value",
+                            ),
+                        ),
+                        BigInt(
+                            Some(
+                                33,
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+            db_backend: Postgres,
+        },
+    ],
+}
+Transaction {
+    stmts: [
+        Statement {
+            sql: "INSERT INTO \"simple_related_message\" (\"title\", \"message_id\", \"sub_message_id\") VALUES ($1, $2, $3)",
+            values: Some(
+                Values(
+                    [
+                        String(
+                            Some(
+                                "SimpleRelatedMessage Title",
+                            ),
+                        ),
+                        BigInt(
+                            Some(
+                                16,
+                            ),
+                        ),
+                        BigInt(
+                            Some(
+                                0,
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+            db_backend: Postgres,
+        },
+    ],
+}
+test indexing::test_schema_indexer::tests::test_simple_related_message ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 9.56s
+
+gavin@MovieMacBook ~/SoftwareProjects/daodao/dao-indexer (schema-indexer-test-file) $ 
