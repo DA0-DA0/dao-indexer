@@ -22,7 +22,7 @@ to the crates in Cargo.toml, you'll want to install the `diesel_cli` tool:
 
 `cargo install diesel_cli --no-default-features --features postgres`
 
-Note: this requires that the postgres libraries are on your link path already.
+Note: this requires that the postgres libraries are on your link path already. You'll also want to add `~/.cargo/bin` to your local `$PATH` variable.
 
 #### Database Config
 
