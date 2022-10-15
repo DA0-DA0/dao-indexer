@@ -14,9 +14,9 @@ pub mod tests {
 
     use crate::indexing::event_map::EventMap;
 
+    use log::debug;
     use schemars::schema::RootSchema;
     use serde_json::Value;
-    use log::debug;
 
     use schemars::JsonSchema;
     #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
