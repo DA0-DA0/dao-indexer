@@ -10,6 +10,11 @@ This codebase is under heavy development. You're welcome to it, of course (it's 
 
 ### Database Setup
 
+Assuming you have installed postgres (via apt, homebrew, etc.) you will need to create the indexer's
+root database. (we use "daodaoindexer" in the examples below but you can call it whatever you like).
+
+`createdb --host=localhost --port=5432 --username=$USER --no-password daodaoindexer`
+
 #### Install Diesel
 
 dao-indexer uses the Diesel[https://diesel.rs/] ORM for Postgres as well as the complementary SeaORM[https://www.sea-ql.org/SeaORM/] crate. In addition
@@ -17,7 +22,7 @@ to the crates in Cargo.toml, you'll want to install the `diesel_cli` tool:
 
 `cargo install diesel_cli --no-default-features --features postgres`
 
-Note: this requires that the postgres libraries are on your link path already.
+Note: this requires that the postgres libraries are on your link path already. You'll also want to add `~/.cargo/bin` to your local `$PATH` variable.
 
 #### Database Config
 

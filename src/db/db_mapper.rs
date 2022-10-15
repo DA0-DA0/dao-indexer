@@ -146,26 +146,6 @@ impl DatabaseMapper {
         Ok(())
     }
 
-    // pub fn add_submessage_mapping(
-    //     &mut self,
-    //     message_name: &str,
-    //     submessage_name: &str,
-    // ) -> anyhow::Result<()> {
-    //     self.add_relational_mapping(
-    //         message_name,
-    //         submessage_name,
-    //         submessage_name,
-    //         DEFAULT_ID_COLUMN_NAME,
-    //         FieldMappingPolicy::ManyToMany,
-    //     )?;
-    //     self.add_mapping(
-    //         message_name.to_string(),
-    //         submessage_name.to_string(),
-    //         message_name.to_string(),
-    //         DEFAULT_TABLE_NAME_COLUMN_NAME.to_string(),
-    //     )
-    // }
-
     pub fn add_submessage_mapping(
         &mut self,
         message_name: &str,
