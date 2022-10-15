@@ -134,7 +134,7 @@ impl DatabaseBuilder {
             let constraints = self
                 .table_constraints
                 .entry(destination_table_name.to_string())
-                .or_insert(vec![]);
+                .or_default();
             constraints.push(foreign_key_create);
         }
 

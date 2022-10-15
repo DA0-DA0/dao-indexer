@@ -65,8 +65,8 @@ pub struct SchemaData {
     pub schema_map: HashMap<String, SchemaObject>,
 }
 
-impl SchemaData {
-    pub fn default() -> Self {
+impl Default for SchemaData {
+    fn default() -> Self {
         SchemaData {
             root_keys: HashMap::new(),
             required_roots: HashMap::new(),

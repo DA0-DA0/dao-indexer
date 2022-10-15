@@ -15,7 +15,7 @@ pub fn insert_transaction(
 ) -> anyhow::Result<()> {
     if let Some(database_connection) = &indexer_registry.db {
         let hash_of_tx = tx_response.hash.to_string();
-        let tx_as_json = serde_json::to_value(&tx_response)?;
+        let tx_as_json = serde_json::to_value(tx_response)?;
 
         let new_transaction = NewTransaction {
             hash: hash_of_tx,
