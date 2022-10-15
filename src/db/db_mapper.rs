@@ -447,30 +447,30 @@ mod tests {
                 rows_affected: 1,
             },
         ]);
-        let _expected_log = vec![
+        let expected_log = vec![
             Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
                 r#"INSERT INTO "type_a" ("type_a_contract_address", "type_a_count") VALUES ($1, $2)"#,
-                vec!["type a contract address value".into(), "99".into()],
+                vec!["type a contract address value".into(), 99_i64.into()],
             ),
             Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"INSERT INTO "simple_sub_message" ("target_table_name", "target_id") VALUES ($1, $2)"#,
-                vec!["type_a".into(), type_a_record_id.into()],
+                r#"INSERT INTO "simple_sub_message" ("target_id", "target_table_name") VALUES ($1, $2)"#,
+                vec![(type_a_record_id as i64).into(), "type_a".into()],
             ),
             Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"INSERT INTO "type_b" ("type_b_contract_address", "type_b_count", "type_b_additional_field") VALUES ($1, $2, $3)"#,
+                r#"INSERT INTO "type_b" ("type_b_additional_field", "type_b_contract_address", "type_b_count") VALUES ($1, $2, $3)"#,
                 vec![
-                    "type b contract address value".into(),
-                    "101".into(),
                     "type b additional field value".into(),
+                    "type b contract address value".into(),
+                    101_i64.into(),
                 ],
             ),
             Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
                 r#"INSERT INTO "simple_sub_message" ("target_id", "target_table_name") VALUES ($1, $2)"#,
-                vec![type_b_record_id.into(), type_b_name.into()],
+                vec![(type_b_record_id as i64).into(), type_b_name.into()],
             ),
         ];
 
@@ -484,9 +484,8 @@ mod tests {
             .persist_message(&persister, &message_name, &type_b_message_dict, None)
             .await?;
 
-        // assert_eq!(expected_log, persister.into_transaction_log());
         let log = persister.into_transaction_log();
-        debug!("\n========\ntransaction_log: {:#?}", log);
+        assert_eq!(expected_log, log);
         Ok(())
     }
 
