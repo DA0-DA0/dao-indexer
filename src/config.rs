@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use std::env;
 use std::fmt;
 
@@ -57,7 +57,7 @@ impl IndexerConfig {
 
         let input_file = matches.value_of("config").unwrap_or("");
         if !input_file.is_empty() {
-            dotenv::from_filename(input_file).ok();
+            dotenvy::from_filename(input_file).ok();
         } else {
             dotenv().ok();
         }
