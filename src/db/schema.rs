@@ -1,4 +1,6 @@
-table! {
+// @generated automatically by Diesel CLI.
+
+diesel::table! {
     block (height) {
         height -> Int8,
         hash -> Text,
@@ -6,7 +8,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     codes (code_id) {
         code_id -> Int8,
         creator -> Text,
@@ -15,13 +17,13 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     coin (id) {
         id -> Int4,
     }
 }
 
-table! {
+diesel::table! {
     contracts (address) {
         address -> Text,
         staking_contract_address -> Text,
@@ -34,7 +36,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     cw20_balances (id) {
         id -> Int4,
         address -> Text,
@@ -43,7 +45,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     cw20_transactions (id) {
         id -> Int4,
         cw20_address -> Text,
@@ -54,7 +56,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     dao (contract_address) {
         contract_address -> Text,
         staking_contract_address -> Text,
@@ -66,7 +68,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     exec_msg (id) {
         id -> Int4,
         sender -> Text,
@@ -74,7 +76,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     gov_token (address) {
         address -> Text,
         name -> Text,
@@ -84,7 +86,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     logo (id) {
         id -> Int4,
         url -> Nullable<Text>,
@@ -93,7 +95,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     marketing (id) {
         id -> Int4,
         project -> Nullable<Text>,
@@ -103,7 +105,7 @@ table! {
     }
 }
 
-table! {
+diesel::table! {
     transaction (hash) {
         hash -> Text,
         height -> Int8,
@@ -111,7 +113,7 @@ table! {
     }
 }
 
-allow_tables_to_appear_in_same_query!(
+diesel::allow_tables_to_appear_in_same_query!(
     block,
     codes,
     coin,
