@@ -343,7 +343,7 @@ pub async fn block_synchronizer(
         } else if remaining < config.block_page_size as i64 {
             current_height += remaining as u64;
         } else {
-            current_height += config.block_page_size as u64;
+            current_height += config.block_page_size;
         }
         outstanding_requests += 1;
         if outstanding_requests == max_requests {

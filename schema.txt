@@ -1,0 +1,491 @@
+RootSchema {
+    meta_schema: Some(
+        "http://json-schema.org/draft-07/schema#",
+    ),
+    schema: SchemaObject {
+        metadata: Some(
+            Metadata {
+                id: None,
+                title: Some(
+                    "SimpleRelatedMessage",
+                ),
+                description: None,
+                default: None,
+                deprecated: false,
+                read_only: false,
+                write_only: false,
+                examples: [],
+            },
+        ),
+        instance_type: Some(
+            Single(
+                Object,
+            ),
+        ),
+        format: None,
+        enum_values: None,
+        const_value: None,
+        subschemas: None,
+        number: None,
+        string: None,
+        array: None,
+        object: Some(
+            ObjectValidation {
+                max_properties: None,
+                min_properties: None,
+                required: {
+                    "message",
+                    "sub_message",
+                    "title",
+                },
+                properties: {
+                    "message": Object(
+                        SchemaObject {
+                            metadata: None,
+                            instance_type: None,
+                            format: None,
+                            enum_values: None,
+                            const_value: None,
+                            subschemas: None,
+                            number: None,
+                            string: None,
+                            array: None,
+                            object: None,
+                            reference: Some(
+                                "#/definitions/SimpleMessage",
+                            ),
+                            extensions: {},
+                        },
+                    ),
+                    "sub_message": Object(
+                        SchemaObject {
+                            metadata: None,
+                            instance_type: None,
+                            format: None,
+                            enum_values: None,
+                            const_value: None,
+                            subschemas: None,
+                            number: None,
+                            string: None,
+                            array: None,
+                            object: None,
+                            reference: Some(
+                                "#/definitions/SimpleSubMessage",
+                            ),
+                            extensions: {},
+                        },
+                    ),
+                    "title": Object(
+                        SchemaObject {
+                            metadata: None,
+                            instance_type: Some(
+                                Single(
+                                    String,
+                                ),
+                            ),
+                            format: None,
+                            enum_values: None,
+                            const_value: None,
+                            subschemas: None,
+                            number: None,
+                            string: None,
+                            array: None,
+                            object: None,
+                            reference: None,
+                            extensions: {},
+                        },
+                    ),
+                },
+                pattern_properties: {},
+                additional_properties: None,
+                property_names: None,
+            },
+        ),
+        reference: None,
+        extensions: {},
+    },
+    definitions: {
+        "SimpleMessage": Object(
+            SchemaObject {
+                metadata: None,
+                instance_type: Some(
+                    Single(
+                        Object,
+                    ),
+                ),
+                format: None,
+                enum_values: None,
+                const_value: None,
+                subschemas: None,
+                number: None,
+                string: None,
+                array: None,
+                object: Some(
+                    ObjectValidation {
+                        max_properties: None,
+                        min_properties: None,
+                        required: {
+                            "simple_field_one",
+                            "simple_field_two",
+                        },
+                        properties: {
+                            "simple_field_one": Object(
+                                SchemaObject {
+                                    metadata: None,
+                                    instance_type: Some(
+                                        Single(
+                                            String,
+                                        ),
+                                    ),
+                                    format: None,
+                                    enum_values: None,
+                                    const_value: None,
+                                    subschemas: None,
+                                    number: None,
+                                    string: None,
+                                    array: None,
+                                    object: None,
+                                    reference: None,
+                                    extensions: {},
+                                },
+                            ),
+                            "simple_field_two": Object(
+                                SchemaObject {
+                                    metadata: None,
+                                    instance_type: Some(
+                                        Single(
+                                            Integer,
+                                        ),
+                                    ),
+                                    format: Some(
+                                        "uint128",
+                                    ),
+                                    enum_values: None,
+                                    const_value: None,
+                                    subschemas: None,
+                                    number: Some(
+                                        NumberValidation {
+                                            multiple_of: None,
+                                            maximum: None,
+                                            exclusive_maximum: None,
+                                            minimum: Some(
+                                                0.0,
+                                            ),
+                                            exclusive_minimum: None,
+                                        },
+                                    ),
+                                    string: None,
+                                    array: None,
+                                    object: None,
+                                    reference: None,
+                                    extensions: {},
+                                },
+                            ),
+                        },
+                        pattern_properties: {},
+                        additional_properties: None,
+                        property_names: None,
+                    },
+                ),
+                reference: None,
+                extensions: {},
+            },
+        ),
+        "SimpleSubMessage": Object(
+            SchemaObject {
+                metadata: None,
+                instance_type: None,
+                format: None,
+                enum_values: None,
+                const_value: None,
+                subschemas: Some(
+                    SubschemaValidation {
+                        all_of: None,
+                        any_of: None,
+                        one_of: Some(
+                            [
+                                Object(
+                                    SchemaObject {
+                                        metadata: None,
+                                        instance_type: Some(
+                                            Single(
+                                                Object,
+                                            ),
+                                        ),
+                                        format: None,
+                                        enum_values: None,
+                                        const_value: None,
+                                        subschemas: None,
+                                        number: None,
+                                        string: None,
+                                        array: None,
+                                        object: Some(
+                                            ObjectValidation {
+                                                max_properties: None,
+                                                min_properties: None,
+                                                required: {
+                                                    "type_a",
+                                                },
+                                                properties: {
+                                                    "type_a": Object(
+                                                        SchemaObject {
+                                                            metadata: None,
+                                                            instance_type: Some(
+                                                                Single(
+                                                                    Object,
+                                                                ),
+                                                            ),
+                                                            format: None,
+                                                            enum_values: None,
+                                                            const_value: None,
+                                                            subschemas: None,
+                                                            number: None,
+                                                            string: None,
+                                                            array: None,
+                                                            object: Some(
+                                                                ObjectValidation {
+                                                                    max_properties: None,
+                                                                    min_properties: None,
+                                                                    required: {
+                                                                        "type_a_contract_address",
+                                                                        "type_a_count",
+                                                                    },
+                                                                    properties: {
+                                                                        "type_a_contract_address": Object(
+                                                                            SchemaObject {
+                                                                                metadata: None,
+                                                                                instance_type: Some(
+                                                                                    Single(
+                                                                                        String,
+                                                                                    ),
+                                                                                ),
+                                                                                format: None,
+                                                                                enum_values: None,
+                                                                                const_value: None,
+                                                                                subschemas: None,
+                                                                                number: None,
+                                                                                string: None,
+                                                                                array: None,
+                                                                                object: None,
+                                                                                reference: None,
+                                                                                extensions: {},
+                                                                            },
+                                                                        ),
+                                                                        "type_a_count": Object(
+                                                                            SchemaObject {
+                                                                                metadata: None,
+                                                                                instance_type: Some(
+                                                                                    Single(
+                                                                                        Integer,
+                                                                                    ),
+                                                                                ),
+                                                                                format: Some(
+                                                                                    "uint32",
+                                                                                ),
+                                                                                enum_values: None,
+                                                                                const_value: None,
+                                                                                subschemas: None,
+                                                                                number: Some(
+                                                                                    NumberValidation {
+                                                                                        multiple_of: None,
+                                                                                        maximum: None,
+                                                                                        exclusive_maximum: None,
+                                                                                        minimum: Some(
+                                                                                            0.0,
+                                                                                        ),
+                                                                                        exclusive_minimum: None,
+                                                                                    },
+                                                                                ),
+                                                                                string: None,
+                                                                                array: None,
+                                                                                object: None,
+                                                                                reference: None,
+                                                                                extensions: {},
+                                                                            },
+                                                                        ),
+                                                                    },
+                                                                    pattern_properties: {},
+                                                                    additional_properties: None,
+                                                                    property_names: None,
+                                                                },
+                                                            ),
+                                                            reference: None,
+                                                            extensions: {},
+                                                        },
+                                                    ),
+                                                },
+                                                pattern_properties: {},
+                                                additional_properties: Some(
+                                                    Bool(
+                                                        false,
+                                                    ),
+                                                ),
+                                                property_names: None,
+                                            },
+                                        ),
+                                        reference: None,
+                                        extensions: {},
+                                    },
+                                ),
+                                Object(
+                                    SchemaObject {
+                                        metadata: None,
+                                        instance_type: Some(
+                                            Single(
+                                                Object,
+                                            ),
+                                        ),
+                                        format: None,
+                                        enum_values: None,
+                                        const_value: None,
+                                        subschemas: None,
+                                        number: None,
+                                        string: None,
+                                        array: None,
+                                        object: Some(
+                                            ObjectValidation {
+                                                max_properties: None,
+                                                min_properties: None,
+                                                required: {
+                                                    "type_b",
+                                                },
+                                                properties: {
+                                                    "type_b": Object(
+                                                        SchemaObject {
+                                                            metadata: None,
+                                                            instance_type: Some(
+                                                                Single(
+                                                                    Object,
+                                                                ),
+                                                            ),
+                                                            format: None,
+                                                            enum_values: None,
+                                                            const_value: None,
+                                                            subschemas: None,
+                                                            number: None,
+                                                            string: None,
+                                                            array: None,
+                                                            object: Some(
+                                                                ObjectValidation {
+                                                                    max_properties: None,
+                                                                    min_properties: None,
+                                                                    required: {
+                                                                        "type_b_addtional_field",
+                                                                        "type_b_contract_address",
+                                                                        "type_b_count",
+                                                                    },
+                                                                    properties: {
+                                                                        "type_b_addtional_field": Object(
+                                                                            SchemaObject {
+                                                                                metadata: None,
+                                                                                instance_type: Some(
+                                                                                    Single(
+                                                                                        String,
+                                                                                    ),
+                                                                                ),
+                                                                                format: None,
+                                                                                enum_values: None,
+                                                                                const_value: None,
+                                                                                subschemas: None,
+                                                                                number: None,
+                                                                                string: None,
+                                                                                array: None,
+                                                                                object: None,
+                                                                                reference: None,
+                                                                                extensions: {},
+                                                                            },
+                                                                        ),
+                                                                        "type_b_contract_address": Object(
+                                                                            SchemaObject {
+                                                                                metadata: None,
+                                                                                instance_type: Some(
+                                                                                    Single(
+                                                                                        String,
+                                                                                    ),
+                                                                                ),
+                                                                                format: None,
+                                                                                enum_values: None,
+                                                                                const_value: None,
+                                                                                subschemas: None,
+                                                                                number: None,
+                                                                                string: None,
+                                                                                array: None,
+                                                                                object: None,
+                                                                                reference: None,
+                                                                                extensions: {},
+                                                                            },
+                                                                        ),
+                                                                        "type_b_count": Object(
+                                                                            SchemaObject {
+                                                                                metadata: None,
+                                                                                instance_type: Some(
+                                                                                    Single(
+                                                                                        Integer,
+                                                                                    ),
+                                                                                ),
+                                                                                format: Some(
+                                                                                    "uint32",
+                                                                                ),
+                                                                                enum_values: None,
+                                                                                const_value: None,
+                                                                                subschemas: None,
+                                                                                number: Some(
+                                                                                    NumberValidation {
+                                                                                        multiple_of: None,
+                                                                                        maximum: None,
+                                                                                        exclusive_maximum: None,
+                                                                                        minimum: Some(
+                                                                                            0.0,
+                                                                                        ),
+                                                                                        exclusive_minimum: None,
+                                                                                    },
+                                                                                ),
+                                                                                string: None,
+                                                                                array: None,
+                                                                                object: None,
+                                                                                reference: None,
+                                                                                extensions: {},
+                                                                            },
+                                                                        ),
+                                                                    },
+                                                                    pattern_properties: {},
+                                                                    additional_properties: None,
+                                                                    property_names: None,
+                                                                },
+                                                            ),
+                                                            reference: None,
+                                                            extensions: {},
+                                                        },
+                                                    ),
+                                                },
+                                                pattern_properties: {},
+                                                additional_properties: Some(
+                                                    Bool(
+                                                        false,
+                                                    ),
+                                                ),
+                                                property_names: None,
+                                            },
+                                        ),
+                                        reference: None,
+                                        extensions: {},
+                                    },
+                                ),
+                            ],
+                        ),
+                        not: None,
+                        if_schema: None,
+                        then_schema: None,
+                        else_schema: None,
+                    },
+                ),
+                number: None,
+                string: None,
+                array: None,
+                object: None,
+                reference: None,
+                extensions: {},
+            },
+        ),
+    },
+}

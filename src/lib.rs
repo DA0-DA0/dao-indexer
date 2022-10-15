@@ -12,6 +12,7 @@
 #[macro_use]
 extern crate diesel;
 extern crate dotenv;
+extern crate env_logger;
 
 /// Configure run-time indexing behavior
 pub mod config;

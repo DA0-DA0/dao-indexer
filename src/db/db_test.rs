@@ -22,7 +22,12 @@ pub fn is_sql_equivalent(lhs: &str, rhs: &str) -> bool {
 
         if let Statement::CreateTable { columns, .. } = expected_ast {
             let expected_columns = HashSet::<ColumnDef>::from_iter(columns.iter().cloned());
-            return expected_columns == built_columns;
+            let diff = expected_columns.difference(&built_columns);
+            // return expected_columns == built_columns;
+            if diff.clone().count() != 0 {
+                println!("sql mismatch:\n{:#?}", &diff);
+            }
+            return diff.count() == 0;
         }
     } else {
         eprintln!("Don't know how to check {:#?}", built_ast);
@@ -34,5 +39,12 @@ pub fn compare_table_create_statements(built_statement: &TableCreateStatement, e
     use sea_orm::DbBackend;
     let db_postgres = DbBackend::Postgres;
     let built_sql = db_postgres.build(built_statement).to_string();
-    assert!(is_sql_equivalent(expected_sql, &built_sql));
+    let sql_equivalent = is_sql_equivalent(expected_sql, &built_sql);
+    if !sql_equivalent {
+        eprintln!(
+            "SQL mismatch. Expected:\n{}\nReceived:\n{}",
+            expected_sql, &built_sql
+        );
+    }
+    assert!(sql_equivalent);
 }

@@ -1,4 +1,4 @@
-use log::warn;
+use log::{debug, warn};
 use schemars::schema::{
     InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec, SubschemaValidation,
 };
@@ -11,7 +11,7 @@ pub fn dump_subschema(subschema: &SubschemaValidation, name: &str) {
                     dump_schema_object(schema_object, name);
                 }
                 Schema::Bool(bool_val) => {
-                    println!("ignoring bool_val {} for {}", bool_val, name);
+                    debug!("ignoring bool_val {} for {}", bool_val, name);
                 }
             }
         }
@@ -110,7 +110,7 @@ pub fn dump_schema_object(schema: &SchemaObject, name: &str) {
                                                             );
                                                         }
                                                         _ => {
-                                                            println!(
+                                                            eprintln!(
                                                                 "{:?} Not handled",
                                                                 optional_val
                                                             );
@@ -123,13 +123,12 @@ pub fn dump_schema_object(schema: &SchemaObject, name: &str) {
                                         }
                                     }
                                     None => {
-                                        // println!("{} has no instance_type", property_name);
                                         required_roots.push(property_name);
                                         if let Some(subschema) = &schema.subschemas {
                                             is_subschema = true;
                                             dump_subschema(subschema, property_name);
                                         } else {
-                                            println!(
+                                            debug!(
                                                 "process schema {}, {:#?}",
                                                 property_name, schema
                                             );

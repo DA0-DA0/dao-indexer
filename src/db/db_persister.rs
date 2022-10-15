@@ -59,8 +59,13 @@ impl DatabasePersister {
         DatabasePersister { db }
     }
 
+    // Testing methods
     pub fn into_transaction_log(self) -> std::vec::Vec<sea_orm::Transaction> {
         self.db.into_transaction_log()
+    }
+
+    pub fn into_sql(&self) -> String {
+        "".to_string()
     }
 }
 
@@ -110,7 +115,7 @@ impl Persister for DatabasePersister {
                 .values(cols)
                 .and_where(
                     Expr::col(Alias::new(DEFAULT_ID_COLUMN_NAME).into_iden())
-                        .eq::<u64>(id.unwrap() as u64),
+                        .eq::<u64>(id.unwrap()),
                 )
                 .to_owned();
 
@@ -123,7 +128,7 @@ impl Persister for DatabasePersister {
                 .values(vals)?
                 .to_owned();
             let result = db.execute(builder.build(&stmt)).await?;
-            Ok(result.last_insert_id() as u64)
+            Ok(result.last_insert_id())
         }
     }
 }

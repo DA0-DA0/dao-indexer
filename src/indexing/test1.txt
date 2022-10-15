@@ -1,0 +1,24 @@
+Transaction {
+    stmts: [
+        Statement {
+            sql: "INSERT INTO simple_message\" (\"simple_field_one\", \"simple_field_two\") VALUES ($1, $2)",
+            values: Some(
+                Values(
+                    [
+                        String(
+                            Some(
+                                "simple_field_one value",
+                            ),
+                        ),
+                        BigInt(
+                            Some(
+                                33,
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+            db_backend: Postgres,
+        },
+    ],
+}
