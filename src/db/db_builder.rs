@@ -66,8 +66,8 @@ impl DatabaseBuilder {
         let join_table = format!("{}_{}", table_name, column_name);
         let l_key = foreign_key(table_name);
         let r_key = foreign_key(column_name);
-        self.column(&join_table, &l_key);
-        self.column(&join_table, &r_key);
+        self.column(&join_table, &l_key).integer();
+        self.column(&join_table, &r_key).integer();
     }
 
     pub fn add_table_column(&mut self, table_name: &str, column_name: &str) -> &mut Self {
@@ -96,6 +96,10 @@ impl DatabaseBuilder {
         destination_table_name: &str,
         mapping_policy: FieldMappingPolicy,
     ) -> anyhow::Result<()> {
+        debug!(
+            "Adding relation {} {}-> {}",
+            source_table_name, source_property_name, destination_table_name
+        );
         self.ensure_primary_id(destination_table_name);
         if source_table_name == destination_table_name {
             debug!(
@@ -199,8 +203,16 @@ impl DatabaseBuilder {
         for (table_name, table_def) in self.tables.iter() {
             let statement = builder.build(table_def);
             let statement_txt = format!("Executing {}\n{:#?}", table_name, statement);
-            println!("executing:\n{}", statement_txt);
-            seaql_db.execute(statement).await?;
+            debug!("executing:\n{}", statement_txt);
+            if let Err(e) = seaql_db.execute(statement).await {
+                return Err(anyhow::anyhow!(
+                    "Error creating table {}: {}\n{}\n{:#?}",
+                    table_name,
+                    e,
+                    statement_txt,
+                    table_def
+                ));
+            }
         }
         // Now that all the tables are created, we can add the rest of the fields and constraints
         for (table_name, constraints) in self.table_constraints.iter() {

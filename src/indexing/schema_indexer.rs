@@ -239,15 +239,8 @@ impl<'a, T> SchemaIndexer<T> {
                         SingleOrVec::Single(single_val) => match **single_val {
                             InstanceType::Object => {
                                 if table_name == property_name {
-                                    // assert!(
-                                    //     submessage,
-                                    //     "Expected submessage for {}->{}",
-                                    //     table_name, property_name
-                                    // );
-                                    // handle sub-messages by
-                                    // setting the appropriate foreign key
+                                    // handle sub-messages
                                     db_builder.add_sub_message_relation(parent_name, table_name)?;
-                                    // db_builder.add_relation(parent_name, property_name, name, FieldMappingPolicy::ManyToMany)?;
 
                                     self.process_schema_object(
                                         property_object_schema,
@@ -351,7 +344,6 @@ impl<'a, T> SchemaIndexer<T> {
         data: &mut SchemaData,
         db_builder: &mut DatabaseBuilder,
     ) -> anyhow::Result<()> {
-        println!("process_submessage {} on {}", name, parent_name);
         self.process_object_validation(obj, parent_name, name, data, db_builder, true)
     }
 
