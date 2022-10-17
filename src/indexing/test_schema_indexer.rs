@@ -187,8 +187,8 @@ pub mod tests {
         let indexer = SchemaIndexer::<u64>::new(
             "Cw3DaoInstantiateMsg".to_string(),
             vec![
-                build_schema_ref!(Cw3DaoInstantiateMsg,  "0.2.6"),
-                build_schema_ref!(Cw3DaoInstantiateMsg25,  "0.2.5"),
+                build_schema_ref!(Cw3DaoInstantiateMsg, "0.2.6"),
+                build_schema_ref!(Cw3DaoInstantiateMsg25, "0.2.5"),
             ],
             persister_ref,
         );
@@ -211,7 +211,7 @@ pub mod tests {
         let persister_ref = make_persister_ref(Box::new(persister));
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
-        assert!(registry.initialize().is_ok(), "failed to init indexer");
+        assert!(registry.initialize().await.is_ok(), "failed to init indexer");
 
         let built_table = registry.db_builder.table(name);
         let expected_sql = vec![
@@ -286,7 +286,7 @@ pub mod tests {
         let persister_ref = make_persister_ref(persister);
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
-        assert!(registry.initialize().is_ok(), "failed to init indexer");
+        assert!(registry.initialize().await.is_ok(), "failed to init indexer");
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_sub_message" ("#,
             r#""id" serial UNIQUE, "target_id" integer, "target_table_name" text )"#,
@@ -363,7 +363,7 @@ pub mod tests {
         let persister_ref = make_persister_ref(persister);
         let result = get_test_registry(name, schema, None, Some(persister_ref.clone()));
         let mut registry = result.registry;
-        assert!(registry.initialize().is_ok(), "failed to init indexer");
+        assert!(registry.initialize().await.is_ok(), "failed to init indexer");
 
         let expected_sql = vec![
             r#"CREATE TABLE IF NOT EXISTS "simple_related_message" ("#,

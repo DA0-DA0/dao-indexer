@@ -412,7 +412,7 @@ impl<'a, T> SchemaIndexer<T> {
                     db_builder.column(table_name, name).string();
                 }
                 InstanceType::Null => {
-                    warn!("Null instance type for {}/{}", table_name, name);
+                    warn!("Nullable instance type for {}/{}", table_name, name);
                     db_builder.column(table_name, &foreign_key(name)).integer();
                 }
                 InstanceType::Boolean => {

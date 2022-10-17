@@ -157,24 +157,9 @@ impl DatabaseBuilder {
         self.column(source_table_name, TARGET_ID_COLUMN_NAME)
             .integer();
 
-        // add a sub message mapping BACK from sub-type record to sub-message
-        // TODO(gavin.doughtie): probably don't want to do this, as multiple submessages
-        // could potentially point back to different parent tables??
-        // self.add_relation(
-        //     destination_table_name,
-        //     source_table_name,
-        //     source_table_name,
-        //     FieldMappingPolicy::ManyToMany,
-        // )?;
-
         // forward mapping from sub-message to specific sub-type table
-
-        self.value_mapper.add_submessage_mapping(
-            source_table_name,
-            // TARGET_ID_COLUMN_NAME,
-            destination_table_name,
-            // DEFAULT_ID_COLUMN_NAME,
-        )
+        self.value_mapper
+            .add_submessage_mapping(source_table_name, destination_table_name)
     }
 
     /// After all the schemas have added themselves to the various definitions,
@@ -211,10 +196,10 @@ impl DatabaseBuilder {
             ));
         }
         let builder = seaql_db.get_database_backend();
-        for (_table_name, table_def) in self.tables.iter() {
+        for (table_name, table_def) in self.tables.iter() {
             let statement = builder.build(table_def);
-            // let statement_txt = format!("Executing {}\n{:#?}", table_name, statement);
-
+            let statement_txt = format!("Executing {}\n{:#?}", table_name, statement);
+            println!("executing:\n{}", statement_txt);
             seaql_db.execute(statement).await?;
         }
         // Now that all the tables are created, we can add the rest of the fields and constraints

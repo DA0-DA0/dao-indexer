@@ -19,11 +19,11 @@ use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 
 use cw20::Cw20ExecuteMsg;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
+use cw3_multisig::msg::ExecuteMsg as Cw3MultisigExecuteMsg;
+use cw3_multisig::msg::InstantiateMsg as Cw3MultisigInstantiateMsg;
 use dao_indexer::indexing::schema_indexer::{SchemaIndexer, SchemaRef};
 use dao_indexer::{build_and_register_schema_indexer, build_schema_ref};
 use schemars::schema_for;
-use cw3_multisig::msg::ExecuteMsg as Cw3MultisigExecuteMsg;
-use cw3_multisig::msg::InstantiateMsg as Cw3MultisigInstantiateMsg;
 use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 
 fn register_schema_indexers(
@@ -45,16 +45,16 @@ fn register_schema_indexers(
     build_and_register_schema_indexer!(Cw3MultisigExecuteMsg, "0.2.5", persister_ref, registry);
     build_and_register_schema_indexer!(Cw3MultisigInstantiateMsg, "0.2.5", persister_ref, registry);
     build_and_register_schema_indexer!(StakeCw20ExecuteMsg, "0.2.4", persister_ref, registry);
- 
+
     Ok(())
 }
 
-fn init_registry(
+async fn init_registry(
     registry: &mut IndexerRegistry,
     persister_ref: PersisterRef<u64>,
 ) -> anyhow::Result<()> {
     register_schema_indexers(registry, persister_ref.clone())?;
-    registry.initialize()
+    registry.initialize().await
 }
 
 fn process_transactions(config: &IndexerConfig, registry: &IndexerRegistry) -> anyhow::Result<()> {
@@ -69,7 +69,7 @@ fn process_transactions(config: &IndexerConfig, registry: &IndexerRegistry) -> a
     Ok(())
 }
 
-fn persist_historical_transactions(
+async fn persist_historical_transactions(
     config: &IndexerConfig,
     diesel_db: PgConnection,
     persister_connection: DatabaseConnection,
@@ -80,7 +80,7 @@ fn persist_historical_transactions(
         Some(persister_connection),
         persister_ref.clone(),
     );
-    init_registry(&mut registry, persister_ref)?;
+    init_registry(&mut registry, persister_ref).await?;
     process_transactions(config, &registry)
 }
 
@@ -113,12 +113,13 @@ async fn main() -> anyhow::Result<()> {
             diesel_db,
             persister_connection,
             persister_ref.clone(),
-        )?;
+        )
+        .await?;
         drop(persister_ref)
     } else {
         let stub_persister_ref = make_persister_ref(Box::from(StubPersister {}));
         let mut registry = IndexerRegistry::new(None, None, stub_persister_ref.clone());
-        init_registry(&mut registry, stub_persister_ref)?;
+        init_registry(&mut registry, stub_persister_ref).await?;
         return process_transactions(&config, &registry);
     };
     Ok(())

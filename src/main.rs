@@ -180,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
         registry.register(Box::from(cw3dao_indexer), None);
         registry.register(Box::from(cw20_stake_indexer), None);
     }
-    registry.initialize()?;
+    registry.initialize().await?;
 
     if let Some(seaql_db) = &registry.seaql_db {
         let sql_dump = registry.db_builder.sql_string()?;

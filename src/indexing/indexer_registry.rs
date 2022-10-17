@@ -90,7 +90,7 @@ impl<'a> IndexerRegistry {
         }
     }
 
-    pub fn initialize(&mut self) -> anyhow::Result<()> {
+    pub async fn initialize(&mut self) -> anyhow::Result<()> {
         for indexer in self.indexers.iter() {
             indexer.initialize_dyn(self)?;
         }
@@ -98,6 +98,11 @@ impl<'a> IndexerRegistry {
             indexer.initialize_schemas_dyn(&mut self.db_builder)?;
         }
         self.db_builder.finalize_columns();
+
+        if let Some(db) = self.seaql_db.as_ref() {
+            self.db_builder.create_tables(db).await?;
+        }
+
         Ok(())
     }
 
