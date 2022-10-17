@@ -10,31 +10,50 @@ use dao_indexer::config::IndexerConfig;
 use dao_indexer::db::connection::establish_connection;
 use dao_indexer::historical_parser::index_search_result;
 use dao_indexer::indexing::indexer_registry::{IndexerRegistry, Register};
-use dao_indexer::indexing::indexers::msg_cw20_indexer::Cw20ExecuteMsgIndexer;
-use dao_indexer::indexing::indexers::msg_cw3dao_indexer::{
-    Cw3DaoExecuteMsgIndexer, Cw3DaoInstantiateMsgIndexer,
-};
-use dao_indexer::indexing::indexers::msg_cw3multisig_indexer::{
-    Cw3MultisigExecuteMsgIndexer, Cw3MultisigInstantiateMsgIndexer,
-};
-use dao_indexer::indexing::indexers::msg_stake_cw20_indexer::StakeCw20ExecuteMsgIndexer;
+
 use dao_indexer::indexing::msg_set::default_msg_set;
 use dao_indexer::util::transaction_util::get_transactions;
 
-fn init_registry(registry: &mut IndexerRegistry) -> anyhow::Result<()> {
-    let cw20_indexer = Cw20ExecuteMsgIndexer::default();
-    let cw3dao_instantiate_indexer = Cw3DaoInstantiateMsgIndexer::default();
-    let cw3dao_indexer = Cw3DaoExecuteMsgIndexer::default();
-    let cw20_stake_indexer = StakeCw20ExecuteMsgIndexer::default();
-    let cw3multisig_instantiate_indexer = Cw3MultisigInstantiateMsgIndexer::default();
-    let cw3multisig_execute_indexer = Cw3MultisigExecuteMsgIndexer::default();
+use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
+use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
 
-    registry.register(Box::from(cw20_indexer), None);
-    registry.register(Box::from(cw3multisig_instantiate_indexer), None);
-    registry.register(Box::from(cw3multisig_execute_indexer), None);
-    registry.register(Box::from(cw3dao_instantiate_indexer), None);
+use cw20::Cw20ExecuteMsg;
+use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
+use dao_indexer::indexing::schema_indexer::{SchemaIndexer, SchemaRef};
+use dao_indexer::{build_and_register_schema_indexer, build_schema_ref};
+use schemars::schema_for;
+use cw3_multisig::msg::ExecuteMsg as Cw3MultisigExecuteMsg;
+use cw3_multisig::msg::InstantiateMsg as Cw3MultisigInstantiateMsg;
+use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
+
+fn register_schema_indexers(
+    registry: &mut IndexerRegistry,
+    persister_ref: PersisterRef<u64>,
+) -> anyhow::Result<()> {
+    let cw3dao_indexer = SchemaIndexer::<u64>::new(
+        "Cw3DaoInstantiateMsg".to_string(),
+        vec![
+            build_schema_ref!(Cw3DaoInstantiateMsg, "0.2.6"),
+            build_schema_ref!(Cw3DaoInstantiateMsg25, "0.2.5"),
+        ],
+        persister_ref.clone(),
+    );
     registry.register(Box::from(cw3dao_indexer), None);
-    registry.register(Box::from(cw20_stake_indexer), None);
+
+    build_and_register_schema_indexer!(Cw3DaoExecuteMsg, "0.2.6", persister_ref, registry);
+    build_and_register_schema_indexer!(Cw20ExecuteMsg, "0.13.4", persister_ref, registry);
+    build_and_register_schema_indexer!(Cw3MultisigExecuteMsg, "0.2.5", persister_ref, registry);
+    build_and_register_schema_indexer!(Cw3MultisigInstantiateMsg, "0.2.5", persister_ref, registry);
+    build_and_register_schema_indexer!(StakeCw20ExecuteMsg, "0.2.4", persister_ref, registry);
+ 
+    Ok(())
+}
+
+fn init_registry(
+    registry: &mut IndexerRegistry,
+    persister_ref: PersisterRef<u64>,
+) -> anyhow::Result<()> {
+    register_schema_indexers(registry, persister_ref.clone())?;
     registry.initialize()
 }
 
@@ -56,9 +75,12 @@ fn persist_historical_transactions(
     persister_connection: DatabaseConnection,
     persister_ref: PersisterRef<u64>,
 ) -> anyhow::Result<()> {
-    let mut registry =
-        IndexerRegistry::new(Some(diesel_db), Some(persister_connection), persister_ref);
-    init_registry(&mut registry)?;
+    let mut registry = IndexerRegistry::new(
+        Some(diesel_db),
+        Some(persister_connection),
+        persister_ref.clone(),
+    );
+    init_registry(&mut registry, persister_ref)?;
     process_transactions(config, &registry)
 }
 
@@ -94,9 +116,9 @@ async fn main() -> anyhow::Result<()> {
         )?;
         drop(persister_ref)
     } else {
-        let mut registry =
-            IndexerRegistry::new(None, None, make_persister_ref(Box::from(StubPersister {})));
-        init_registry(&mut registry)?;
+        let stub_persister_ref = make_persister_ref(Box::from(StubPersister {}));
+        let mut registry = IndexerRegistry::new(None, None, stub_persister_ref.clone());
+        init_registry(&mut registry, stub_persister_ref)?;
         return process_transactions(&config, &registry);
     };
     Ok(())

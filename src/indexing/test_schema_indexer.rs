@@ -19,6 +19,9 @@ pub mod tests {
     use serde_json::Value;
 
     use schemars::JsonSchema;
+
+    use crate::build_schema_ref;
+
     #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
     #[serde(rename_all = "snake_case")]
     struct SimpleMessage {
@@ -178,24 +181,14 @@ pub mod tests {
         use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
         use schemars::schema_for;
 
-        let schema3 = schema_for!(Cw3DaoInstantiateMsg);
-        let schema25 = schema_for!(Cw3DaoInstantiateMsg25);
         let mock_db = new_mock_db().into_connection();
         let persister = DatabasePersister::new(mock_db);
         let persister_ref = make_persister_ref(Box::new(persister));
         let indexer = SchemaIndexer::<u64>::new(
             "Cw3DaoInstantiateMsg".to_string(),
             vec![
-                SchemaRef {
-                    name: "Cw3DaoInstantiateMsg".to_string(),
-                    schema: schema3,
-                    version: "0.2.6",
-                },
-                SchemaRef {
-                    name: "Cw3DaoInstantiateMsg25".to_string(),
-                    schema: schema25,
-                    version: "0.2.5",
-                },
+                build_schema_ref!(Cw3DaoInstantiateMsg,  "0.2.6"),
+                build_schema_ref!(Cw3DaoInstantiateMsg25,  "0.2.5"),
             ],
             persister_ref,
         );
