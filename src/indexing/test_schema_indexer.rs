@@ -301,7 +301,7 @@ pub mod tests {
         .join(" ");
         let built_table = registry.db_builder.table(name);
         compare_table_create_statements(built_table, &expected_sql);
-        debug!("{}", registry.db_builder.sql_string().unwrap());
+        debug!("{}", registry.db_builder.sql_string(None).unwrap());
 
         // Now save a message:
         let msg_dictionary = serde_json::json!({
@@ -383,7 +383,7 @@ pub mod tests {
             r#""message_id" integer )"#,
         ]
         .join(" ");
-        println!("{}", registry.db_builder.sql_string()?);
+        println!("{}", registry.db_builder.sql_string(None)?);
         let built_table = registry.db_builder.table(name);
         compare_table_create_statements(built_table, &expected_sql);
 
@@ -541,7 +541,9 @@ pub mod tests {
 
     #[test]
     async fn test_register_daodao_schema_indexers() {
+        use sea_orm::ConnectionTrait;
         let db = new_mock_db().into_connection();
+        let backend = db.get_database_backend();
         let persister = DatabasePersister::new(db);
         let persister_ref = make_persister_ref(Box::new(persister));
         let mut registry = IndexerRegistry::new(None, None, persister_ref.clone());
@@ -552,6 +554,6 @@ pub mod tests {
         );
         // If you want to look at the generated SQL, you can uncomment
         // this line:
-        println!("{}", registry.db_builder.sql_string().unwrap());
+        println!("{}", registry.db_builder.sql_string(Some(&backend)).unwrap());
     }
 }

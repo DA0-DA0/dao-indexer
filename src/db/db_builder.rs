@@ -2,7 +2,7 @@ use log::debug;
 use sea_orm::sea_query::{
     Alias, ColumnDef, ForeignKeyCreateStatement, PostgresQueryBuilder, Table, TableCreateStatement,
 };
-use sea_orm::{ConnectionTrait, DatabaseConnection};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseBackend};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::db_mapper::{DatabaseMapper, FieldMappingPolicy};
@@ -230,7 +230,7 @@ impl DatabaseBuilder {
     }
 
     /// Human-readable SQL string for all definitions in this builder.
-    pub fn sql_string(&self) -> anyhow::Result<String> {
+    pub fn sql_string(&self, backend: Option<&DatabaseBackend>) -> anyhow::Result<String> {
         if !self.columns.is_empty() {
             return Err(anyhow::anyhow!(
                 "Builder not finalized. Please call `finalize_columns` before `sql_string`"
@@ -240,6 +240,15 @@ impl DatabaseBuilder {
         for (_table_name, table_def) in self.tables.iter() {
             let sql = table_def.to_string(PostgresQueryBuilder);
             statements.push(sql);
+        }
+        if let Some(builder) = backend {
+            for (_table_name, constraints) in self.table_constraints.iter() {
+                for create_statement in constraints.iter() {
+                    // alter the table to add constraints
+                    let statement = builder.build(create_statement);
+                    statements.push(statement.to_string());
+                }
+            }
         }
         Ok(statements.join(";\n"))
     }
