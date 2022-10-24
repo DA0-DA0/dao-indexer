@@ -1,17 +1,17 @@
 use crate::{build_and_register_schema_indexer, build_schema_ref};
-use schemars::schema_for;
-use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 use cw3_dao::msg::ExecuteMsg as Cw3DaoExecuteMsg;
 use cw3_dao::msg::InstantiateMsg as Cw3DaoInstantiateMsg;
+use schemars::schema_for;
+use stake_cw20::msg::ExecuteMsg as StakeCw20ExecuteMsg;
 
+use crate::db::persister::PersisterRef;
+use crate::indexing::indexer_registry::{IndexerRegistry, Register};
+use crate::indexing::schema_indexer::SchemaIndexer;
+use crate::indexing::schema_indexer::SchemaRef;
 use cw20::Cw20ExecuteMsg;
 use cw3_dao_2_5::msg::InstantiateMsg as Cw3DaoInstantiateMsg25;
 use cw3_multisig::msg::ExecuteMsg as Cw3MultisigExecuteMsg;
 use cw3_multisig::msg::InstantiateMsg as Cw3MultisigInstantiateMsg;
-use crate::db::persister::PersisterRef;
-use crate::indexing::schema_indexer::SchemaIndexer;
-use crate::indexing::indexer_registry::{IndexerRegistry, Register};
-use crate::indexing::schema_indexer::SchemaRef;
 
 pub fn register_daodao_schema_indexers(
     registry: &mut IndexerRegistry,

@@ -1,10 +1,10 @@
 #[cfg(test)]
 pub mod tests {
-    use crate::indexing::schema_indexer_daodao::register_daodao_schema_indexers;
     use crate::db::db_persister::DatabasePersister;
     use crate::db::persister::{make_persister_ref, Persister};
     use crate::indexing::indexer_registry::IndexerRegistry;
     use crate::indexing::schema_indexer::*;
+    use crate::indexing::schema_indexer_daodao::register_daodao_schema_indexers;
     use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
     use serde::{Deserialize, Serialize};
     use tokio::test;
@@ -554,6 +554,9 @@ pub mod tests {
         );
         // If you want to look at the generated SQL, you can uncomment
         // this line:
-        println!("{}", registry.db_builder.sql_string(Some(&backend)).unwrap());
+        println!(
+            "{}",
+            registry.db_builder.sql_string(Some(&backend)).unwrap()
+        );
     }
 }

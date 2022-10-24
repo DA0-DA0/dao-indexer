@@ -2,12 +2,12 @@ use log::debug;
 use sea_orm::sea_query::{
     Alias, ColumnDef, ForeignKeyCreateStatement, PostgresQueryBuilder, Table, TableCreateStatement,
 };
-use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseBackend};
+use sea_orm::{ConnectionTrait, DatabaseBackend, DatabaseConnection};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::db_mapper::{DatabaseMapper, FieldMappingPolicy};
 use super::db_util::{
-    db_column_name, db_table_name, foreign_key, DEFAULT_ID_COLUMN_NAME,
+    constraint_name, db_column_name, db_table_name, foreign_key, DEFAULT_ID_COLUMN_NAME,
     DEFAULT_TABLE_NAME_COLUMN_NAME, TARGET_ID_COLUMN_NAME,
 };
 
@@ -116,12 +116,13 @@ impl DatabaseBuilder {
             mapping_policy,
         )?;
         let fk = foreign_key(source_property_name);
+        let constraint_name = constraint_name(source_table_name, &fk);
         self.column(source_table_name, &fk).integer();
 
         let db_source_table_name = db_table_name(source_table_name);
         let db_destination_table_name = db_table_name(destination_table_name);
         let foreign_key_create = ForeignKeyCreateStatement::new()
-            .name(&fk)
+            .name(&constraint_name) // was fk
             .from_tbl(Alias::new(&db_source_table_name))
             .from_col(Alias::new(&fk))
             .to_tbl(Alias::new(&db_destination_table_name))

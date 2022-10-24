@@ -19,3 +19,11 @@ pub fn db_column_name(input_name: &str) -> String {
 pub fn foreign_key(column_name: &str) -> String {
     format!("{}_id", db_column_name(column_name))
 }
+
+pub fn constraint_name(table_name: &str, column_name: &str) -> String {
+    format!(
+        "{}_{}_fkey",
+        db_table_name(table_name),
+        db_column_name(column_name)
+    )
+}
