@@ -1,5 +1,6 @@
 #[cfg(test)]
 pub mod tests {
+    use crate::indexing::schema_indexer_daodao::register_daodao_schema_indexers;
     use crate::db::db_persister::DatabasePersister;
     use crate::db::persister::{make_persister_ref, Persister};
     use crate::indexing::indexer_registry::IndexerRegistry;
@@ -536,5 +537,21 @@ pub mod tests {
         // To see the DB population calls, uncomment this:
         // println!("{:#?}", persister.into_transaction_log());
         assert!(result.is_ok());
+    }
+
+    #[test]
+    async fn test_register_daodao_schema_indexers() {
+        let db = new_mock_db().into_connection();
+        let persister = DatabasePersister::new(db);
+        let persister_ref = make_persister_ref(Box::new(persister));
+        let mut registry = IndexerRegistry::new(None, None, persister_ref.clone());
+        assert!(register_daodao_schema_indexers(&mut registry, persister_ref).is_ok());
+        assert!(
+            registry.initialize().await.is_ok(),
+            "failed to init indexer"
+        );
+        // If you want to look at the generated SQL, you can uncomment
+        // this line:
+        println!("{}", registry.db_builder.sql_string().unwrap());
     }
 }

@@ -11,3 +11,4 @@ pub mod schema_indexer;
 pub mod schema_indexer_macros;
 mod test_schema_indexer;
 pub mod tx;
+pub mod schema_indexer_daodao;

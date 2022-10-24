@@ -113,7 +113,7 @@ impl<'a, T> SchemaIndexer<T> {
         data: &mut SchemaData,
         db_builder: &mut DatabaseBuilder,
     ) -> anyhow::Result<()> {
-        println!("process_subschema {}->{}", parent_name, name);
+        debug!("process_subschema {}->{}", parent_name, name);
         if let Some(all_of) = &subschema.all_of {
             for schema in all_of {
                 match schema {
